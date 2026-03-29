@@ -1,0 +1,27 @@
+name: findway_mobile
+description: Global humanitarian search platform.
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.1.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # State Management & DI
+  flutter_bloc: ^8.1.0
+  get_it: ^7.6.0
+  
+  # Network & Data
+  dio: ^5.4.0
+  drift: ^2.14.0
+  sqlite3_flutter_libs: ^0.5.18
+  path_provider: ^2.1.1
+  dartz: ^0.10.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  drift_dev: ^2.14.0
+  build_runner: ^2.4.7
