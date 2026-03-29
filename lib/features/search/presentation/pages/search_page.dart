@@ -7,57 +7,91 @@ import '../bloc/search_state.dart';
 import '../widgets/filter_builder.dart';
 
 class SearchPage extends StatelessWidget {
-  // const конструктор исправляет ошибку в main.dart
   const SearchPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => sl<SearchBloc>()..add(const LoadFilters(category: 'people')),
-      child: Builder(builder: (context) {
-        return DefaultTabController(
-          length: 3,
-          child: Scaffold(
-            appBar: AppBar(
-              title: const Text('FindWay: Пошук'),
-              bottom: TabBar(
-                onTap: (index) {
-                  final categories = ['people', 'animals', 'things'];
-                  context.read<SearchBloc>().add(LoadFilters(category: categories[index]));
-                },
-                tabs: const [
-                  Tab(text: 'Люди'),
-                  Tab(text: 'Тварини'),
-                  Tab(text: 'Речі'),
+      child: BlocBuilder<SearchBloc, SearchState>(
+        builder: (context, state) {
+          // Извлекаем переводы из стейта (FiltersLoaded или SearchSuccess)
+          final Map<String, dynamic> tr = (state is FiltersLoaded) 
+              ? state.uiTranslations 
+              : (state is SearchSuccess) ? state.uiTranslations : {};
+
+          return DefaultTabController(
+            length: 3,
+            child: Scaffold(
+              appBar: AppBar(
+                title: Text(tr['page_title'] ?? 'FindWay: Пошук'),
+                actions: [
+                  _LocaleSelector(currentLocale: (state is FiltersLoaded) ? state.currentLocale : 'uk'),
                 ],
+                bottom: TabBar(
+                  onTap: (index) {
+                    final categories = ['people', 'animals', 'things'];
+                    context.read<SearchBloc>().add(LoadFilters(category: categories[index]));
+                  },
+                  tabs: [
+                    Tab(text: tr['button_article'] ?? 'Люди'),
+                    Tab(text: tr['button_sense'] ?? 'Тварини'),
+                    Tab(text: tr['button_thing'] ?? 'Речі'),
+                  ],
+                ),
               ),
+              body: _SearchBody(tr: tr),
             ),
-            body: const _SearchBody(),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _LocaleSelector extends StatelessWidget {
+  final String currentLocale;
+  const _LocaleSelector({required this.currentLocale});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: 'Змінити мову',
+      icon: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.language, color: Colors.blueAccent),
+          const SizedBox(width: 4),
+          Text(currentLocale.toUpperCase(), 
+            style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)
           ),
-        );
-      }),
+        ],
+      ),
+      onSelected: (locale) => context.read<SearchBloc>().add(ChangeLocale(locale)),
+      itemBuilder: (context) => [
+        const PopupMenuItem(value: 'uk', child: Text('Українська (UA)')),
+        const PopupMenuItem(value: 'en', child: Text('English (EN)')),
+      ],
     );
   }
 }
 
 class _SearchBody extends StatelessWidget {
-  const _SearchBody();
+  final Map<String, dynamic> tr;
+  const _SearchBody({required this.tr});
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<SearchBloc, SearchState>(
       builder: (context, state) {
-        // 1. Загрузка
         if (state is SearchLoading || state is ResultsLoading) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // 2. Вывод результатов (Посты)
         if (state is SearchSuccess) {
-          return _ResultsList(results: state.results);
+          return _ResultsList(results: state.results, tr: tr);
         }
 
-        // 3. Форма фильтров
         if (state is FiltersLoaded) {
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -77,7 +111,10 @@ class _SearchBody extends StatelessWidget {
                   height: 50,
                   child: ElevatedButton(
                     onPressed: () => context.read<SearchBloc>().add(const PerformSearch()),
-                    child: const Text("ЗНАЙТИ", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    child: Text(
+                      (tr['find'] ?? "ЗНАЙТИ").toString().toUpperCase(), 
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+                    ),
                   ),
                 ),
               ],
@@ -97,7 +134,8 @@ class _SearchBody extends StatelessWidget {
 
 class _ResultsList extends StatelessWidget {
   final List<dynamic> results;
-  const _ResultsList({required this.results});
+  final Map<String, dynamic> tr;
+  const _ResultsList({required this.results, required this.tr});
 
   @override
   Widget build(BuildContext context) {
@@ -108,10 +146,14 @@ class _ResultsList extends StatelessWidget {
           children: [
             const Icon(Icons.search_off, size: 64, color: Colors.grey),
             const SizedBox(height: 16),
-            const Text("Нічого не знайдено", style: TextStyle(fontSize: 18)),
+            Text(tr['empty_state'] ?? "Нічого не знайдено", style: const TextStyle(fontSize: 18)),
             TextButton(
-              onPressed: () => context.read<SearchBloc>().add(const LoadFilters(category: 'people')),
-              child: const Text("Змінити фільтри"),
+              onPressed: () {
+                final categories = ['people', 'animals', 'things'];
+                final index = DefaultTabController.of(context).index;
+                context.read<SearchBloc>().add(LoadFilters(category: categories[index]));
+              },
+              child: Text(tr['change_filters'] ?? "Змінити фільтри"),
             ),
           ],
         ),
@@ -126,11 +168,16 @@ class _ResultsList extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Результати: ${results.length}", style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text("${tr['results_count'] ?? 'Результати'}: ${results.length}", 
+                style: const TextStyle(fontWeight: FontWeight.bold)),
               TextButton.icon(
-                onPressed: () => context.read<SearchBloc>().add(const LoadFilters(category: 'people')),
+                onPressed: () {
+                  final categories = ['people', 'animals', 'things'];
+                  final index = DefaultTabController.of(context).index;
+                  context.read<SearchBloc>().add(LoadFilters(category: categories[index]));
+                },
                 icon: const Icon(Icons.tune, size: 18),
-                label: const Text("Фільтри"),
+                label: Text(tr['filter'] ?? "Фільтри"),
               ),
             ],
           ),
@@ -149,20 +196,19 @@ class _ResultsList extends StatelessWidget {
                     backgroundColor: Colors.blueAccent,
                     child: Icon(Icons.location_on, color: Colors.white),
                   ),
-                  // Адаптация под ключи твоего Rails API
                   title: Text(
-                    post['title'] ?? post['text'] ?? "Об'єкт #${post['id']}",
+                    post['title'] ?? post['text'] ?? "ID #${post['id']}",
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Padding(
                     padding: const EdgeInsets.only(top: 8.0),
                     child: Text(
-                      post['description'] ?? "Опис не вказано",
+                      post['description'] ?? post['text'] ?? "...",
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  onTap: () => debugPrint("Перехід до поста: ${post['id']}"),
+                  onTap: () => debugPrint("Post ID: ${post['id']}"),
                 ),
               );
             },

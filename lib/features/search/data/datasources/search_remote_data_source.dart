@@ -3,7 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../models/filter_model.dart';
 
 abstract class SearchRemoteDataSource {
-  Future<List<FilterModel>> getFilters({
+  // Теперь возвращает Map, чтобы включить и фильтры, и переводы
+  Future<Map<String, dynamic>> getFiltersData({
     required String category, 
     required String locale,
   });
@@ -21,7 +22,7 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
   SearchRemoteDataSourceImpl({required this.client});
 
   @override
-  Future<List<FilterModel>> getFilters({
+  Future<Map<String, dynamic>> getFiltersData({
     required String category,
     required String locale,
   }) async {
@@ -31,25 +32,26 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     );
     
     final data = response.data;
+    debugPrint('DEBUG [GET FILTERS DATA]: Ответ от сервера: $data');
 
-    // ЛОГ ДЛЯ ДИАГНОСТИКИ: Позволит увидеть, что шлет Rails на самом деле
-    debugPrint('DEBUG [GET FILTERS]: Ответ от сервера для $category: $data');
-
-    // 1. Если пришел чистый массив
-    if (data is List) {
-      return data.map((json) => FilterModel.fromJson(json)).toList();
-    }
-
-    // 2. Если пришел объект (Map), ищем список внутри по ключам
     if (data is Map<String, dynamic>) {
-      final List? list = data['filters'] ?? data['data'] ?? data['items'];
-      if (list != null) {
-        return list.map((json) => FilterModel.fromJson(json)).toList();
-      }
+      // Извлекаем список фильтров
+      final List rawFilters = data['filters'] ?? [];
+      final List<FilterModel> filters = rawFilters
+          .map((json) => FilterModel.fromJson(json))
+          .toList();
+
+      // Извлекаем блок переводов из твоего YAML
+      final Map<String, dynamic> translations = 
+          data['translations'] as Map<String, dynamic>? ?? {};
+
+      return {
+        'filters': filters,
+        'translations': translations,
+      };
     }
 
-    debugPrint('ОШИБКА: Не удалось найти массив фильтров в ответе API');
-    return [];
+    throw Exception("Unexpected API response format for filters");
   }
 
   @override
@@ -58,11 +60,18 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     required Map<String, dynamic> filters,
     required String locale,
   }) async {
+    // 1. Базовые параметры
     final Map<String, dynamic> queryParameters = {
       'category': category,
       'locale': locale,
-      ...filters, 
     };
+
+    // 2. Оборачиваем фильтры в q[] для совместимости с Ransack (Risk Control)
+    filters.forEach((key, value) {
+      if (value != null && value.toString().isNotEmpty) {
+        queryParameters['q[$key]'] = value;
+      }
+    });
 
     final response = await client.get(
       '/api/v1/search',
@@ -70,22 +79,15 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     );
 
     final rawData = response.data;
+    debugPrint('DEBUG [SEARCH]: Результаты: $rawData');
 
-    // ЛОГ ДЛЯ ДИАГНОСТИКИ
-    debugPrint('DEBUG [SEARCH]: Результаты поиска: $rawData');
-
-    if (rawData is List) {
-      return rawData;
+    // Извлекаем результаты из ключа 'results', который мы настроили в Rails
+    if (rawData is Map<String, dynamic> && rawData.containsKey('results')) {
+      return rawData['results'] as List<dynamic>;
     }
 
-    if (rawData is Map<String, dynamic>) {
-      if (rawData.containsKey('results')) return rawData['results'] as List;
-      if (rawData.containsKey('data')) return rawData['data'] as List;
-      if (rawData.containsKey('items')) return rawData['items'] as List;
-
-      debugPrint('ВНИМАНИЕ: Список результатов не найден в Map. Структура: $rawData');
-      return []; 
-    }
+    // Fallback на случай, если Rails отдал чистый массив
+    if (rawData is List) return rawData;
 
     return [];
   }

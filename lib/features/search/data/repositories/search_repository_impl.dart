@@ -8,15 +8,22 @@ class SearchRepositoryImpl implements SearchRepository {
   SearchRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<List<FilterModel>> getFilters({
+  Future<Map<String, dynamic>> getFiltersData({
     required String category,
     required String locale,
   }) async {
-    // ИСПРАВЛЕНО: Добавлены имена параметров category: и locale:
-    return await remoteDataSource.getFilters(
+    // 1. Получаем композитные данные из источника
+    final Map<String, dynamic> data = await remoteDataSource.getFiltersData(
       category: category, 
       locale: locale,
     );
+
+    // 2. Возвращаем Map, который ожидает Блок
+    // (Маппинг JSON -> FilterModel уже произошел в DataSource для чистоты)
+    return {
+      'filters': data['filters'] as List<FilterModel>,
+      'translations': data['translations'] as Map<String, dynamic>,
+    };
   }
 
   @override
@@ -25,7 +32,8 @@ class SearchRepositoryImpl implements SearchRepository {
     required Map<String, dynamic> filters,
     required String locale,
   }) async {
-    // Проброс вызова в DataSource
+    // Проброс вызова в DataSource. 
+    // Напоминаю: DataSource сам обернет фильтры в q[...] для Ransack.
     return await remoteDataSource.search(
       category: category,
       filters: filters,

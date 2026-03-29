@@ -17,3 +17,11 @@ class UpdateFilterValue extends SearchEvent {
 class PerformSearch extends SearchEvent {
   const PerformSearch();
 }
+
+class ChangeLocale extends SearchEvent {
+  final String locale;
+  const ChangeLocale(this.locale);
+
+  @override
+  List<Object> get props => [locale];
+}

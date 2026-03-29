@@ -1,13 +1,14 @@
+// Убираем несуществующий импорт filter_entity.dart
 import '../../data/models/filter_model.dart';
 
 abstract class SearchRepository {
-  // Исправляем на именованные параметры для консистентности
-  Future<List<FilterModel>> getFilters({
+  // Контракт на получение фильтров и переводов из YAML
+  Future<Map<String, dynamic>> getFiltersData({
     required String category,
     required String locale,
   });
 
-  // Добавляем метод поиска в контракт
+  // Контракт на поиск
   Future<List<dynamic>> search({
     required String category,
     required Map<String, dynamic> filters,
