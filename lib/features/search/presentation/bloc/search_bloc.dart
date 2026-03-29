@@ -39,5 +39,27 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         ));
       }
     });
+  
+  on<PerformSearch>((event, emit) async {
+  if (state is FiltersLoaded) {
+    final currentState = state as FiltersLoaded;
+    final filters = currentState.selectedValues;
+    final category = currentState.currentCategory;
+
+    emit(ResultsLoading());
+
+    try {
+      // Вызываем репозиторий, передавая карту фильтров
+      final results = await repository.search(
+        category: category,
+        filters: filters,
+        locale: 'uk',
+      );
+      emit(SearchSuccess(results));
+    } catch (e) {
+      emit(SearchError(e.toString()));
+    }
   }
+});
+}
 }

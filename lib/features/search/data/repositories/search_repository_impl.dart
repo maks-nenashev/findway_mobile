@@ -12,7 +12,24 @@ class SearchRepositoryImpl implements SearchRepository {
     required String category,
     required String locale,
   }) async {
-    // Просто передаем запрос в сетевой источник данных
-    return await remoteDataSource.getFilters(category, locale);
+    // ИСПРАВЛЕНО: Добавлены имена параметров category: и locale:
+    return await remoteDataSource.getFilters(
+      category: category, 
+      locale: locale,
+    );
+  }
+
+  @override
+  Future<List<dynamic>> search({
+    required String category,
+    required Map<String, dynamic> filters,
+    required String locale,
+  }) async {
+    // Проброс вызова в DataSource
+    return await remoteDataSource.search(
+      category: category,
+      filters: filters,
+      locale: locale,
+    );
   }
 }

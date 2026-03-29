@@ -23,3 +23,11 @@ class SearchError extends SearchState {
   final String message;
   const SearchError(this.message);
 }
+
+// Состояние загрузки результатов (можно переиспользовать SearchLoading или создать новое)
+class ResultsLoading extends SearchState {}
+
+class SearchSuccess extends SearchState {
+  final List<dynamic> results; // Здесь будут твои модели сущностей
+  const SearchSuccess(this.results);
+}

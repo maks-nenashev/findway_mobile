@@ -13,3 +13,7 @@ class UpdateFilterValue extends SearchEvent {
 
   const UpdateFilterValue({required this.filterId, required this.value});
 }
+
+class PerformSearch extends SearchEvent {
+  const PerformSearch();
+}
