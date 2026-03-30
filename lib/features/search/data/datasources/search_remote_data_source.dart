@@ -1,9 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart'; 
 import '../models/filter_model.dart';
+import '../models/post_detail_model.dart'; // Импортируем новую модель
 
 abstract class SearchRemoteDataSource {
-  // Теперь возвращает Map, чтобы включить и фильтры, и переводы
   Future<Map<String, dynamic>> getFiltersData({
     required String category, 
     required String locale,
@@ -12,6 +12,13 @@ abstract class SearchRemoteDataSource {
   Future<List<dynamic>> search({
     required String category,
     required Map<String, dynamic> filters,
+    required String locale,
+  });
+
+  // Новый контракт для деталей поста
+  Future<Map<String, dynamic>> getPostDetails({
+    required int id,
+    required String category,
     required String locale,
   });
 }
@@ -32,16 +39,14 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     );
     
     final data = response.data;
-    debugPrint('DEBUG [GET FILTERS DATA]: Ответ от сервера: $data');
+    debugPrint('DEBUG [GET FILTERS DATA]: $data');
 
     if (data is Map<String, dynamic>) {
-      // Извлекаем список фильтров
       final List rawFilters = data['filters'] ?? [];
       final List<FilterModel> filters = rawFilters
           .map((json) => FilterModel.fromJson(json))
           .toList();
 
-      // Извлекаем блок переводов из твоего YAML
       final Map<String, dynamic> translations = 
           data['translations'] as Map<String, dynamic>? ?? {};
 
@@ -50,8 +55,7 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
         'translations': translations,
       };
     }
-
-    throw Exception("Unexpected API response format for filters");
+    throw Exception("Unexpected API response format");
   }
 
   @override
@@ -60,16 +64,14 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     required Map<String, dynamic> filters,
     required String locale,
   }) async {
-    // 1. Базовые параметры
     final Map<String, dynamic> queryParameters = {
       'category': category,
       'locale': locale,
     };
 
-    // 2. Оборачиваем фильтры в q[] для совместимости с Ransack (Risk Control)
     filters.forEach((key, value) {
       if (value != null && value.toString().isNotEmpty) {
-        queryParameters['q[$key]'] = value;
+        queryParameters[key] = value; 
       }
     });
 
@@ -79,16 +81,47 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     );
 
     final rawData = response.data;
-    debugPrint('DEBUG [SEARCH]: Результаты: $rawData');
+    debugPrint('DEBUG [SEARCH REQUEST]: ${response.realUri}');
 
-    // Извлекаем результаты из ключа 'results', который мы настроили в Rails
     if (rawData is Map<String, dynamic> && rawData.containsKey('results')) {
       return rawData['results'] as List<dynamic>;
     }
-
-    // Fallback на случай, если Rails отдал чистый массив
     if (rawData is List) return rawData;
-
     return [];
+  }
+
+  // РЕАЛИЗАЦИЯ: Получение деталей поста
+  @override
+  Future<Map<String, dynamic>> getPostDetails({
+    required int id,
+    required String category,
+    required String locale,
+  }) async {
+    final response = await client.get(
+      '/api/v1/search/$id', // Маршрут search/:id из твоего routes.rb
+      queryParameters: {
+        'category': category,
+        'locale': locale,
+      },
+    );
+
+    final data = response.data;
+    debugPrint('DEBUG [GET POST DETAILS]: $data');
+
+    if (data is Map<String, dynamic>) {
+      // Мапим данные в PostDetailModel
+      final record = PostDetailModel.fromJson(data['record'] ?? {});
+      
+      // Извлекаем переводы (блок .show в твоем YAML)
+      final Map<String, dynamic> translations = 
+          data['translations'] as Map<String, dynamic>? ?? {};
+
+      return {
+        'record': record,
+        'translations': translations,
+      };
+    }
+
+    throw Exception("Unexpected API response format for details");
   }
 }

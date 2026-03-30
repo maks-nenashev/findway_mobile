@@ -14,4 +14,10 @@ abstract class SearchRepository {
     required Map<String, dynamic> filters,
     required String locale,
   });
+
+  Future<Map<String, dynamic>> getPostDetails({
+    required int id,
+    required String category,
+    required String locale,
+  });
 }

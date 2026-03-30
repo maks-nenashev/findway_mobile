@@ -6,21 +6,22 @@ import '../../domain/repositories/search_repository.dart';
 
 class SearchBloc extends Bloc<SearchEvent, SearchState> {
   final SearchRepository repository;
+  
+  // Single Source of Truth для локали внутри этого Блока
+  String _currentLocale = 'uk'; 
 
   SearchBloc({required this.repository}) : super(SearchInitial()) {
     
-    // 1. Загрузка фильтров и переводов из YAML
+    // 1. Загрузка фильтров
     on<LoadFilters>((event, emit) async {
-      final currentLocale = (state is FiltersLoaded) 
-          ? (state as FiltersLoaded).currentLocale 
-          : 'uk';
-
+      // Синхронизируем внутреннюю локаль, если она пришла в событии
+      _currentLocale = event.locale;
       emit(SearchLoading());
+      
       try {
-        // Репозиторий возвращает Map: {'filters': List<FilterModel>, 'translations': Map}
         final data = await repository.getFiltersData(
           category: event.category,
-          locale: currentLocale,
+          locale: _currentLocale,
         );
 
         emit(FiltersLoaded(
@@ -28,39 +29,42 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           uiTranslations: data['translations'],
           currentCategory: event.category,
           selectedValues: const {},
-          currentLocale: currentLocale,
+          currentLocale: _currentLocale, 
         ));
       } catch (e) {
         emit(SearchError(e.toString()));
       }
     });
 
-    // 2. Смена локали (Полный сброс контекста)
+    // 2. Смена локали
     on<ChangeLocale>((event, emit) async {
-      final category = (state is FiltersLoaded) 
+      _currentLocale = event.locale; 
+
+      final String currentCategory = (state is FiltersLoaded) 
           ? (state as FiltersLoaded).currentCategory 
           : 'people';
 
       emit(SearchLoading());
+      
       try {
         final data = await repository.getFiltersData(
-          category: category,
-          locale: event.locale,
+          category: currentCategory,
+          locale: _currentLocale,
         );
 
         emit(FiltersLoaded(
           filters: data['filters'],
           uiTranslations: data['translations'],
-          currentCategory: category,
-          selectedValues: const {}, // Risk Control: сброс обязателен
-          currentLocale: event.locale,
+          currentCategory: currentCategory,
+          selectedValues: const {}, 
+          currentLocale: _currentLocale,
         ));
       } catch (e) {
         emit(SearchError(e.toString()));
       }
     });
 
-    // 3. Обновление значений фильтров (через copyWith)
+    // 3. Обновление значений фильтров
     on<UpdateFilterValue>((event, emit) {
       if (state is FiltersLoaded) {
         final currentState = state as FiltersLoaded;
@@ -71,21 +75,19 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       }
     });
   
-    // 4. Поиск (Передача переводов в SearchSuccess)
+    // 4. Поиск
     on<PerformSearch>((event, emit) async {
       if (state is FiltersLoaded) {
         final currentState = state as FiltersLoaded;
-        
         emit(ResultsLoading());
 
         try {
           final results = await repository.search(
             category: currentState.currentCategory,
             filters: currentState.selectedValues,
-            locale: currentState.currentLocale,
+            locale: _currentLocale,
           );
           
-          // Прокидываем uiTranslations дальше, чтобы экран результатов был локализован
           emit(SearchSuccess(
             results, 
             uiTranslations: currentState.uiTranslations
@@ -93,6 +95,30 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         } catch (e) {
           emit(SearchError(e.toString()));
         }
+      }
+    });
+
+    // 5. НОВОЕ: Загрузка деталей поста
+    on<LoadPostDetails>((event, emit) async {
+      // Обновляем локаль, чтобы она соответствовала контексту вызова
+      _currentLocale = event.locale;
+      
+      emit(PostDetailsLoading());
+
+      try {
+        final data = await repository.getPostDetails(
+          id: event.id,
+          category: event.category,
+          locale: _currentLocale,
+        );
+
+        emit(PostDetailsLoaded(
+          post: data['record'],
+          uiTranslations: data['translations'],
+        ));
+      } catch (e) {
+        debugPrint('ERROR [LOAD POST DETAILS]: $e');
+        emit(SearchError(e.toString()));
       }
     });
   }

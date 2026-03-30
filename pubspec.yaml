@@ -9,6 +9,22 @@ dependencies:
   flutter:
     sdk: flutter
   
+  # Icons (Исправлен отступ)
+  bootstrap_icons: ^1.10.0
+  
+  # ТИПОГРАФИКА (Для того самого Orbitron без ручной возни с файлами)
+  google_fonts: ^6.1.0 
+  
+  # ВИЗУАЛЬНЫЕ ЭФФЕКТЫ
+  # Для "стеклянных" карточек и размытия (Glassmorphism)
+  glass: ^1.0.0
+  # Для неонового мерцания и плавных появлений
+  flutter_animate: ^4.5.0
+  # Красивые лоадеры вместо стандартных кружков
+  flutter_spinkit: ^5.2.0
+  # Скелетоны для загрузки (Production-first UX)
+  skeletonizer: ^1.2.0
+
   # State Management & DI
   flutter_bloc: ^8.1.0
   get_it: ^7.6.0
@@ -25,4 +41,4 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   drift_dev: ^2.14.0
-  build_runner: ^2.4.7
+  build_runner: ^2.4.8 # Обновил до стабильного

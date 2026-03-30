@@ -1,10 +1,20 @@
-abstract class SearchEvent {
+import 'package:equatable/equatable.dart';
+
+abstract class SearchEvent extends Equatable {
   const SearchEvent();
+
+  @override
+  List<Object?> get props => [];
 }
 
 class LoadFilters extends SearchEvent {
   final String category;
-  const LoadFilters({required this.category}); 
+  final String locale; // Обязательный параметр для предотвращения сброса
+
+  const LoadFilters({required this.category, required this.locale});
+
+  @override
+  List<Object?> get props => [category, locale];
 }
 
 class UpdateFilterValue extends SearchEvent {
@@ -12,10 +22,14 @@ class UpdateFilterValue extends SearchEvent {
   final dynamic value;   
 
   const UpdateFilterValue({required this.filterId, required this.value});
+
+  @override
+  List<Object?> get props => [filterId, value];
 }
 
 class PerformSearch extends SearchEvent {
   const PerformSearch();
+  // Здесь параметры не нужны, Блок возьмет их из текущего FiltersLoaded стейта
 }
 
 class ChangeLocale extends SearchEvent {
@@ -23,5 +37,20 @@ class ChangeLocale extends SearchEvent {
   const ChangeLocale(this.locale);
 
   @override
-  List<Object> get props => [locale];
+  List<Object?> get props => [locale];
+}
+
+class LoadPostDetails extends SearchEvent {
+  final int id;
+  final String category;
+  final String locale; // Передаем локаль для получения верного блока .show из YAML
+
+  const LoadPostDetails({
+    required this.id, 
+    required this.category, 
+    required this.locale,
+  });
+
+  @override
+  List<Object?> get props => [id, category, locale];
 }
