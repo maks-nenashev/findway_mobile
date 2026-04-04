@@ -11,128 +11,145 @@ import 'search_details_page.dart';
 class SearchPage extends StatelessWidget {
   const SearchPage({super.key});
 
- @override
+  @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => sl<SearchBloc>()..add(const LoadFilters(category: 'people', locale: '')),
       child: BlocBuilder<SearchBloc, SearchState>(
-builder: (context, state) {
-  // 1. Извлекаем переводы
-  final Map<String, dynamic> tr = (state is FiltersLoaded) 
-      ? state.uiTranslations 
-      : (state is SearchSuccess) ? state.uiTranslations 
-      : (state is PostDetailsLoaded) ? state.uiTranslations : {};
+        builder: (context, state) {
+          // 1. Извлекаем переводы (Contextual Mapping)
+          final Map<String, dynamic> tr = _getTranslations(state);
 
-  // 2. УМНАЯ ЛОКАЛЬ (Fix): Ищем локаль везде, где она может быть
-  String currentLocale = 'en'; 
+          // 2. УМНАЯ ЛОКАЛЬ
+          String currentLocale = _getLocale(context, state, tr);
 
-  if (state is FiltersLoaded) {
-    currentLocale = state.currentLocale;
-  } else if (tr.containsKey('locale_code') && tr['locale_code'] != null) {
-    // Если мы в SearchSuccess или PostDetailsLoaded — берем из пришедших данных
-    currentLocale = tr['locale_code'].toString();
-  } else if (state is SearchLoading || state is ResultsLoading) {
-    // Если мы в процессе загрузки, пытаемся сохранить текущую локаль из предыдущего состояния
-    final previousState = context.read<SearchBloc>().state;
-    if (previousState is FiltersLoaded) {
-      currentLocale = previousState.currentLocale;
-    }
-  }
+          // 3. Извлекаем данные для рендеринга (чтобы были доступны в любом стейте)
+          final results = _getResults(state);
+          final filters = _getFilters(state);
+          final selectedValues = _getSelectedValues(state);
+          final currentCategory = _getCategory(state);
+
           return Scaffold(
-            backgroundColor: const Color(0xFFF0F4F8),// Цвет фона для всего экрана
-            // --- ВОЗВРАЩЕННАЯ ШАПКА ---
+            backgroundColor: const Color(0xFFF0F4F8),
             appBar: AppBar(
-              backgroundColor: Colors.transparent,// Прозрачный фон для эффекта "плавающей" шапки
+              backgroundColor: Colors.transparent,
               elevation: 0,
               title: Text(
-                tr['page_title'] ?? 'FindWay',// Локализованный заголовок страницы
+                tr['page_title'] ?? 'FindWay',
                 style: const TextStyle(
-                  color: Colors.black, // Цвет текста
-                  fontWeight: FontWeight.bold, // Жирный шрифт
-                  fontSize: 24, // Размер шрифта
-                  fontFamily: 'Orbitron', // Твой стиль
-                  letterSpacing: 2
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
+                  fontFamily: 'Orbitron',
+                  letterSpacing: 2,
                 ),
               ),
               actions: [
                 _LocaleSelector(currentLocale: currentLocale),
               ],
             ),
-            body: CustomScrollView(
-              slivers: [
-                // 1. DASHBOARD
-                SliverToBoxAdapter(// Весь контентный блок с отступами и карточкой
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),// Отступы для всего блока
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                     decoration: BoxDecoration(
-                     color: const Color(0xFF0A0E14), // Глубокий "космический" черный
-                     borderRadius: BorderRadius.circular(24),
-                     border: Border.all(
-                     color: const Color(0xFF00F2FF).withOpacity(0.2), // Тонкая неоновая рамка
-                     width: 1,
-                   ),
-                     boxShadow: [
-                 BoxShadow(
-                     color: const Color(0xFF00F2FF).withOpacity(0.05), // Неоновое свечение вместо тени
-                     blurRadius: 30,
-                     spreadRadius: 5,
-                    )
-                 ],
-              ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildCategoryNavigation(context, state, tr, currentLocale),
-                          const SizedBox(height: 24),
-                          _buildSearchInput(context, tr),
-                          const SizedBox(height: 16),
-                          
-                          if (state is FiltersLoaded) ...[
-                            FilterBuilder(
-                              filters: state.filters,
-                              selectedValues: state.selectedValues,
-                              currentCategory: state.currentCategory,
-                              onFilterChanged: (id, val) => context.read<SearchBloc>().add(
-                                UpdateFilterValue(filterId: id, value: val),
-                              ),
+            body: Stack(
+              children: [
+                CustomScrollView(
+                  slivers: [
+                    // 1. DASHBOARD (Фильтры)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+                        child: Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0A0E14),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: const Color(0xFF00F2FF).withOpacity(0.2),
+                              width: 1,
                             ),
-                            const SizedBox(height: 16),
-                            _buildFilterButton(context, tr),
-                          ],
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF00F2FF).withOpacity(0.05),
+                                blurRadius: 30,
+                                spreadRadius: 5,
+                              )
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildCategoryNavigation(context, state, tr, currentLocale),
+                              const SizedBox(height: 24),
+                              _buildSearchInput(context, tr),
+                              const SizedBox(height: 16),
+                              
+                              // Фильтры видны всегда, если они загружены в любом стейте
+                              if (filters != null) ...[
+                                FilterBuilder(
+                                  filters: filters,
+                                  selectedValues: selectedValues,
+                                  currentCategory: currentCategory,
+                                  onFilterChanged: (id, val) => context.read<SearchBloc>().add(
+                                    UpdateFilterValue(filterId: id, value: val),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                _buildFilterButton(context, tr),
+                              ],
 
-                          if (state is SearchSuccess)
-                            _buildReturnToFiltersButton(context, state, currentLocale, tr),
-                        ],
+                              if (state is SearchSuccess)
+                                _buildReturnToFiltersButton(context, state, currentLocale, tr),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+
+                    // 2. GRID РЕЗУЛЬТАТОВ (Виден всегда, если есть данные)
+                    if (results.isNotEmpty)
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        sliver: SliverGrid(
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            childAspectRatio: 0.75,
+                          ),
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) => _ArticleCard(
+                              post: results[index],
+                              currentLocale: currentLocale,
+                            ),
+                            childCount: results.length,
+                          ),
+                        ),
+                      )
+                    else if (state is! SearchLoading && state is! ResultsLoading)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(child: Text(tr['no_results'] ?? 'No data')),
+                      ),
+                    
+                    // Резервный отступ снизу
+                    const SliverToBoxAdapter(child: SizedBox(height: 40)),
+                  ],
                 ),
 
-                // 2. GRID РЕЗУЛЬТАТОВ
-                if (state is SearchSuccess)
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    sliver: SliverGrid(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2, // Две карточки в ряд
-                        mainAxisSpacing: 16, // Вертикальный отступ между карточками
-                        crossAxisSpacing: 16, // Горизонтальный отступ между карточками
-                        childAspectRatio: 0.75, // Соотношение сторон карточки (можешь подстроить под свой дизайн)
-                      ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => _ArticleCard(
-                          post: state.results[index],
-                          currentLocale: currentLocale,
-                        ),
-                        childCount: state.results.length,
-                      ),
-                    ),
+                // 3. NON-BLOCKING LOADERS
+                if (state is SearchLoading)
+                  const Positioned.fill(
+                    child: Center(child: CircularProgressIndicator(color: Color(0xFF00F2FF))),
                   ),
                 
-                if (state is SearchLoading || state is ResultsLoading)
-                  const SliverFillRemaining(child: Center(child: CircularProgressIndicator())),
+                if (state is ResultsLoading)
+                   Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: LinearProgressIndicator(
+                      backgroundColor: Colors.transparent,
+                      valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF00F2FF).withOpacity(0.5)),
+                    ),
+                  ),
               ],
             ),
           );
@@ -141,14 +158,56 @@ builder: (context, state) {
     );
   }
 
-  // --- PRIVATE HELPERS ---
+  // --- Вспомогательные методы извлечения данных (Data Extraction) ---
+
+  Map<String, dynamic> _getTranslations(SearchState state) {
+    if (state is FiltersLoaded) return state.uiTranslations;
+    if (state is SearchSuccess) return state.uiTranslations;
+    if (state is ResultsLoading) return state.uiTranslations;
+    if (state is PostDetailsLoaded) return state.uiTranslations;
+    return {};
+  }
+
+  String _getLocale(BuildContext context, SearchState state, Map tr) {
+    if (state is FiltersLoaded) return state.currentLocale;
+    if (tr.containsKey('locale_code')) return tr['locale_code'].toString();
+    return 'en';
+  }
+
+  List<dynamic> _getResults(SearchState state) {
+    if (state is FiltersLoaded) return state.results;
+    if (state is SearchSuccess) return state.results;
+    if (state is ResultsLoading) return state.results;
+    return [];
+  }
+
+  dynamic _getFilters(SearchState state) {
+    if (state is FiltersLoaded) return state.filters;
+    if (state is SearchSuccess) return state.filters;
+    if (state is ResultsLoading) return state.filters;
+    return null;
+  }
+
+  Map<String, dynamic> _getSelectedValues(SearchState state) {
+    if (state is FiltersLoaded) return state.selectedValues;
+    if (state is SearchSuccess) return state.selectedValues;
+    if (state is ResultsLoading) return state.selectedValues;
+    return {};
+  }
+
+  String _getCategory(SearchState state) {
+    if (state is FiltersLoaded) return state.currentCategory;
+    return 'people';
+  }
+
+  // --- PRIVATE HELPERS (UI Components) ---
 
   Widget _buildCategoryNavigation(BuildContext context, SearchState state, Map tr, String locale) {
-    final currentCat = (state is FiltersLoaded) ? state.currentCategory : 'people';
+    final currentCat = _getCategory(state);
     return Row(
       children: [
         _pillButton(context, 'people', tr['button_article'] ?? 'Люди', const Color(0xFF00F2FF), currentCat == 'people', locale),
-        const SizedBox(width: 8),//
+        const SizedBox(width: 8),
         _pillButton(context, 'animals', tr['button_sense'] ?? 'Тварини', const Color(0xFFFF8A00), currentCat == 'animals', locale),
         const SizedBox(width: 8),
         _pillButton(context, 'things', tr['button_thing'] ?? 'Речі', const Color(0xFF2ECC71), currentCat == 'things', locale),
@@ -163,7 +222,7 @@ builder: (context, state) {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: isActive ? color.withOpacity(0.1) : const Color(0xFFF8FAFC),
+            color: isActive ? color.withOpacity(0.1) : const Color(0xFF1A1F26),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: isActive ? color : Colors.transparent, width: 2),
           ),
@@ -179,11 +238,13 @@ builder: (context, state) {
 
   Widget _buildSearchInput(BuildContext context, Map tr) {
     return Container(
-      decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: const Color(0xFF1A1F26), borderRadius: BorderRadius.circular(12)),
       child: TextField(
+        style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           hintText: tr['plac_title'] ?? 'Пошук...',
-          prefixIcon: const Icon(Icons.search, size: 20),
+          hintStyle: TextStyle(color: Colors.grey[500]),
+          prefixIcon: const Icon(Icons.search, size: 20, color: Colors.grey),
           suffixIcon: Padding(
             padding: const EdgeInsets.all(6.0),
             child: ElevatedButton(
@@ -197,7 +258,7 @@ builder: (context, state) {
             ),
           ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 15),
+          contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
         ),
       ),
     );
@@ -211,8 +272,8 @@ builder: (context, state) {
         icon: const Icon(Icons.filter_list),
         label: Text(tr['filter'] ?? 'ФІЛЬТРУВАТИ'),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFFF8A00).withOpacity(0.1),//
-          foregroundColor: const Color(0xFFFF8A00),//
+          backgroundColor: const Color(0xFFFF8A00).withOpacity(0.1),
+          foregroundColor: const Color(0xFFFF8A00),
           elevation: 0,
           side: const BorderSide(color: Color(0xFFFF8A00)),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -225,9 +286,9 @@ builder: (context, state) {
   Widget _buildReturnToFiltersButton(BuildContext context, SearchSuccess state, String locale, Map tr) {
     return TextButton.icon(
       onPressed: () => context.read<SearchBloc>().add(LoadFilters(category: 'people', locale: locale)),
-      icon: const Icon(Icons.arrow_back, size: 16),
-      label: Text(tr['last'] ?? "Фільтри"),
-      style: TextButton.styleFrom(foregroundColor: const Color(0xFFFF8A00)),
+      icon: const Icon(Icons.refresh, size: 16),
+      label: Text(tr['last'] ?? "Скинути фільтри"),
+      style: TextButton.styleFrom(foregroundColor: const Color(0xFF00F2FF)),
     );
   }
 }
@@ -270,7 +331,7 @@ class _LocaleSelector extends StatelessWidget {
   }
 }
 
-// --- КАРТОЧКА (Article Card с динамическим статусом) ---
+// --- КАРТОЧКА (Article Card) ---
 class _ArticleCard extends StatelessWidget {
   final dynamic post;
   final String currentLocale;
@@ -278,9 +339,8 @@ class _ArticleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Извлекаем статус (Нашли/Ищем) из Rails JSON
-   final String statusLabel = (post['choice_label'] ?? "").toString().toUpperCase();
-    // Вставь это ПЕРЕД return GestureDetector
+    final String statusLabel = (post['choice_label'] ?? "").toString().toUpperCase();
+    
     return GestureDetector(
       onTap: () {
         final bloc = context.read<SearchBloc>();
@@ -293,7 +353,6 @@ class _ArticleCard extends StatelessWidget {
         );
       },
       child: Container(
-        // ЗДЕСЬ ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЕМ КЛЮЧИ (decoration:)
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
@@ -308,7 +367,7 @@ class _ArticleCard extends StatelessWidget {
               Image.network(
                 post['image_url'] ?? "",
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(color: Colors.grey[200]),
+                errorBuilder: (_, __, ___) => Container(color: Colors.grey[800]),
               ),
               Container(
                 decoration: BoxDecoration(
@@ -325,10 +384,9 @@ class _ArticleCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.end,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- ТВОЙ ДИНАМИЧЕСКИЙ БЕЙДЖ (С ФИКСОМ СИНТАКСИСА) ---
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), // Добавлена метка padding:
-                      decoration: BoxDecoration( // Добавлена метка decoration:
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
                         color: const Color(0xFF00F2FF).withOpacity(0.2),
                         border: Border.all(color: const Color(0xFF00F2FF)),
                         borderRadius: BorderRadius.circular(4),

@@ -14,7 +14,6 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     
     // 1. Загрузка фильтров
     on<LoadFilters>((event, emit) async {
-      // Синхронизируем внутреннюю локаль, если она пришла в событии
       _currentLocale = event.locale;
       emit(SearchLoading());
       
@@ -24,12 +23,20 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           locale: _currentLocale,
         );
 
+        // Сразу загружаем объявления, чтобы они были видны всегда
+        final initialResults = await repository.search(
+          category: event.category,
+          filters: const {},
+          locale: _currentLocale,
+        );
+
         emit(FiltersLoaded(
           filters: data['filters'],
           uiTranslations: data['translations'],
           currentCategory: event.category,
           selectedValues: const {},
-          currentLocale: _currentLocale, 
+          currentLocale: _currentLocale,
+          results: initialResults, 
         ));
       } catch (e) {
         emit(SearchError(e.toString()));
@@ -52,12 +59,19 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           locale: _currentLocale,
         );
 
+        final results = await repository.search(
+          category: currentCategory,
+          filters: const {},
+          locale: _currentLocale,
+        );
+
         emit(FiltersLoaded(
           filters: data['filters'],
           uiTranslations: data['translations'],
           currentCategory: currentCategory,
           selectedValues: const {}, 
           currentLocale: _currentLocale,
+          results: results,
         ));
       } catch (e) {
         emit(SearchError(e.toString()));
@@ -72,25 +86,56 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         newValues[event.filterId] = event.value;
 
         emit(currentState.copyWith(selectedValues: newValues));
+      } else if (state is SearchSuccess) {
+        final currentState = state as SearchSuccess;
+        final newValues = Map<String, dynamic>.from(currentState.selectedValues);
+        newValues[event.filterId] = event.value;
+
+        // При изменении фильтра возвращаемся в FiltersLoaded для отображения изменений
+        emit(FiltersLoaded(
+          filters: currentState.filters,
+          selectedValues: newValues,
+          uiTranslations: currentState.uiTranslations,
+          currentCategory: 'people', // В идеале хранить категорию в SearchSuccess
+          results: currentState.results,
+          currentLocale: _currentLocale,
+        ));
       }
     });
   
     // 4. Поиск
     on<PerformSearch>((event, emit) async {
+      List<dynamic> currentResults = [];
+      Map<String, dynamic> currentFilters = {};
+      dynamic currentMeta;
+      Map<String, dynamic> currentTranslations = {};
+
       if (state is FiltersLoaded) {
-        final currentState = state as FiltersLoaded;
-        emit(ResultsLoading());
+        final s = state as FiltersLoaded;
+        currentResults = s.results;
+        currentFilters = s.selectedValues;
+        currentMeta = s.filters;
+        currentTranslations = s.uiTranslations;
+        
+        emit(ResultsLoading(
+          filters: s.filters,
+          selectedValues: s.selectedValues,
+          uiTranslations: s.uiTranslations,
+          results: s.results,
+        ));
 
         try {
           final results = await repository.search(
-            category: currentState.currentCategory,
-            filters: currentState.selectedValues,
+            category: s.currentCategory,
+            filters: s.selectedValues,
             locale: _currentLocale,
           );
           
           emit(SearchSuccess(
             results, 
-            uiTranslations: currentState.uiTranslations
+            uiTranslations: s.uiTranslations,
+            filters: s.filters,
+            selectedValues: s.selectedValues,
           ));
         } catch (e) {
           emit(SearchError(e.toString()));
@@ -98,11 +143,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       }
     });
 
-    // 5. НОВОЕ: Загрузка деталей поста
+    // 5. Загрузка деталей поста
     on<LoadPostDetails>((event, emit) async {
-      // Обновляем локаль, чтобы она соответствовала контексту вызова
       _currentLocale = event.locale;
-      
       emit(PostDetailsLoading());
 
       try {
