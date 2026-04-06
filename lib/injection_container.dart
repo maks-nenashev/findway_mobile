@@ -1,7 +1,8 @@
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
-import 'package:dio_cookie_manager/dio_cookie_manager.dart'; // ✅ Добавить
-import 'package:cookie_jar/cookie_jar.dart';               // ✅ Добавить
+import 'package:dio_cookie_manager/dio_cookie_manager.dart';
+import 'package:cookie_jar/cookie_jar.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // ✅ Добавь это
 
 // Импорты фич
 import 'features/search/domain/repositories/search_repository.dart';
@@ -12,19 +13,38 @@ import 'features/comments/data/datasources/comment_remote_data_source.dart';
 import 'features/comments/domain/repositories/comment_repository.dart';
 import 'features/comments/presentation/bloc/comments_bloc.dart';
 
+// ✅ Если файла LocaleRepository нет, создадим минимальный интерфейс прямо тут или импортируй свой
+class LocaleRepository {
+  final SharedPreferences prefs;
+  LocaleRepository(this.prefs);
+  String getCachedLocale() => prefs.getString('locale') ?? 'uk';
+}
+
 final sl = GetIt.instance;
 
 Future<void> init() async {
-  // 1. Search Feature
-  sl.registerLazySingleton(() => SearchBloc(repository: sl()));
+  // 0. ПЕРВЫМ ДЕЛОМ: External (SharedPreferences)
+  final sharedPreferences = await SharedPreferences.getInstance();
+  sl.registerLazySingleton(() => sharedPreferences);
+
+  // 1. ПЕРВЫМ ДЕЛОМ: Локализация (Core)
+  sl.registerLazySingleton(() => LocaleRepository(sl()));
+
+  // 2. Search Feature (Теперь SearchBloc видит LocaleRepository)
+  sl.registerFactory(() => SearchBloc(
+    repository: sl(),
+    initialLocale: sl<LocaleRepository>().getCachedLocale(),
+  ));
+
   sl.registerLazySingleton<SearchRepository>(
     () => SearchRepositoryImpl(remoteDataSource: sl()),
   );
+
   sl.registerLazySingleton<SearchRemoteDataSource>(
     () => SearchRemoteDataSourceImpl(client: sl()),
   );
 
-  // 2. Comments Feature
+  // 3. Comments Feature
   sl.registerFactoryParam<CommentsBloc, int, String>(
     (parentId, type) => CommentsBloc(
       repository: sl(),
@@ -41,8 +61,7 @@ Future<void> init() async {
     () => CommentRemoteDataSourceImpl(client: sl()),
   );
 
-  // 3. External (Dio & Cookies)
-  // Регистрируем CookieJar как синглтон, чтобы сессия жила всё время работы приложения
+  // 4. Network (Dio & Cookies)
   sl.registerLazySingleton<CookieJar>(() => CookieJar());
 
   sl.registerLazySingleton<Dio>(() {
@@ -58,14 +77,8 @@ Future<void> init() async {
       ),
     );
 
-    // ✅ Интеграция CookieManager ВНУТРИ инициализации Dio
     dio.interceptors.add(CookieManager(sl<CookieJar>()));
-    
-    dio.interceptors.add(LogInterceptor(
-      responseBody: true, 
-      requestBody: true,
-      requestHeader: true,
-    ));
+    dio.interceptors.add(LogInterceptor(responseBody: true, requestBody: true));
 
     return dio;
   });

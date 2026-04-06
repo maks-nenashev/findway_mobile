@@ -1,199 +1,147 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'search_event.dart';
 import 'search_state.dart';
 import '../../domain/repositories/search_repository.dart';
+import '../../data/models/filter_model.dart'; 
 
 class SearchBloc extends Bloc<SearchEvent, SearchState> {
   final SearchRepository repository;
-  
-  // Single Source of Truth для локали внутри этого Блока
-  String _currentLocale = 'uk'; 
+  String _currentLocale = ''; 
 
-  SearchBloc({required this.repository}) : super(SearchInitial()) {
+  String get currentLocale => _currentLocale;
+
+  SearchBloc({required this.repository, required String initialLocale}) 
+      : _currentLocale = initialLocale, 
+        super(SearchInitial(currentLocale: initialLocale)) { // 👈 Теперь Initial уже с языком!
     
-    // 1. Завантаження фільтрів
     on<LoadFilters>((event, emit) async {
-      // Захист: не перезаписуємо локаль, якщо прийшов порожній рядок
-      if (event.locale.isNotEmpty) _currentLocale = event.locale;
-      
-      emit(SearchLoading());
-      
-      try {
-        final data = await repository.getFiltersData(
-          category: event.category,
-          locale: _currentLocale,
-        );
+      // Используем переданную локаль сразу, не дожидаясь ответа сервера
+      final String targetLocale = event.locale.isNotEmpty ? event.locale : _currentLocale;
 
-        final initialResults = await repository.search(
-          category: event.category,
-          filters: const {},
-          locale: _currentLocale,
-        );
+      emit(SearchLoading(uiTranslations: _extractTranslations(state)));
+
+      try {
+        final data = await repository.getFiltersData(category: event.category, locale: targetLocale);
+        
+        // СИНХРОНИЗАЦИЯ: Берем то, что реально прислал сервер (GeoIP)
+        _currentLocale = data['translations']['locale_code']?.toString() ?? targetLocale;
+
+        final results = await repository.search(category: event.category, filters: const {}, locale: _currentLocale);
 
         emit(FiltersLoaded(
-          tabIndex: 1, // Дефолтна вкладка пошуку
           filters: data['filters'],
           uiTranslations: data['translations'],
           currentCategory: event.category,
+          results: results,
           selectedValues: const {},
           currentLocale: _currentLocale,
-          results: initialResults, 
         ));
       } catch (e) {
-        emit(SearchError(e.toString()));
+        emit(SearchError(e.toString(), currentLocale: targetLocale, uiTranslations: _extractTranslations(state)));
       }
     });
 
-    // 2. Зміна локалі (Quiet Reload — щоб UI не "блимав")
-    on<ChangeLocale>((event, emit) async {
-      _currentLocale = event.locale; 
-
-      int currentTab = 1;
-      String currentCategory = 'people';
-      Map<String, dynamic> lastFilters = {};
-      List<dynamic> lastResults = [];
-
-      // Зберігаємо поточний контекст
-      if (state is FiltersLoaded) {
-        final s = state as FiltersLoaded;
-        currentTab = s.tabIndex;
-        currentCategory = s.currentCategory;
-        lastFilters = s.selectedValues;
-        lastResults = s.results;
-      } else if (state is SearchSuccess) {
-        final s = state as SearchSuccess;
-        currentTab = s.tabIndex;
-        lastFilters = s.selectedValues;
-        lastResults = s.results;
-      }
-
-      // Використовуємо ResultsLoading замість SearchLoading, 
-      // щоб зберегти переклади та BottomNavBar на екрані під час запиту
-      emit(ResultsLoading(
-        tabIndex: currentTab,
-        filters: (state is FiltersLoaded) ? (state as FiltersLoaded).filters : [],
-        selectedValues: lastFilters,
-        uiTranslations: (state is FiltersLoaded) ? (state as FiltersLoaded).uiTranslations : (state is SearchSuccess ? (state as SearchSuccess).uiTranslations : {}),
-        results: lastResults,
-      ));
-      
-      try {
-        final data = await repository.getFiltersData(
-          category: currentCategory,
-          locale: _currentLocale,
-        );
-
-        final results = await repository.search(
-          category: currentCategory,
-          filters: lastFilters,
-          locale: _currentLocale,
-        );
-
-        emit(FiltersLoaded(
-          tabIndex: currentTab,
-          filters: data['filters'],
-          uiTranslations: data['translations'],
-          currentCategory: currentCategory,
-          selectedValues: lastFilters, 
-          currentLocale: _currentLocale,
-          results: results,
-        ));
-      } catch (e) {
-        emit(SearchError(e.toString()));
-      }
+    // 2. Смена локали пользователем
+    on<ChangeLocale>((event, emit) {
+      _currentLocale = event.locale;
+      add(LoadFilters(category: 'people', locale: _currentLocale));
     });
 
-    // 3. Оновлення значень фільтрів
+    // 3. Обновление значений фильтров в UI
     on<UpdateFilterValue>((event, emit) {
       if (state is FiltersLoaded) {
         final s = state as FiltersLoaded;
         final newValues = Map<String, dynamic>.from(s.selectedValues);
         newValues[event.filterId] = event.value;
-
         emit(s.copyWith(selectedValues: newValues));
-      } else if (state is SearchSuccess) {
-        final s = state as SearchSuccess;
-        final newValues = Map<String, dynamic>.from(s.selectedValues);
-        newValues[event.filterId] = event.value;
-
-        emit(FiltersLoaded(
-          tabIndex: s.tabIndex,
-          filters: s.filters,
-          selectedValues: newValues,
-          uiTranslations: s.uiTranslations,
-          currentCategory: 'people', 
-          results: s.results,
-          currentLocale: _currentLocale,
-        ));
       }
     });
   
-    // 4. Виконання пошуку
+    // 4. Выполнение поиска (только один обработчик)
     on<PerformSearch>((event, emit) async {
-      if (state is FiltersLoaded) {
-        final s = state as FiltersLoaded;
-        
+      final s = state;
+      if (s is FiltersLoaded || s is SearchSuccess) {
+        // Извлекаем текущие данные для сохранения UI при загрузке
+        final translations = _extractTranslations(s);
+        final filters = (s is FiltersLoaded) ? s.filters : (s as SearchSuccess).filters;
+        final selected = (s is FiltersLoaded) ? s.selectedValues : (s as SearchSuccess).selectedValues;
+        final category = (s is FiltersLoaded) ? s.currentCategory : 'people';
+
         emit(ResultsLoading(
-          tabIndex: s.tabIndex,
-          filters: s.filters,
-          selectedValues: s.selectedValues,
-          uiTranslations: s.uiTranslations,
-          results: s.results,
+          currentLocale: _currentLocale, 
+          uiTranslations: translations,
+          filters: filters,
+          selectedValues: selected,
+          results: (s is FiltersLoaded) ? s.results : (s as SearchSuccess).results,
         ));
 
         try {
           final results = await repository.search(
-            category: s.currentCategory,
-            filters: s.selectedValues,
-            locale: _currentLocale,
+            category: category, 
+            filters: selected, 
+            locale: _currentLocale
           );
-          
+
           emit(SearchSuccess(
             results, 
-            tabIndex: s.tabIndex,
-            uiTranslations: s.uiTranslations,
-            filters: s.filters,
-            selectedValues: s.selectedValues,
+            currentLocale: _currentLocale, 
+            uiTranslations: translations,
+            filters: filters,
+            selectedValues: selected,
           ));
         } catch (e) {
-          emit(SearchError(e.toString()));
+          emit(SearchError(e.toString(), currentLocale: _currentLocale, uiTranslations: translations));
         }
       }
     });
     
-    // 5. Зміна вкладки (Tab Navigation)
+    // 5. Переключение табов в NavBar
     on<ChangeTab>((event, emit) {
       final s = state;
-      if (s is FiltersLoaded) {
-        emit(s.copyWith(tabIndex: event.index));
-      } else if (s is SearchSuccess) {
-        emit(s.copyWith(tabIndex: event.index));
-      } else if (s is ResultsLoading) {
-        emit(s.copyWith(tabIndex: event.index));
-      }
+      if (s is FiltersLoaded) emit(s.copyWith(tabIndex: event.index));
+      if (s is SearchSuccess) emit(s.copyWith(tabIndex: event.index));
     });
 
-    // 6. Завантаження деталей поста
+    // 6. Загрузка деталей поста с сохранением контекста поиска
     on<LoadPostDetails>((event, emit) async {
-      if (event.locale.isNotEmpty) _currentLocale = event.locale;
-      emit(PostDetailsLoading());
+      List<dynamic> currentResults = [];
+      List<FilterModel> currentFilters = [];
+      
+      if (state is FiltersLoaded) {
+        currentResults = (state as FiltersLoaded).results;
+        currentFilters = (state as FiltersLoaded).filters;
+      } else if (state is SearchSuccess) {
+        currentResults = (state as SearchSuccess).results;
+        currentFilters = (state as SearchSuccess).filters;
+      }
+
+      emit(PostDetailsLoading(currentLocale: _currentLocale, uiTranslations: _extractTranslations(state)));
 
       try {
-        final data = await repository.getPostDetails(
-          id: event.id,
-          category: event.category,
-          locale: _currentLocale,
-        );
-
+        final data = await repository.getPostDetails(id: event.id, category: event.category, locale: _currentLocale);
+        
         emit(PostDetailsLoaded(
+          currentLocale: _currentLocale,
           post: data['record'],
           uiTranslations: data['translations'],
+          searchResults: currentResults,
+          filters: currentFilters,
         ));
       } catch (e) {
-        debugPrint('ERROR [LOAD POST DETAILS]: $e');
-        emit(SearchError(e.toString()));
+        emit(SearchError(e.toString(), currentLocale: _currentLocale, uiTranslations: _extractTranslations(state)));
       }
     });
+  } // Конец конструктора
+
+  // Хелпер для переводов
+  Map<String, dynamic> _extractTranslations(SearchState state) {
+    if (state is FiltersLoaded) return state.uiTranslations;
+    if (state is SearchSuccess) return state.uiTranslations;
+    if (state is ResultsLoading) return state.uiTranslations;
+    if (state is SearchLoading) return state.uiTranslations;
+    if (state is PostDetailsLoaded) return state.uiTranslations;
+    if (state is PostDetailsLoading) return state.uiTranslations;
+    if (state is SearchError) return state.uiTranslations;
+    return {};
   }
 }
