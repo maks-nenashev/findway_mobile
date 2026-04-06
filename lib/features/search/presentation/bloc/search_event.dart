@@ -9,7 +9,7 @@ abstract class SearchEvent extends Equatable {
 
 class LoadFilters extends SearchEvent {
   final String category;
-  final String locale; // Обязательный параметр для предотвращения сброса
+  final String locale;
 
   const LoadFilters({required this.category, required this.locale});
 
@@ -29,7 +29,6 @@ class UpdateFilterValue extends SearchEvent {
 
 class PerformSearch extends SearchEvent {
   const PerformSearch();
-  // Здесь параметры не нужны, Блок возьмет их из текущего FiltersLoaded стейта
 }
 
 class ChangeLocale extends SearchEvent {
@@ -43,7 +42,7 @@ class ChangeLocale extends SearchEvent {
 class LoadPostDetails extends SearchEvent {
   final int id;
   final String category;
-  final String locale; // Передаем локаль для получения верного блока .show из YAML
+  final String locale;
 
   const LoadPostDetails({
     required this.id, 
@@ -53,4 +52,11 @@ class LoadPostDetails extends SearchEvent {
 
   @override
   List<Object?> get props => [id, category, locale];
+}
+
+class ChangeTab extends SearchEvent {
+  final int index;
+  const ChangeTab(this.index);
+  @override
+  List<Object> get props => [index];
 }

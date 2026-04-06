@@ -12,10 +12,11 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
   SearchBloc({required this.repository}) : super(SearchInitial()) {
     
-    // 1. Загрузка фильтров
+    // 1. Завантаження фільтрів
     on<LoadFilters>((event, emit) async {
-      // Синхронизируем внутреннюю локаль, если она пришла в событии
-      _currentLocale = event.locale;
+      // Захист: не перезаписуємо локаль, якщо прийшов порожній рядок
+      if (event.locale.isNotEmpty) _currentLocale = event.locale;
+      
       emit(SearchLoading());
       
       try {
@@ -24,27 +25,58 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           locale: _currentLocale,
         );
 
+        final initialResults = await repository.search(
+          category: event.category,
+          filters: const {},
+          locale: _currentLocale,
+        );
+
         emit(FiltersLoaded(
+          tabIndex: 1, // Дефолтна вкладка пошуку
           filters: data['filters'],
           uiTranslations: data['translations'],
           currentCategory: event.category,
           selectedValues: const {},
-          currentLocale: _currentLocale, 
+          currentLocale: _currentLocale,
+          results: initialResults, 
         ));
       } catch (e) {
         emit(SearchError(e.toString()));
       }
     });
 
-    // 2. Смена локали
+    // 2. Зміна локалі (Quiet Reload — щоб UI не "блимав")
     on<ChangeLocale>((event, emit) async {
       _currentLocale = event.locale; 
 
-      final String currentCategory = (state is FiltersLoaded) 
-          ? (state as FiltersLoaded).currentCategory 
-          : 'people';
+      int currentTab = 1;
+      String currentCategory = 'people';
+      Map<String, dynamic> lastFilters = {};
+      List<dynamic> lastResults = [];
 
-      emit(SearchLoading());
+      // Зберігаємо поточний контекст
+      if (state is FiltersLoaded) {
+        final s = state as FiltersLoaded;
+        currentTab = s.tabIndex;
+        currentCategory = s.currentCategory;
+        lastFilters = s.selectedValues;
+        lastResults = s.results;
+      } else if (state is SearchSuccess) {
+        final s = state as SearchSuccess;
+        currentTab = s.tabIndex;
+        lastFilters = s.selectedValues;
+        lastResults = s.results;
+      }
+
+      // Використовуємо ResultsLoading замість SearchLoading, 
+      // щоб зберегти переклади та BottomNavBar на екрані під час запиту
+      emit(ResultsLoading(
+        tabIndex: currentTab,
+        filters: (state is FiltersLoaded) ? (state as FiltersLoaded).filters : [],
+        selectedValues: lastFilters,
+        uiTranslations: (state is FiltersLoaded) ? (state as FiltersLoaded).uiTranslations : (state is SearchSuccess ? (state as SearchSuccess).uiTranslations : {}),
+        results: lastResults,
+      ));
       
       try {
         final data = await repository.getFiltersData(
@@ -52,57 +84,99 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           locale: _currentLocale,
         );
 
+        final results = await repository.search(
+          category: currentCategory,
+          filters: lastFilters,
+          locale: _currentLocale,
+        );
+
         emit(FiltersLoaded(
+          tabIndex: currentTab,
           filters: data['filters'],
           uiTranslations: data['translations'],
           currentCategory: currentCategory,
-          selectedValues: const {}, 
+          selectedValues: lastFilters, 
           currentLocale: _currentLocale,
+          results: results,
         ));
       } catch (e) {
         emit(SearchError(e.toString()));
       }
     });
 
-    // 3. Обновление значений фильтров
+    // 3. Оновлення значень фільтрів
     on<UpdateFilterValue>((event, emit) {
       if (state is FiltersLoaded) {
-        final currentState = state as FiltersLoaded;
-        final newValues = Map<String, dynamic>.from(currentState.selectedValues);
+        final s = state as FiltersLoaded;
+        final newValues = Map<String, dynamic>.from(s.selectedValues);
         newValues[event.filterId] = event.value;
 
-        emit(currentState.copyWith(selectedValues: newValues));
+        emit(s.copyWith(selectedValues: newValues));
+      } else if (state is SearchSuccess) {
+        final s = state as SearchSuccess;
+        final newValues = Map<String, dynamic>.from(s.selectedValues);
+        newValues[event.filterId] = event.value;
+
+        emit(FiltersLoaded(
+          tabIndex: s.tabIndex,
+          filters: s.filters,
+          selectedValues: newValues,
+          uiTranslations: s.uiTranslations,
+          currentCategory: 'people', 
+          results: s.results,
+          currentLocale: _currentLocale,
+        ));
       }
     });
   
-    // 4. Поиск
+    // 4. Виконання пошуку
     on<PerformSearch>((event, emit) async {
       if (state is FiltersLoaded) {
-        final currentState = state as FiltersLoaded;
-        emit(ResultsLoading());
+        final s = state as FiltersLoaded;
+        
+        emit(ResultsLoading(
+          tabIndex: s.tabIndex,
+          filters: s.filters,
+          selectedValues: s.selectedValues,
+          uiTranslations: s.uiTranslations,
+          results: s.results,
+        ));
 
         try {
           final results = await repository.search(
-            category: currentState.currentCategory,
-            filters: currentState.selectedValues,
+            category: s.currentCategory,
+            filters: s.selectedValues,
             locale: _currentLocale,
           );
           
           emit(SearchSuccess(
             results, 
-            uiTranslations: currentState.uiTranslations
+            tabIndex: s.tabIndex,
+            uiTranslations: s.uiTranslations,
+            filters: s.filters,
+            selectedValues: s.selectedValues,
           ));
         } catch (e) {
           emit(SearchError(e.toString()));
         }
       }
     });
+    
+    // 5. Зміна вкладки (Tab Navigation)
+    on<ChangeTab>((event, emit) {
+      final s = state;
+      if (s is FiltersLoaded) {
+        emit(s.copyWith(tabIndex: event.index));
+      } else if (s is SearchSuccess) {
+        emit(s.copyWith(tabIndex: event.index));
+      } else if (s is ResultsLoading) {
+        emit(s.copyWith(tabIndex: event.index));
+      }
+    });
 
-    // 5. НОВОЕ: Загрузка деталей поста
+    // 6. Завантаження деталей поста
     on<LoadPostDetails>((event, emit) async {
-      // Обновляем локаль, чтобы она соответствовала контексту вызова
-      _currentLocale = event.locale;
-      
+      if (event.locale.isNotEmpty) _currentLocale = event.locale;
       emit(PostDetailsLoading());
 
       try {

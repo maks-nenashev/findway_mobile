@@ -42,3 +42,9 @@ dev_dependencies:
     sdk: flutter
   drift_dev: ^2.14.0
   build_runner: ^2.4.8 # Обновил до стабильного
+
+flutter:
+  # ЭТОТ ФЛАГ ОБЯЗАТЕЛЕН
+  # Он заставляет компилятор упаковать шрифт MaterialIcons.ttf в бандл приложения.
+  # Без него стандартные Icons.search, Icons.filter_list и т.д. превратятся в те самые "конвертики".
+  uses-material-design: true
