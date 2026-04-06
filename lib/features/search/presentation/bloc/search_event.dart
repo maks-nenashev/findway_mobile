@@ -53,3 +53,10 @@ class LoadPostDetails extends SearchEvent {
   @override
   List<Object?> get props => [id, category, locale];
 }
+
+class ChangeTab extends SearchEvent {
+  final int index;
+  const ChangeTab(this.index);
+  @override
+  List<Object> get props => [index];
+}
