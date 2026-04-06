@@ -29,6 +29,8 @@ dependencies:
   flutter_bloc: ^8.1.0
   get_it: ^7.6.0
   
+  dio_cookie_manager: ^3.0.0
+  cookie_jar: ^4.0.8
   # Network & Data
   dio: ^5.4.0
   drift: ^2.14.0
