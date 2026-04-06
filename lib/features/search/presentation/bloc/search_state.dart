@@ -3,18 +3,55 @@ import '../../data/models/filter_model.dart';
 import '../../data/models/post_detail_model.dart';
 
 abstract class SearchState extends Equatable {
-  const SearchState();
+  final String currentLocale;
+  const SearchState({this.currentLocale = ''});
+
   @override
-  List<Object?> get props => [];
+  List<Object?> get props => [currentLocale];
 }
 
-class SearchInitial extends SearchState {}
+class SearchInitial extends SearchState {
+  const SearchInitial({super.currentLocale});
+}
 
-class SearchLoading extends SearchState {}
+// ✅ Общая загрузка (для поиска)
+class SearchLoading extends SearchState {
+  final Map<String, dynamic> uiTranslations;
+  const SearchLoading({super.currentLocale, this.uiTranslations = const {}});
 
-class PostDetailsLoading extends SearchState {}
+  @override
+  List<Object?> get props => [super.props, uiTranslations];
+}
 
-// 1. Состояние загрузки (с поддержкой вкладок)
+// ✅ НОВОЕ: Загрузка деталей (чтобы не было ошибки "PostDetailsLoading isn't a type")
+class PostDetailsLoading extends SearchState {
+  final Map<String, dynamic> uiTranslations;
+  const PostDetailsLoading({super.currentLocale, this.uiTranslations = const {}});
+
+  @override
+  List<Object?> get props => [super.props, uiTranslations];
+}
+
+class PostDetailsLoaded extends SearchState {
+  final PostDetailModel post;
+  final Map<String, dynamic> uiTranslations;
+  
+  // ✅ ПАМЯТЬ ПОИСКА: чтобы SearchPage видела результаты "под" постом
+  final List<dynamic> searchResults;
+  final List<FilterModel> filters;
+
+  const PostDetailsLoaded({
+    super.currentLocale,
+    required this.post, 
+    required this.uiTranslations,
+    this.searchResults = const [], 
+    this.filters = const [],
+  });
+
+  @override
+  List<Object?> get props => [super.props, post, uiTranslations, searchResults, filters];
+}
+
 class ResultsLoading extends SearchState {
   final int tabIndex;
   final List<FilterModel> filters;
@@ -23,6 +60,7 @@ class ResultsLoading extends SearchState {
   final List<dynamic> results;
 
   const ResultsLoading({
+    super.currentLocale,
     this.tabIndex = 1,
     required this.filters,
     required this.selectedValues,
@@ -31,9 +69,10 @@ class ResultsLoading extends SearchState {
   });
 
   @override
-  List<Object?> get props => [tabIndex, filters, selectedValues, uiTranslations, results];
+  List<Object?> get props => [super.props, tabIndex, filters, selectedValues, uiTranslations, results];
 
-  ResultsLoading copyWith({int? tabIndex}) => ResultsLoading(
+  ResultsLoading copyWith({int? tabIndex, String? currentLocale}) => ResultsLoading(
+    currentLocale: currentLocale ?? this.currentLocale,
     tabIndex: tabIndex ?? this.tabIndex,
     filters: filters,
     selectedValues: selectedValues,
@@ -42,28 +81,26 @@ class ResultsLoading extends SearchState {
   );
 }
 
-// 2. Основное состояние фильтров
 class FiltersLoaded extends SearchState {
   final int tabIndex;
   final List<FilterModel> filters;
   final Map<String, dynamic> selectedValues;
   final Map<String, dynamic> uiTranslations; 
   final String currentCategory;
-  final String currentLocale;
   final List<dynamic> results;
 
   const FiltersLoaded({
+    super.currentLocale,
     this.tabIndex = 1,
     required this.filters,
     required this.selectedValues,
     required this.uiTranslations,
     required this.currentCategory,
     required this.results,
-    this.currentLocale = 'uk',
   });
 
   @override
-  List<Object?> get props => [tabIndex, filters, selectedValues, uiTranslations, currentCategory, currentLocale, results];
+  List<Object?> get props => [super.props, tabIndex, filters, selectedValues, uiTranslations, currentCategory, results];
 
   FiltersLoaded copyWith({
     int? tabIndex,
@@ -74,17 +111,16 @@ class FiltersLoaded extends SearchState {
     String? currentLocale,
     List<dynamic>? results,
   }) => FiltersLoaded(
+    currentLocale: currentLocale ?? this.currentLocale,
     tabIndex: tabIndex ?? this.tabIndex,
     filters: filters ?? this.filters,
     selectedValues: selectedValues ?? this.selectedValues,
     uiTranslations: uiTranslations ?? this.uiTranslations,
     currentCategory: currentCategory ?? this.currentCategory,
-    currentLocale: currentLocale ?? this.currentLocale,
     results: results ?? this.results,
   );
 }
 
-// 3. Состояние успеха (с поддержкой вкладок)
 class SearchSuccess extends SearchState {
   final int tabIndex;
   final List<dynamic> results;
@@ -94,6 +130,7 @@ class SearchSuccess extends SearchState {
 
   const SearchSuccess(
     this.results, {
+    super.currentLocale,
     this.tabIndex = 1,
     required this.uiTranslations,
     required this.filters,
@@ -101,10 +138,11 @@ class SearchSuccess extends SearchState {
   });
 
   @override
-  List<Object?> get props => [tabIndex, results, uiTranslations, filters, selectedValues];
+  List<Object?> get props => [super.props, tabIndex, results, uiTranslations, filters, selectedValues];
 
-  SearchSuccess copyWith({int? tabIndex}) => SearchSuccess(
+  SearchSuccess copyWith({int? tabIndex, String? currentLocale}) => SearchSuccess(
     results,
+    currentLocale: currentLocale ?? this.currentLocale,
     tabIndex: tabIndex ?? this.tabIndex,
     uiTranslations: uiTranslations,
     filters: filters,
@@ -112,17 +150,11 @@ class SearchSuccess extends SearchState {
   );
 }
 
-class PostDetailsLoaded extends SearchState {
-  final PostDetailModel post;
-  final Map<String, dynamic> uiTranslations;
-  const PostDetailsLoaded({required this.post, required this.uiTranslations});
-  @override
-  List<Object?> get props => [post, uiTranslations];
-}
-
 class SearchError extends SearchState {
   final String message;
-  const SearchError(this.message);
+  final Map<String, dynamic> uiTranslations;
+  const SearchError(this.message, {super.currentLocale, this.uiTranslations = const {}});
+
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [super.props, message, uiTranslations];
 }
