@@ -124,7 +124,7 @@ SliverToBoxAdapter(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            tr['new_comment_title'] ?? "НОВИЙ КОМЕНТАР",
+            tr['new_comment'] ?? "New Comment",
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
@@ -134,7 +134,7 @@ SliverToBoxAdapter(
             style: const TextStyle(color: Colors.white),
             maxLines: 3,
             decoration: InputDecoration(
-              hintText: tr['write_something'] ?? "Напишіть щось...",
+              hintText: tr['place_writhe'] ?? "Write something...",
               hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
               filled: true,
               fillColor: Colors.black26,
@@ -155,7 +155,7 @@ SliverToBoxAdapter(
               }
             }, // ✅ Все скобки на месте
             child: Text(
-              tr['submit_comment'] ?? "ВІДПРАВИТИ",
+              tr['submit_comment'] ?? "SUBMIT",
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
           ),
@@ -221,7 +221,7 @@ SliverToBoxAdapter(
         }
         if (state is CommentsLoaded) {
           if (state.comments.isEmpty) {
-            return const Center(child: Text("Коментарів ще немає", style: TextStyle(color: Colors.grey)));
+            return const Center(child: Text("No comments yet", style: TextStyle(color: Colors.grey)));
           }
           return ListView.builder(
             shrinkWrap: true,
