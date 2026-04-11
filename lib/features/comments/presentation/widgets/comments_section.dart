@@ -146,11 +146,11 @@ class _CommentCard extends StatelessWidget {
     const Color darkSlate = Color(0xFF1E293B);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16), 
+      padding: const EdgeInsets.all(16), 
       decoration: BoxDecoration(
         color: darkSlate.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(20), 
         border: Border.all(color: neonOrange.withOpacity(0.2), width: 1),
       ),
       child: Column(
@@ -158,7 +158,7 @@ class _CommentCard extends StatelessWidget {
         children: [
           _buildUserHeader(),
           _buildCommentBody(),
-          const SizedBox(height: 12),
+          const SizedBox(height: 12), 
           // Секция кнопок
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -170,10 +170,10 @@ class _CommentCard extends StatelessWidget {
                   color: const Color(0xFF00F2FF),
                   onTap: () => _showEditSheet(context),
                 ),
-              if (comment.canEdit && comment.canDelete) const SizedBox(width: 16),
+              if (comment.canEdit && comment.canDelete) const SizedBox(width: 16), // Отступ между кнопками
               if (comment.canDelete)
                 _buildActionButton(
-                  icon: Icons.delete_sweep,
+                  icon: Icons.delete_sweep, // Иконка для удаления
                   label: "ВИДАЛИТИ",
                   color: Colors.redAccent,
                   onTap: () => _confirmDelete(context),
