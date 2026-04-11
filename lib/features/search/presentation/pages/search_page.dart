@@ -7,22 +7,25 @@ import '../bloc/search_event.dart';
 import '../bloc/search_state.dart';
 import '../widgets/filter_builder.dart';
 import 'search_details_page.dart';
-// Импорты модуля комментариев
+import '../widgets/article_card.dart';
+import '../widgets/locale_selector.dart';
+// Модули комментариев
 import '../../../../features/comments/presentation/bloc/comments_bloc.dart';
 import '../../../../features/comments/presentation/bloc/comments_event.dart';
 import '../../../../features/comments/presentation/bloc/comments_state.dart';
 import '../../../../features/comments/data/models/comment_model.dart';
 
+/// Главная страница поиска — отвечает за фильтрацию, поиск, локализацию и рендеринг результата.
 class SearchPage extends StatelessWidget {
   const SearchPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
+      // Инициализация SearchBloc через DI-контейнер.
       create: (context) {
         final bloc = sl<SearchBloc>();
-        // Если блок только создан и стейт начальный — инициируем загрузку.
-        // Локаль пустая, чтобы сервер определил её сам (GeoIP).
+        // При первом создании всегда грузим стартовые фильтры (если только создан).
         if (bloc.state is SearchInitial) {
           bloc.add(const LoadFilters(category: 'people', locale: ''));
         }
@@ -30,6 +33,7 @@ class SearchPage extends StatelessWidget {
       },
       child: BlocBuilder<SearchBloc, SearchState>(
         builder: (context, state) {
+          // Экстракция переводов, локали и состояния результата из текущего state.
           final translations = _extractTranslations(state);
           final currentLocale = _extractLocale(context, state, translations);
           final searchResults = _extractResults(state);
@@ -73,6 +77,7 @@ class SearchPage extends StatelessWidget {
                     const SliverToBoxAdapter(child: SizedBox(height: 120)),
                   ],
                 ),
+                // Индикаторы загрузки (общий и линейный для результатов)
                 if (state is SearchLoading)
                   const Positioned.fill(
                     child: Center(child: CircularProgressIndicator(color: Color(0xFF00F2FF))),
@@ -83,19 +88,17 @@ class SearchPage extends StatelessWidget {
                     child: LinearProgressIndicator(
                       backgroundColor: Colors.transparent,
                       valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF00F2FF).withOpacity(0.5)),
-                    ), 
-                  ),   
+                    ),
+                  ),
               ],
-            ),   
+            ),
           );     
         },       
       ),         
-    );           
-  }              
+    );
+  }
 
-
-  // ========== БІЛДЕРИ КОМПОНЕНТІВ (ВНУТРИ КЛАССА) ==========
-
+  /// Построение кастомного AppBar
   PreferredSizeWidget _buildAppBar(Map<String, dynamic> translations, String currentLocale, BuildContext context) {
     return AppBar(
       backgroundColor: Colors.transparent,
@@ -104,11 +107,11 @@ class SearchPage extends StatelessWidget {
         translations['page_title'] ?? 'FindWay',
         style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 24, fontFamily: 'Orbitron', letterSpacing: 2),
       ),
-      // Убираем селектор отсюда, так как он теперь в NavBar
-      actions: const [], 
+      actions: const [], // селектор локали в NavBar, а не тут
     );
   }
 
+  /// Фильтрационный блок (категории, поиск, фильтры)
   Widget _buildFilterPanel(BuildContext context, SearchState state, Map<String, dynamic> translations, String currentLocale, dynamic filters, Map<String, dynamic> selectedFilterValues, String activeCategory) {
     const Color darkSlate = Color(0xFF1E293B);
     const Color neonBlue = Color(0xFF00F2FF);
@@ -160,6 +163,7 @@ class SearchPage extends StatelessWidget {
     );
   }
 
+  /// Поле поиска с кнопкой
   Widget _buildSearchField(BuildContext context, Map<String, dynamic> translations) {
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
@@ -183,6 +187,7 @@ class SearchPage extends StatelessWidget {
     );
   }
 
+  /// Решётка с результатами поиска
   Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -191,13 +196,14 @@ class SearchPage extends StatelessWidget {
           crossAxisCount: 2, mainAxisSpacing: 16, crossAxisSpacing: 16, childAspectRatio: 0.75,
         ),
         delegate: SliverChildBuilderDelegate(
-          (context, index) => _ArticleCard(post: results[index], currentLocale: currentLocale),
+          (context, index) => ArticleCard(post: results[index], currentLocale: currentLocale),
           childCount: results.length,
         ),
       ),
     );
   }
 
+  /// Кнопки категорий
   Widget _buildCategoryButtons(BuildContext context, String activeCategory, Map<String, dynamic> translations, String currentLocale) {
     return Row(
       children: [
@@ -227,6 +233,7 @@ class SearchPage extends StatelessWidget {
     );
   }
 
+  /// Кнопка применения фильтров (отправка поиска)
   Widget _buildApplyFiltersButton(BuildContext context, Map<String, dynamic> translations) {
     return SizedBox(
       width: double.infinity,
@@ -234,11 +241,16 @@ class SearchPage extends StatelessWidget {
         onPressed: () => context.read<SearchBloc>().add(const PerformSearch()),
         icon: const Icon(Icons.filter_list),
         label: Text(translations['filter_button'] ?? "Застосувати фільтри"),
-        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8A00).withOpacity(0.1), foregroundColor: const Color(0xFFFF8A00), side: const BorderSide(color: Color(0xFFFF8A00))),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFFF8A00).withOpacity(0.1),
+          foregroundColor: const Color(0xFFFF8A00),
+          side: const BorderSide(color: Color(0xFFFF8A00)),
+        ),
       ),
     );
   }
 
+  /// Кнопка сброса фильтров (отображается только для SearchSuccess)
   Widget _buildResetFiltersButton(BuildContext context, String currentLocale, Map<String, dynamic> translations) {
     return TextButton.icon(
       onPressed: () => context.read<SearchBloc>().add(LoadFilters(category: 'people', locale: currentLocale)),
@@ -248,7 +260,7 @@ class SearchPage extends StatelessWidget {
     );
   }
 
-  // ========== ЕКСТРАКТОРИ ДАНИХ (БЕЗОПАСНЫЕ) ==========
+  // ==== МЕТОДЫ-ЭКСТРАКТОРЫ состояния SearchBloc ====
 
   Map<String, dynamic> _extractTranslations(SearchState state) {
     if (state is FiltersLoaded) return state.uiTranslations;
@@ -292,144 +304,24 @@ class SearchPage extends StatelessWidget {
     if (state is FiltersLoaded) return state.tabIndex;
     if (state is SearchSuccess) return state.tabIndex;
     if (state is ResultsLoading) return state.tabIndex;
-    return 1; // Дефолт на вкладку Search
+    return 1; // По умолчанию выбирается Search
   }
 }
 
-// ==========================================
-// ОКРЕМІ КЛАСИ ВІДЖЕТІВ (ВНЕ КЛАССА SearchPage)
-// ==========================================
-
-class _LocaleSelector extends StatelessWidget {
-  final String currentLocale;
-  final bool isInNavBar; 
-
-  const _LocaleSelector({required this.currentLocale, this.isInNavBar = false, super.key});
-
-  static const Map<String, List<String>> _groupedLocales = {
-    "Europe": ["en", "uk", "pl", "nl", "be", "de", "fr", "it", "es", "pt", "cs", "sk", "ro"],
-    "North America": ["ca", "us", "mx"],
-  };
-
-  static const Map<String, String> _fullNames = {
-    "uk": "Ukraine (UA)", "en": "United Kingdom (EN)", "pl": "Poland (PL)",
-    "nl": "Netherlands (NL)", "be": "Belgium", "de": "Germany (DE)",
-    "fr": "France (FR)", "it": "Italy (IT)", "es": "Spain (ES)",
-    "pt": "Portugal (PT)", "cs": "Czech Republic (CZ)", "sk": "Slovakia (SK)",
-    "ro": "Romania (RO)", "ca": "Canada (CA)", "us": "USA (US)",
-    "mx": "Mexico (MX)", "be_nl": "Flanders – NL", "be_fr": "Wallonia – FR",
-    "be_de": "Eupen – DE"
-  };
-
-  String _getFlag(String code) {
-    if (code.isEmpty) return "🌐";
-    String countryCode = code.split('_')[0].toLowerCase();
-    if (countryCode == 'en') countryCode = 'gb';
-    if (countryCode == 'uk') countryCode = 'ua';
-    return countryCode.toUpperCase().characters.map((char) => String.fromCharCode(char.codeUnitAt(0) + 127397)).join();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _showLanguagePicker(context),
-      child: Column( 
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(_getFlag(currentLocale), style: const TextStyle(fontSize: 22)),
-          const SizedBox(height: 2),
-          Text(
-            currentLocale.toUpperCase(),
-            style: const TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold, fontSize: 10, fontFamily: 'Orbitron'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showLanguagePicker(BuildContext context) {
-    final searchBloc = context.read<SearchBloc>();
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF0A0E14),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) {
-        return BlocProvider.value(
-          value: searchBloc,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            child: ListView(
-              shrinkWrap: true,
-              children: _groupedLocales.entries.map((entry) {
-                return ExpansionTile(
-                  title: Text(entry.key, style: const TextStyle(color: Color(0xFF00F2FF), fontWeight: FontWeight.bold, fontFamily: 'Orbitron')),
-                  children: entry.value.map((locale) {
-                    // ✅ ЛОГИКА ВЕТВЛЕНИЯ ДЛЯ БЕЛЬГИИ
-                    if (locale == 'be') {
-                      return _buildBelgiumSubTile(context, searchBloc);
-                    }
-                    
-                    return ListTile(
-                      leading: Text(_getFlag(locale), style: const TextStyle(fontSize: 22)),
-                      title: Text(_fullNames[locale] ?? locale.toUpperCase(), style: const TextStyle(color: Colors.white)),
-                      onTap: () {
-                        searchBloc.add(ChangeLocale(locale));
-                        Navigator.pop(context);
-                      },
-                    );
-                  }).toList(),
-                );
-              }).toList(),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ========== БЕЛЬГИЙСКИЙ ПОДМОДУЛЬ ==========
-
-  Widget _buildBelgiumSubTile(BuildContext context, SearchBloc bloc) {
-    return ExpansionTile(
-      leading: Text(_getFlag('be'), style: const TextStyle(fontSize: 20)),
-      title: const Padding(
-        padding: EdgeInsets.only(left: 16.0),
-        child: Text("Belgium", style: TextStyle(color: Colors.white70, fontSize: 18)),
-      ),
-      children: [
-        _buildSubItem(context, bloc, 'be_nl'),
-        _buildSubItem(context, bloc, 'be_fr'),
-        _buildSubItem(context, bloc, 'be_de'),
-      ],
-    );
-  }
-
-  Widget _buildSubItem(BuildContext context, SearchBloc bloc, String code) {
-    return ListTile(
-      contentPadding: const EdgeInsets.only(left: 48),
-      leading: Text(_getFlag(code), style: const TextStyle(fontSize: 18)),
-      title: Text(
-        _fullNames[code] ?? code.toUpperCase(),
-        style: const TextStyle(color: Colors.white60, fontSize: 18),
-      ),
-      onTap: () {
-        bloc.add(ChangeLocale(code));
-        Navigator.pop(context);
-      },
-    );
-  }
-}
-
-// ==========================================
-
+/// Кастомная нижняя панель навигации с селектором локали
 class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
   final String currentLocale; 
   final Function(int) onTap;
   final Map<String, dynamic> translations;
 
-  const CustomBottomNavBar({required this.currentIndex, required this.currentLocale, required this.onTap, required this.translations, super.key});
+  const CustomBottomNavBar({
+    required this.currentIndex,
+    required this.currentLocale,
+    required this.onTap,
+    required this.translations,
+    super.key
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -445,7 +337,9 @@ class CustomBottomNavBar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _LocaleSelector(currentLocale: currentLocale, isInNavBar: true), 
+          // Селектор локали
+          LocaleSelector(currentLocale: currentLocale, isInNavBar: true), 
+          // Навигационные кнопки
           _navItem(1, Icons.search, translations['nav_search'] ?? 'Search'),
           _navItem(2, Icons.favorite_border, translations['nav_likes'] ?? 'Likes'),
           _navItem(3, Icons.notifications_none, translations['nav_notif'] ?? 'Notif'),
@@ -462,337 +356,21 @@ class CustomBottomNavBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B), size: 24),
+          Icon(
+            icon,
+            color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B),
+            size: 24,
+          ),
           const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B), fontSize: 10, fontFamily: 'Orbitron')),
-        ],
-      ),
-    );
-  }
-}
-
-
-class CommentsSection extends StatelessWidget {
-  final int postId;
-  final String category;
-
-  const CommentsSection({required this.postId, required this.category, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocProvider(
-      // Создаем блок и сразу запускаем загрузку
-      create: (context) => sl<CommentsBloc>(param1: postId, param2: category)..add(FetchComments()),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHeader(context),
-          const SizedBox(height: 20),
-          _buildCommentInput(context),
-          const SizedBox(height: 24),
-          _buildCommentsList(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    return Row(
-      children: [
-        const Icon(Icons.chat_bubble_outline, color: Color(0xFFFF8A00)),
-        const SizedBox(width: 10),
-        Text(
-          "КОМЕНТАРІ", // Можно вытянуть из translations
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.9),
-            fontWeight: FontWeight.bold,
-            fontFamily: 'Orbitron',
-            letterSpacing: 1.5,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCommentInput(BuildContext context) {
-    final controller = TextEditingController();
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFFFF8A00).withOpacity(0.3)),
-      ),
-      child: TextField(
-        controller: controller,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          hintText: "Напишіть щось...",
-          hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-          contentPadding: const EdgeInsets.all(16),
-          suffixIcon: IconButton(
-            icon: const Icon(Icons.send, color: Color(0xFFFF8A00)),
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                context.read<CommentsBloc>().add(AddComment(controller.text));
-                controller.clear();
-              }
-            },
-          ),
-          border: InputBorder.none,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCommentsList() {
-    return BlocBuilder<CommentsBloc, CommentsState>(
-      builder: (context, state) {
-        if (state is CommentsLoading) return const Center(child: CircularProgressIndicator());
-        if (state is CommentsError) return Text(state.message, style: const TextStyle(color: Colors.red));
-        if (state is CommentsLoaded) {
-          return ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: state.comments.length,
-            itemBuilder: (context, index) => _CommentCard(comment: state.comments[index]),
-          );
-        }
-        return const SizedBox.shrink();
-      },
-    );
-  }
-}
-
-class _CommentCard extends StatelessWidget {
-  final CommentModel comment;
-
-  const _CommentCard({required this.comment, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    const Color neonOrange = Color(0xFFFF8A00);
-    const Color darkSlate = Color(0xFF1E293B);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: darkSlate.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: neonOrange.withOpacity(0.2), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: neonOrange.withOpacity(0.05),
-            blurRadius: 10,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // HEADER: Avatar + Username + Date
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: Colors.grey[800],
-                backgroundImage: comment.avatarUrl != null 
-                    ? NetworkImage(comment.avatarUrl!) 
-                    : null,
-                child: comment.avatarUrl == null 
-                    ? const Icon(Icons.person, color: Colors.white70) 
-                    : null,
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    comment.username,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    comment.createdAt,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-
-          // BODY: Текст комментария с отступом (аналог ms-5 ps-2)
-          Padding(
-            padding: const EdgeInsets.only(left: 52, top: 8),
-            child: Text(
-              comment.body,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.85),
-                fontSize: 14,
-                height: 1.4,
-              ),
-            ),
-          ),
-
-          // ACTIONS: Кнопки Edit/Delete (аналог policy(comment).destroy?)
-          if (comment.canEdit || comment.canDelete)
-            Padding(
-              padding: const EdgeInsets.only(left: 52, top: 12),
-              child: Row(
-                children: [
-                  if (comment.canEdit)
-                    _buildActionButton(
-                      icon: Icons.edit_note,
-                      label: "РЕДАГУВАТИ",
-                      onTap: () {
-                        // Логика вызова формы редактирования
-                      },
-                    ),
-                  if (comment.canEdit && comment.canDelete) 
-                    const SizedBox(width: 16),
-                  if (comment.canDelete)
-                    _buildActionButton(
-                      icon: Icons.delete_sweep,
-                      label: "ВИДАЛИТИ",
-                      isDelete: true,
-                      onTap: () => _confirmDelete(context),
-                    ),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool isDelete = false,
-  }) {
-    final Color color = isDelete ? Colors.redAccent : const Color(0xFF00F2FF);
-    return GestureDetector(
-      onTap: onTap,
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: color.withOpacity(0.8)),
-          const SizedBox(width: 4),
           Text(
             label,
             style: TextStyle(
-              color: color.withOpacity(0.8),
+              color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B),
               fontSize: 10,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Orbitron',
+              fontFamily: 'Orbitron'
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _confirmDelete(BuildContext context) {
-    // Реализация быстрого подтверждения (Snackbar или Dialog)
-    context.read<CommentsBloc>().add(DeleteComment(comment.id));
-  }
-}
-
-class _ArticleCard extends StatelessWidget {
-  final dynamic post;
-  final String currentLocale;
-  
-  const _ArticleCard({required this.post, required this.currentLocale, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final String statusLabel = (post['choice_label'] ?? "").toString().toUpperCase();
-
-    return GestureDetector(
-      // ✅ Делаем onTap асинхронным
-      onTap: () async {
-        final bloc = context.read<SearchBloc>();
-        
-        // 1. Загружаем детали поста
-        bloc.add(LoadPostDetails(id: post['id'], category: 'people', locale: currentLocale));
-        
-        // 2. Ждем, пока пользователь закроет страницу деталей (await)
-        await Navigator.push(
-          context, 
-          MaterialPageRoute(
-            builder: (_) => BlocProvider.value(value: bloc, child: const SearchDetailsPage())
-          )
-        );
-
-        // 3. ✅ АВТОМАТИЗАЦИЯ: Код ниже выполнится ТОЛЬКО после возврата с экрана деталей.
-        // Мы принудительно вызываем загрузку фильтров и постов, как это делает неоновая кнопка.
-        if (context.mounted) {
-          bloc.add(LoadFilters(category: 'people', locale: currentLocale));
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20), 
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))]
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Image.network(
-                post['image_url'] ?? "", 
-                fit: BoxFit.cover, 
-                errorBuilder: (_, __, ___) => Container(color: Colors.grey[900])
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter, 
-                    end: Alignment.bottomCenter, 
-                    colors: [Colors.transparent, Colors.black.withOpacity(0.8)]
-                  )
-                )
-              ),
-              Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (statusLabel.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        margin: const EdgeInsets.only(bottom: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF00F2FF).withOpacity(0.1), 
-                          border: Border.all(color: const Color(0xFF00F2FF), width: 1), 
-                          borderRadius: BorderRadius.circular(4)
-                        ),
-                        child: Text(
-                          statusLabel, 
-                          style: const TextStyle(color: Color(0xFF00F2FF), fontSize: 9, fontWeight: FontWeight.bold, fontFamily: 'Orbitron')
-                        ),
-                      ),
-                    Text(
-                      post['title'] ?? "", 
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Orbitron'), 
-                      maxLines: 2, 
-                      overflow: TextOverflow.ellipsis
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
