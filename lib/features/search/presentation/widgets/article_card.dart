@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart'; // Если используешь Bloc
+import 'package:findway_mobile/features/comments/presentation/widgets/comments_section.dart';
 
 import '../bloc/search_bloc.dart';
 import '../bloc/search_event.dart';
