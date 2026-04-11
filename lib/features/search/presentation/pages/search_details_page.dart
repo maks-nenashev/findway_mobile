@@ -351,7 +351,7 @@ class _CommentNode extends StatelessWidget {
                     Align(
                       alignment: Alignment.centerRight,
                       child: GestureDetector(
-                        onTap: () => context.read<CommentsBloc>().add(DeleteComment(comment.id)),
+                        onTap: () => context.read<CommentsBloc>().add(DeleteComment(commentId: comment.id)),
                         child: const Padding(
                           padding: EdgeInsets.only(top: 8),
                           child: Icon(Icons.delete_outline, size: 16, color: Colors.redAccent),

@@ -18,18 +18,29 @@ class CommentsSection extends StatelessWidget {
   }) : super(key: key);
 
   @override
+@override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => sl<CommentsBloc>(param1: postId, param2: category)..add(FetchComments()),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHeader(context),
-          const SizedBox(height: 20),
-          _CommentInput(),
-          const SizedBox(height: 24),
-          _CommentsList(),
-        ],
+      create: (context) => sl<CommentsBloc>(param1: postId, param2: category)..add(const FetchComments()),
+      child: BlocListener<CommentsBloc, CommentsState>(
+        // ✅ Слушаем ошибки действий (Add/Update/Delete)
+        listener: (context, state) {
+          if (state is CommentsError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message), backgroundColor: Colors.redAccent),
+            );
+          }
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(context),
+            const SizedBox(height: 20),
+            _CommentInput(),
+            const SizedBox(height: 24),
+            _CommentsList(),
+          ],
+        ),
       ),
     );
   }
@@ -120,13 +131,17 @@ class _CommentsList extends StatelessWidget {
   }
 }
 
+
 class _CommentCard extends StatelessWidget {
   final CommentModel comment;
 
-  const _CommentCard({required this.comment});
+  const _CommentCard({required this.comment, Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    // RISK CONTROL: Диагностика данных в консоли
+    debugPrint("ID: ${comment.id} | Edit: ${comment.canEdit} | Delete: ${comment.canDelete}");
+
     const Color neonOrange = Color(0xFFFF8A00);
     const Color darkSlate = Color(0xFF1E293B);
 
@@ -137,89 +152,68 @@ class _CommentCard extends StatelessWidget {
         color: darkSlate.withOpacity(0.5),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: neonOrange.withOpacity(0.2), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: neonOrange.withOpacity(0.05),
-            blurRadius: 10,
-            spreadRadius: 1,
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildUserHeader(),
+          _buildCommentBody(),
+          const SizedBox(height: 12),
+          // Секция кнопок
           Row(
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: Colors.grey[800],
-                backgroundImage: comment.avatarUrl != null
-                    ? NetworkImage(comment.avatarUrl!)
-                    : null,
-                child: comment.avatarUrl == null
-                    ? const Icon(Icons.person, color: Colors.white70)
-                    : null,
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    comment.username,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                  Text(
-                    comment.createdAt,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
+              if (comment.canEdit)
+                _buildActionButton(
+                  icon: Icons.edit_note,
+                  label: "РЕДАГУВАТИ",
+                  color: const Color(0xFF00F2FF),
+                  onTap: () => _showEditSheet(context),
+                ),
+              if (comment.canEdit && comment.canDelete) const SizedBox(width: 16),
+              if (comment.canDelete)
+                _buildActionButton(
+                  icon: Icons.delete_sweep,
+                  label: "ВИДАЛИТИ",
+                  color: Colors.redAccent,
+                  onTap: () => _confirmDelete(context),
+                ),
             ],
           ),
-          Padding(
-            padding: const EdgeInsets.only(left: 52, top: 8),
-            child: Text(
-              comment.body,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.85),
-                fontSize: 14,
-                height: 1.4,
-              ),
-            ),
-          ),
-          if (comment.canEdit || comment.canDelete)
-            Padding(
-              padding: const EdgeInsets.only(left: 52, top: 12),
-              child: Row(
-                children: [
-                  if (comment.canEdit)
-                    _buildActionButton(
-                      icon: Icons.edit_note,
-                      label: "РЕДАГУВАТИ",
-                      onTap: () {
-                        // TODO: логика редактирования
-                      },
-                    ),
-                  if (comment.canEdit && comment.canDelete)
-                    const SizedBox(width: 16),
-                  if (comment.canDelete)
-                    _buildActionButton(
-                      icon: Icons.delete_sweep,
-                      label: "ВИДАЛИТИ",
-                      isDelete: true,
-                      onTap: () => _confirmDelete(context),
-                    ),
-                ],
-              ),
-            ),
         ],
+      ),
+    );
+  }
+
+  // --- Вспомогательные методы (Helper Methods) ---
+
+  Widget _buildUserHeader() {
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 20,
+          backgroundColor: Colors.grey[800],
+          backgroundImage: comment.avatarUrl != null ? NetworkImage(comment.avatarUrl!) : null,
+          child: comment.avatarUrl == null ? const Icon(Icons.person, color: Colors.white70) : null,
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(comment.username, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+            Text(comment.createdAt, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCommentBody() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 52, top: 8),
+      child: Text(
+        comment.body,
+        style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 14, height: 1.4),
       ),
     );
   }
@@ -227,31 +221,88 @@ class _CommentCard extends StatelessWidget {
   Widget _buildActionButton({
     required IconData icon,
     required String label,
+    required Color color,
     required VoidCallback onTap,
-    bool isDelete = false,
   }) {
-    final Color color = isDelete ? Colors.redAccent : const Color(0xFF00F2FF);
     return GestureDetector(
       onTap: onTap,
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color.withOpacity(0.8)),
+          Icon(icon, size: 18, color: color),
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(
-              color: color.withOpacity(0.8),
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              fontFamily: 'Orbitron',
-            ),
+            style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: 'Orbitron'),
           ),
         ],
       ),
     );
   }
 
+  // --- Логика действий ---
+
+  void _showEditSheet(BuildContext context) {
+    final controller = TextEditingController(text: comment.body);
+    final bloc = context.read<CommentsBloc>();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0F172A),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("РЕДАГУВАННЯ", style: TextStyle(color: Colors.white, fontFamily: 'Orbitron')),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              maxLines: 3,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: const Color(0xFF1E293B),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8A00)),
+              onPressed: () {
+                bloc.add(UpdateComment(commentId: comment.id, newBody: controller.text.trim()));
+                Navigator.pop(context);
+              },
+              child: const Text("ОНОВИТИ"),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _confirmDelete(BuildContext context) {
-    context.read<CommentsBloc>().add(DeleteComment(comment.id));
+    final bloc = context.read<CommentsBloc>();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text("Видалити?", style: TextStyle(color: Colors.white)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("СКАСУВАТИ")),
+          TextButton(
+            onPressed: () {
+              bloc.add(DeleteComment(commentId: comment.id));
+              Navigator.pop(context);
+            },
+            child: const Text("ВИДАЛИТИ", style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
   }
 }
+ 
