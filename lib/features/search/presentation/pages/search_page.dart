@@ -7,6 +7,7 @@ import '../bloc/search_event.dart';
 import '../bloc/search_state.dart';
 import '../widgets/filter_builder.dart';
 import 'search_details_page.dart';
+import '../widgets/article_card.dart';
 // Импорты модуля комментариев
 import '../../../../features/comments/presentation/bloc/comments_bloc.dart';
 import '../../../../features/comments/presentation/bloc/comments_event.dart';
@@ -191,7 +192,7 @@ class SearchPage extends StatelessWidget {
           crossAxisCount: 2, mainAxisSpacing: 16, crossAxisSpacing: 16, childAspectRatio: 0.75,
         ),
         delegate: SliverChildBuilderDelegate(
-          (context, index) => _ArticleCard(post: results[index], currentLocale: currentLocale),
+          (context, index) => ArticleCard(post: results[index], currentLocale: currentLocale),
           childCount: results.length,
         ),
       ),
@@ -705,95 +706,3 @@ class _CommentCard extends StatelessWidget {
   }
 }
 
-class _ArticleCard extends StatelessWidget {
-  final dynamic post;
-  final String currentLocale;
-  
-  const _ArticleCard({required this.post, required this.currentLocale, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final String statusLabel = (post['choice_label'] ?? "").toString().toUpperCase();
-
-    return GestureDetector(
-      // ✅ Делаем onTap асинхронным
-      onTap: () async {
-        final bloc = context.read<SearchBloc>();
-        
-        // 1. Загружаем детали поста
-        bloc.add(LoadPostDetails(id: post['id'], category: 'people', locale: currentLocale));
-        
-        // 2. Ждем, пока пользователь закроет страницу деталей (await)
-        await Navigator.push(
-          context, 
-          MaterialPageRoute(
-            builder: (_) => BlocProvider.value(value: bloc, child: const SearchDetailsPage())
-          )
-        );
-
-        // 3. ✅ АВТОМАТИЗАЦИЯ: Код ниже выполнится ТОЛЬКО после возврата с экрана деталей.
-        // Мы принудительно вызываем загрузку фильтров и постов, как это делает неоновая кнопка.
-        if (context.mounted) {
-          bloc.add(LoadFilters(category: 'people', locale: currentLocale));
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20), 
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))]
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Image.network(
-                post['image_url'] ?? "", 
-                fit: BoxFit.cover, 
-                errorBuilder: (_, __, ___) => Container(color: Colors.grey[900])
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter, 
-                    end: Alignment.bottomCenter, 
-                    colors: [Colors.transparent, Colors.black.withOpacity(0.8)]
-                  )
-                )
-              ),
-              Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (statusLabel.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        margin: const EdgeInsets.only(bottom: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF00F2FF).withOpacity(0.1), 
-                          border: Border.all(color: const Color(0xFF00F2FF), width: 1), 
-                          borderRadius: BorderRadius.circular(4)
-                        ),
-                        child: Text(
-                          statusLabel, 
-                          style: const TextStyle(color: Color(0xFF00F2FF), fontSize: 9, fontWeight: FontWeight.bold, fontFamily: 'Orbitron')
-                        ),
-                      ),
-                    Text(
-                      post['title'] ?? "", 
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Orbitron'), 
-                      maxLines: 2, 
-                      overflow: TextOverflow.ellipsis
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
