@@ -8,22 +8,24 @@ import '../bloc/search_state.dart';
 import '../widgets/filter_builder.dart';
 import 'search_details_page.dart';
 import '../widgets/article_card.dart';
-// Импорты модуля комментариев
+import '../widgets/locale_selector.dart';
+// Модули комментариев
 import '../../../../features/comments/presentation/bloc/comments_bloc.dart';
 import '../../../../features/comments/presentation/bloc/comments_event.dart';
 import '../../../../features/comments/presentation/bloc/comments_state.dart';
 import '../../../../features/comments/data/models/comment_model.dart';
 
+/// Главная страница поиска — отвечает за фильтрацию, поиск, локализацию и рендеринг результата.
 class SearchPage extends StatelessWidget {
   const SearchPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
+      // Инициализация SearchBloc через DI-контейнер.
       create: (context) {
         final bloc = sl<SearchBloc>();
-        // Если блок только создан и стейт начальный — инициируем загрузку.
-        // Локаль пустая, чтобы сервер определил её сам (GeoIP).
+        // При первом создании всегда грузим стартовые фильтры (если только создан).
         if (bloc.state is SearchInitial) {
           bloc.add(const LoadFilters(category: 'people', locale: ''));
         }
@@ -31,6 +33,7 @@ class SearchPage extends StatelessWidget {
       },
       child: BlocBuilder<SearchBloc, SearchState>(
         builder: (context, state) {
+          // Экстракция переводов, локали и состояния результата из текущего state.
           final translations = _extractTranslations(state);
           final currentLocale = _extractLocale(context, state, translations);
           final searchResults = _extractResults(state);
@@ -74,6 +77,7 @@ class SearchPage extends StatelessWidget {
                     const SliverToBoxAdapter(child: SizedBox(height: 120)),
                   ],
                 ),
+                // Индикаторы загрузки (общий и линейный для результатов)
                 if (state is SearchLoading)
                   const Positioned.fill(
                     child: Center(child: CircularProgressIndicator(color: Color(0xFF00F2FF))),
@@ -84,19 +88,17 @@ class SearchPage extends StatelessWidget {
                     child: LinearProgressIndicator(
                       backgroundColor: Colors.transparent,
                       valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF00F2FF).withOpacity(0.5)),
-                    ), 
-                  ),   
+                    ),
+                  ),
               ],
-            ),   
+            ),
           );     
         },       
       ),         
-    );           
-  }              
+    );
+  }
 
-
-  // ========== БІЛДЕРИ КОМПОНЕНТІВ (ВНУТРИ КЛАССА) ==========
-
+  /// Построение кастомного AppBar
   PreferredSizeWidget _buildAppBar(Map<String, dynamic> translations, String currentLocale, BuildContext context) {
     return AppBar(
       backgroundColor: Colors.transparent,
@@ -105,11 +107,11 @@ class SearchPage extends StatelessWidget {
         translations['page_title'] ?? 'FindWay',
         style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 24, fontFamily: 'Orbitron', letterSpacing: 2),
       ),
-      // Убираем селектор отсюда, так как он теперь в NavBar
-      actions: const [], 
+      actions: const [], // селектор локали в NavBar, а не тут
     );
   }
 
+  /// Фильтрационный блок (категории, поиск, фильтры)
   Widget _buildFilterPanel(BuildContext context, SearchState state, Map<String, dynamic> translations, String currentLocale, dynamic filters, Map<String, dynamic> selectedFilterValues, String activeCategory) {
     const Color darkSlate = Color(0xFF1E293B);
     const Color neonBlue = Color(0xFF00F2FF);
@@ -161,6 +163,7 @@ class SearchPage extends StatelessWidget {
     );
   }
 
+  /// Поле поиска с кнопкой
   Widget _buildSearchField(BuildContext context, Map<String, dynamic> translations) {
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
@@ -184,6 +187,7 @@ class SearchPage extends StatelessWidget {
     );
   }
 
+  /// Решётка с результатами поиска
   Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -199,6 +203,7 @@ class SearchPage extends StatelessWidget {
     );
   }
 
+  /// Кнопки категорий
   Widget _buildCategoryButtons(BuildContext context, String activeCategory, Map<String, dynamic> translations, String currentLocale) {
     return Row(
       children: [
@@ -228,6 +233,7 @@ class SearchPage extends StatelessWidget {
     );
   }
 
+  /// Кнопка применения фильтров (отправка поиска)
   Widget _buildApplyFiltersButton(BuildContext context, Map<String, dynamic> translations) {
     return SizedBox(
       width: double.infinity,
@@ -235,11 +241,16 @@ class SearchPage extends StatelessWidget {
         onPressed: () => context.read<SearchBloc>().add(const PerformSearch()),
         icon: const Icon(Icons.filter_list),
         label: Text(translations['filter_button'] ?? "Застосувати фільтри"),
-        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8A00).withOpacity(0.1), foregroundColor: const Color(0xFFFF8A00), side: const BorderSide(color: Color(0xFFFF8A00))),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFFF8A00).withOpacity(0.1),
+          foregroundColor: const Color(0xFFFF8A00),
+          side: const BorderSide(color: Color(0xFFFF8A00)),
+        ),
       ),
     );
   }
 
+  /// Кнопка сброса фильтров (отображается только для SearchSuccess)
   Widget _buildResetFiltersButton(BuildContext context, String currentLocale, Map<String, dynamic> translations) {
     return TextButton.icon(
       onPressed: () => context.read<SearchBloc>().add(LoadFilters(category: 'people', locale: currentLocale)),
@@ -249,7 +260,7 @@ class SearchPage extends StatelessWidget {
     );
   }
 
-  // ========== ЕКСТРАКТОРИ ДАНИХ (БЕЗОПАСНЫЕ) ==========
+  // ==== МЕТОДЫ-ЭКСТРАКТОРЫ состояния SearchBloc ====
 
   Map<String, dynamic> _extractTranslations(SearchState state) {
     if (state is FiltersLoaded) return state.uiTranslations;
@@ -293,144 +304,24 @@ class SearchPage extends StatelessWidget {
     if (state is FiltersLoaded) return state.tabIndex;
     if (state is SearchSuccess) return state.tabIndex;
     if (state is ResultsLoading) return state.tabIndex;
-    return 1; // Дефолт на вкладку Search
+    return 1; // По умолчанию выбирается Search
   }
 }
 
-// ==========================================
-// ОКРЕМІ КЛАСИ ВІДЖЕТІВ (ВНЕ КЛАССА SearchPage)
-// ==========================================
-
-class _LocaleSelector extends StatelessWidget {
-  final String currentLocale;
-  final bool isInNavBar; 
-
-  const _LocaleSelector({required this.currentLocale, this.isInNavBar = false, super.key});
-
-  static const Map<String, List<String>> _groupedLocales = {
-    "Europe": ["en", "uk", "pl", "nl", "be", "de", "fr", "it", "es", "pt", "cs", "sk", "ro"],
-    "North America": ["ca", "us", "mx"],
-  };
-
-  static const Map<String, String> _fullNames = {
-    "uk": "Ukraine (UA)", "en": "United Kingdom (EN)", "pl": "Poland (PL)",
-    "nl": "Netherlands (NL)", "be": "Belgium", "de": "Germany (DE)",
-    "fr": "France (FR)", "it": "Italy (IT)", "es": "Spain (ES)",
-    "pt": "Portugal (PT)", "cs": "Czech Republic (CZ)", "sk": "Slovakia (SK)",
-    "ro": "Romania (RO)", "ca": "Canada (CA)", "us": "USA (US)",
-    "mx": "Mexico (MX)", "be_nl": "Flanders – NL", "be_fr": "Wallonia – FR",
-    "be_de": "Eupen – DE"
-  };
-
-  String _getFlag(String code) {
-    if (code.isEmpty) return "🌐";
-    String countryCode = code.split('_')[0].toLowerCase();
-    if (countryCode == 'en') countryCode = 'gb';
-    if (countryCode == 'uk') countryCode = 'ua';
-    return countryCode.toUpperCase().characters.map((char) => String.fromCharCode(char.codeUnitAt(0) + 127397)).join();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _showLanguagePicker(context),
-      child: Column( 
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(_getFlag(currentLocale), style: const TextStyle(fontSize: 22)),
-          const SizedBox(height: 2),
-          Text(
-            currentLocale.toUpperCase(),
-            style: const TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold, fontSize: 10, fontFamily: 'Orbitron'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showLanguagePicker(BuildContext context) {
-    final searchBloc = context.read<SearchBloc>();
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF0A0E14),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) {
-        return BlocProvider.value(
-          value: searchBloc,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            child: ListView(
-              shrinkWrap: true,
-              children: _groupedLocales.entries.map((entry) {
-                return ExpansionTile(
-                  title: Text(entry.key, style: const TextStyle(color: Color(0xFF00F2FF), fontWeight: FontWeight.bold, fontFamily: 'Orbitron')),
-                  children: entry.value.map((locale) {
-                    // ✅ ЛОГИКА ВЕТВЛЕНИЯ ДЛЯ БЕЛЬГИИ
-                    if (locale == 'be') {
-                      return _buildBelgiumSubTile(context, searchBloc);
-                    }
-                    
-                    return ListTile(
-                      leading: Text(_getFlag(locale), style: const TextStyle(fontSize: 22)),
-                      title: Text(_fullNames[locale] ?? locale.toUpperCase(), style: const TextStyle(color: Colors.white)),
-                      onTap: () {
-                        searchBloc.add(ChangeLocale(locale));
-                        Navigator.pop(context);
-                      },
-                    );
-                  }).toList(),
-                );
-              }).toList(),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ========== БЕЛЬГИЙСКИЙ ПОДМОДУЛЬ ==========
-
-  Widget _buildBelgiumSubTile(BuildContext context, SearchBloc bloc) {
-    return ExpansionTile(
-      leading: Text(_getFlag('be'), style: const TextStyle(fontSize: 20)),
-      title: const Padding(
-        padding: EdgeInsets.only(left: 16.0),
-        child: Text("Belgium", style: TextStyle(color: Colors.white70, fontSize: 18)),
-      ),
-      children: [
-        _buildSubItem(context, bloc, 'be_nl'),
-        _buildSubItem(context, bloc, 'be_fr'),
-        _buildSubItem(context, bloc, 'be_de'),
-      ],
-    );
-  }
-
-  Widget _buildSubItem(BuildContext context, SearchBloc bloc, String code) {
-    return ListTile(
-      contentPadding: const EdgeInsets.only(left: 48),
-      leading: Text(_getFlag(code), style: const TextStyle(fontSize: 18)),
-      title: Text(
-        _fullNames[code] ?? code.toUpperCase(),
-        style: const TextStyle(color: Colors.white60, fontSize: 18),
-      ),
-      onTap: () {
-        bloc.add(ChangeLocale(code));
-        Navigator.pop(context);
-      },
-    );
-  }
-}
-
-// ==========================================
-
+/// Кастомная нижняя панель навигации с селектором локали
 class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
   final String currentLocale; 
   final Function(int) onTap;
   final Map<String, dynamic> translations;
 
-  const CustomBottomNavBar({required this.currentIndex, required this.currentLocale, required this.onTap, required this.translations, super.key});
+  const CustomBottomNavBar({
+    required this.currentIndex,
+    required this.currentLocale,
+    required this.onTap,
+    required this.translations,
+    super.key
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -446,7 +337,9 @@ class CustomBottomNavBar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _LocaleSelector(currentLocale: currentLocale, isInNavBar: true), 
+          // Селектор локали
+          LocaleSelector(currentLocale: currentLocale, isInNavBar: true), 
+          // Навигационные кнопки
           _navItem(1, Icons.search, translations['nav_search'] ?? 'Search'),
           _navItem(2, Icons.favorite_border, translations['nav_likes'] ?? 'Likes'),
           _navItem(3, Icons.notifications_none, translations['nav_notif'] ?? 'Notif'),
@@ -463,13 +356,22 @@ class CustomBottomNavBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B), size: 24),
+          Icon(
+            icon,
+            color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B),
+            size: 24,
+          ),
           const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B), fontSize: 10, fontFamily: 'Orbitron')),
+          Text(
+            label,
+            style: TextStyle(
+              color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B),
+              fontSize: 10,
+              fontFamily: 'Orbitron'
+            ),
+          ),
         ],
       ),
     );
   }
 }
-
-
