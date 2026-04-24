@@ -9,23 +9,21 @@ import '../widgets/filter_builder.dart';
 import 'search_details_page.dart';
 import '../widgets/article_card.dart';
 import '../widgets/locale_selector.dart';
+
 // Модули комментариев
 import '../../../../features/comments/presentation/bloc/comments_bloc.dart';
 import '../../../../features/comments/presentation/bloc/comments_event.dart';
 import '../../../../features/comments/presentation/bloc/comments_state.dart';
 import '../../../../features/comments/data/models/comment_model.dart';
 
-/// Главная страница поиска — отвечает за фильтрацию, поиск, локализацию и рендеринг результата.
 class SearchPage extends StatelessWidget {
   const SearchPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      // Инициализация SearchBloc через DI-контейнер.
       create: (context) {
         final bloc = sl<SearchBloc>();
-        // При первом создании всегда грузим стартовые фильтры (если только создан).
         if (bloc.state is SearchInitial) {
           bloc.add(const LoadFilters(category: 'people', locale: ''));
         }
@@ -33,25 +31,37 @@ class SearchPage extends StatelessWidget {
       },
       child: BlocBuilder<SearchBloc, SearchState>(
         builder: (context, state) {
-          // Экстракция переводов, локали и состояния результата из текущего state.
           final translations = _extractTranslations(state);
-          final currentLocale = _extractLocale(context, state, translations);
+          final currentLocale = _extractLocale(context, state, translations); // Получаем текущую локаль из состояния или из переводов
           final searchResults = _extractResults(state);
           final filters = _extractFilters(state);
           final selectedFilterValues = _extractSelectedValues(state);
           final activeCategory = _extractCategory(state);
           final currentTabIndex = _extractTabIndex(state);
 
-          return Scaffold(
+          return Scaffold( 
             extendBody: true,
             backgroundColor: const Color(0xFFF0F4F8),
-            appBar: _buildAppBar(translations, currentLocale, context),
+            appBar: _buildAppBar(translations, currentLocale, context), // Стандартный AppBar с прозрачным фоном и кастомным стилем текста
+            
+            // 1. Та самая многоцветная кнопка
+            floatingActionButton: GestureDetector(
+              onTap: () {
+                // Функционал добавления поста будет тут
+              },
+              child: _buildMultiColorPostButton(),
+            ),
+
+            // 2. Позиционирование по центру NavBar
+            floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
             bottomNavigationBar: CustomBottomNavBar( 
               currentIndex: currentTabIndex,
               currentLocale: currentLocale,
               translations: translations,
               onTap: (index) => context.read<SearchBloc>().add(ChangeTab(index)),
             ),
+
             body: Stack(
               children: [
                 CustomScrollView(
@@ -77,7 +87,6 @@ class SearchPage extends StatelessWidget {
                     const SliverToBoxAdapter(child: SizedBox(height: 120)),
                   ],
                 ),
-                // Индикаторы загрузки (общий и линейный для результатов)
                 if (state is SearchLoading)
                   const Positioned.fill(
                     child: Center(child: CircularProgressIndicator(color: Color(0xFF00F2FF))),
@@ -92,13 +101,55 @@ class SearchPage extends StatelessWidget {
                   ),
               ],
             ),
-          );     
-        },       
-      ),         
+          ); // Scaffold корректно закрыт
+        },
+      ),
     );
   }
 
-  /// Построение кастомного AppBar
+  // --- Методы UI ---
+  // Многоцветная кнопка для создания нового поста
+  Widget _buildMultiColorPostButton() {
+    return Container(
+      width: 72,
+      height: 72,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+      ),
+      padding: const EdgeInsets.all(3),
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const SweepGradient(
+            colors: [
+              Color(0xFF23E5DB),
+              Color(0xFF002F34),
+              Color(0xFF6A11CB),
+              Color(0xFFFF5F6D),
+              Color(0xFFFFCE32),
+              Color(0xFF23E5DB),
+            ],
+            stops: [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+          ),
+        ),
+        child: Container(
+          margin: const EdgeInsets.all(4),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.add,
+            size: 38,
+            color: Color(0xFF002F34),
+          ),
+        ),
+      ),
+    );
+  }
+   
+  // Стандартный AppBar с прозрачным фоном и кастомным стилем текста
   PreferredSizeWidget _buildAppBar(Map<String, dynamic> translations, String currentLocale, BuildContext context) {
     return AppBar(
       backgroundColor: Colors.transparent,
@@ -107,11 +158,10 @@ class SearchPage extends StatelessWidget {
         translations['page_title'] ?? 'FindWay',
         style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 24, fontFamily: 'Orbitron', letterSpacing: 2),
       ),
-      actions: const [], // селектор локали в NavBar, а не тут
     );
   }
-
-  /// Фильтрационный блок (категории, поиск, фильтры)
+  
+  // Панель фильтров с категориями, полем поиска и динамическими фильтрами
   Widget _buildFilterPanel(BuildContext context, SearchState state, Map<String, dynamic> translations, String currentLocale, dynamic filters, Map<String, dynamic> selectedFilterValues, String activeCategory) {
     const Color darkSlate = Color(0xFF1E293B);
     const Color neonBlue = Color(0xFF00F2FF);
@@ -162,8 +212,8 @@ class SearchPage extends StatelessWidget {
       ),
     );
   }
-
-  /// Поле поиска с кнопкой
+  
+  // Поле поиска с иконкой и кнопкой для выполнения поиска
   Widget _buildSearchField(BuildContext context, Map<String, dynamic> translations) {
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
@@ -186,8 +236,8 @@ class SearchPage extends StatelessWidget {
       ),
     );
   }
-
-  /// Решётка с результатами поиска
+  
+  // Сетка результатов поиска с карточками статей
   Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -202,8 +252,8 @@ class SearchPage extends StatelessWidget {
       ),
     );
   }
-
-  /// Кнопки категорий
+  
+  // Кнопки категорий с динамическим стилем для активной категории
   Widget _buildCategoryButtons(BuildContext context, String activeCategory, Map<String, dynamic> translations, String currentLocale) {
     return Row(
       children: [
@@ -215,7 +265,8 @@ class SearchPage extends StatelessWidget {
       ],
     );
   }
-
+  
+  // Отдельная вкладка категории с динамическим стилем для активной категории
   Widget _categoryTab(BuildContext context, String cat, String label, Color color, bool isActive, String locale) {
     return Expanded(
       child: GestureDetector(
@@ -232,8 +283,8 @@ class SearchPage extends StatelessWidget {
       ),
     );
   }
-
-  /// Кнопка применения фильтров (отправка поиска)
+  
+  // Кнопка для применения выбранных фильтров с кастомным стилем
   Widget _buildApplyFiltersButton(BuildContext context, Map<String, dynamic> translations) {
     return SizedBox(
       width: double.infinity,
@@ -249,8 +300,8 @@ class SearchPage extends StatelessWidget {
       ),
     );
   }
-
-  /// Кнопка сброса фильтров (отображается только для SearchSuccess)
+  
+  // Кнопка для сброса фильтров и загрузки начальных данных с кастомным стилем
   Widget _buildResetFiltersButton(BuildContext context, String currentLocale, Map<String, dynamic> translations) {
     return TextButton.icon(
       onPressed: () => context.read<SearchBloc>().add(LoadFilters(category: 'people', locale: currentLocale)),
@@ -260,7 +311,7 @@ class SearchPage extends StatelessWidget {
     );
   }
 
-  // ==== МЕТОДЫ-ЭКСТРАКТОРЫ состояния SearchBloc ====
+  // ==== Экстракторы состояния ====
 
   Map<String, dynamic> _extractTranslations(SearchState state) {
     if (state is FiltersLoaded) return state.uiTranslations;
@@ -304,11 +355,11 @@ class SearchPage extends StatelessWidget {
     if (state is FiltersLoaded) return state.tabIndex;
     if (state is SearchSuccess) return state.tabIndex;
     if (state is ResultsLoading) return state.tabIndex;
-    return 1; // По умолчанию выбирается Search
+    return 1;
   }
 }
 
-/// Кастомная нижняя панель навигации с селектором локали
+// Кастомная нижняя навигационная панель с интегрированным селектором языка и динамическими пунктами меню
 class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
   final String currentLocale; 
@@ -337,18 +388,21 @@ class CustomBottomNavBar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          // Селектор локали
-          LocaleSelector(currentLocale: currentLocale, isInNavBar: true), 
-          // Навигационные кнопки
+          LocaleSelector(currentLocale: currentLocale, isInNavBar: true), // Селектор языка в навигационной панели
           _navItem(1, Icons.search, translations['nav_search'] ?? 'Search'),
-          _navItem(2, Icons.favorite_border, translations['nav_likes'] ?? 'Likes'),
+          
+          // Пространство под центральную кнопку FAB
+          const SizedBox(width: 48), 
+          
+         // _navItem(2, Icons.favorite_border, translations['nav_likes'] ?? 'Likes'),
           _navItem(3, Icons.notifications_none, translations['nav_notif'] ?? 'Notif'),
           _navItem(4, Icons.person_outline, translations['nav_profile'] ?? 'Profile'),
         ],
       ),
     );
   }
-
+  
+  // Отдельный пункт навигации с иконкой и текстом, который меняет стиль при активном состоянии
   Widget _navItem(int index, IconData icon, String label) {
     final bool isActive = currentIndex == index;
     return GestureDetector(
@@ -356,20 +410,9 @@ class CustomBottomNavBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B),
-            size: 24,
-          ),
+          Icon(icon, color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B), size: 24),
           const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B),
-              fontSize: 10,
-              fontFamily: 'Orbitron'
-            ),
-          ),
+          Text(label, style: TextStyle(color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B), fontSize: 10, fontFamily: 'Orbitron')),
         ],
       ),
     );
