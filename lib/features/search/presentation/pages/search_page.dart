@@ -6,15 +6,25 @@ import '../bloc/search_bloc.dart';
 import '../bloc/search_event.dart';
 import '../bloc/search_state.dart';
 import '../widgets/filter_builder.dart';
-import 'search_details_page.dart';
 import '../widgets/article_card.dart';
 import '../widgets/locale_selector.dart';
 
-// Модули комментариев
-import '../../../../features/comments/presentation/bloc/comments_bloc.dart';
-import '../../../../features/comments/presentation/bloc/comments_event.dart';
-import '../../../../features/comments/presentation/bloc/comments_state.dart';
-import '../../../../features/comments/data/models/comment_model.dart';
+// === 1. МОДЕЛЬ ДАННЫХ КАТЕГОРИЙ (Architecture) ===
+class FindWayCategory {
+  final String title;
+  final String description;
+  final String imagePath;
+  final String modelsInfo;
+  final Color accentColor;
+
+  const FindWayCategory({
+    required this.title,
+    required this.description,
+    required this.imagePath,
+    required this.modelsInfo,
+    required this.accentColor,
+  });
+}
 
 class SearchPage extends StatelessWidget {
   const SearchPage({super.key});
@@ -24,132 +34,176 @@ class SearchPage extends StatelessWidget {
     return BlocProvider(
       create: (context) {
         final bloc = sl<SearchBloc>();
-        if (bloc.state is SearchInitial) {
-          bloc.add(const LoadFilters(category: 'people', locale: ''));
-        }
+        // ГАРАНТИЯ ЛОКАЛИ: Загружаем украинский сразу для титула
+        bloc.add(const LoadFilters(category: '', locale: 'uk')); 
         return bloc;
       },
       child: BlocBuilder<SearchBloc, SearchState>(
         builder: (context, state) {
           final translations = _extractTranslations(state);
-          final currentLocale = _extractLocale(context, state, translations); // Получаем текущую локаль из состояния или из переводов
+          final currentLocale = _extractLocale(context, state, translations);
           final searchResults = _extractResults(state);
           final filters = _extractFilters(state);
           final selectedFilterValues = _extractSelectedValues(state);
           final activeCategory = _extractCategory(state);
           final currentTabIndex = _extractTabIndex(state);
 
+          // Титульный лист отображается, если категория пуста
+          final bool isTitlePage = activeCategory.isEmpty;
+
           return Scaffold( 
             extendBody: true,
             backgroundColor: const Color(0xFFF0F4F8),
-            appBar: _buildAppBar(translations, currentLocale, context), // Стандартный AppBar с прозрачным фоном и кастомным стилем текста
+            appBar: _buildAppBar(translations, currentLocale, context),
             
-            // 1. Та самая многоцветная кнопка
+            // КНОПКА ВОЗВРАЩЕНА: Теперь она видна и на титуле
             floatingActionButton: GestureDetector(
               onTap: () {
-                // Функционал добавления поста будет тут
+                // Логика создания поста
               },
               child: _buildMultiColorPostButton(),
             ),
-
-            // 2. Позиционирование по центру NavBar
             floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
             bottomNavigationBar: CustomBottomNavBar( 
               currentIndex: currentTabIndex,
               currentLocale: currentLocale,
               translations: translations,
-              onTap: (index) => context.read<SearchBloc>().add(ChangeTab(index)),
+              onTap: (index) {
+                if (index == 1) {
+                  context.read<SearchBloc>().add(const LoadFilters(category: '', locale: ''));
+                } else {
+                  context.read<SearchBloc>().add(ChangeTab(index));
+                }
+              },
             ),
 
-            body: Stack(
-              children: [
-                CustomScrollView(
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: _buildFilterPanel(
-                        context, state, translations, currentLocale,
-                        filters, selectedFilterValues, activeCategory,
-                      ),
-                    ),
-                    if (searchResults.isNotEmpty)
-                      _buildResultsGrid(searchResults, currentLocale)
-                    else if (state is! SearchLoading && state is! ResultsLoading)
-                      SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: Center(
-                          child: Text(
-                            translations['no_results'] ?? 'No results found',
-                            style: const TextStyle(fontSize: 16),
+            body: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: isTitlePage 
+                ? _buildTitleLayout(context, translations) 
+                : Stack( 
+                    key: const ValueKey('ModelLayout'),
+                    children: [
+                      CustomScrollView(
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: _buildFilterPanel(
+                              context, state, translations, currentLocale,
+                              filters, selectedFilterValues, activeCategory,
+                            ),
                           ),
-                        ),
+                          if (searchResults.isNotEmpty)
+                            _buildResultsGrid(searchResults, currentLocale)
+                          else if (state is! SearchLoading && state is! ResultsLoading)
+                            SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: Center(
+                                child: Text(
+                                  translations['no_results'] ?? 'No results found',
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                              ),
+                            ),
+                          const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                        ],
                       ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 120)),
-                  ],
-                ),
-                if (state is SearchLoading)
-                  const Positioned.fill(
-                    child: Center(child: CircularProgressIndicator(color: Color(0xFF00F2FF))),
+                      if (state is SearchLoading)
+                        const Positioned.fill(child: Center(child: CircularProgressIndicator(color: Color(0xFF00F2FF)))),
+                    ],
                   ),
-                if (state is ResultsLoading)
-                  Positioned(
-                    top: 0, left: 0, right: 0,
-                    child: LinearProgressIndicator(
-                      backgroundColor: Colors.transparent,
-                      valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF00F2FF).withOpacity(0.5)),
-                    ),
-                  ),
-              ],
             ),
-          ); // Scaffold корректно закрыт
+          );
         },
       ),
     );
   }
 
-  // --- Методы UI ---
-  // Многоцветная кнопка для создания нового поста
+  // --- ЛЕЙАУТ: ТИТУЛЬНЫЙ ЛИСТ ---
+  Widget _buildTitleLayout(BuildContext context, Map<String, dynamic> trans) {
+    final categories = _getLocalizedCategories(trans);
+    return CustomScrollView(
+      key: const ValueKey('TitleLayout'),
+      slivers: [
+        const SliverToBoxAdapter(child: SizedBox(height: 40)),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => CategoryCard(
+                category: categories[index],
+                onTap: () {
+                  context.read<SearchBloc>().add(
+                    LoadFilters(category: _getRawCategoryName(index), locale: '')
+                  );
+                },
+              ),
+              childCount: categories.length,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<FindWayCategory> _getLocalizedCategories(Map<String, dynamic> trans) {
+    return [
+      FindWayCategory(
+        title: trans['title_one'] ?? 'People',
+        accentColor: const Color(0xFF00F2FF),
+        modelsInfo: 'Models EfficientNet-B0, ArcFace & NLP | ACTIVE',
+        description: trans['description_one'] ?? '',
+        imagePath: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?q=80&w=1000',
+      ),
+      FindWayCategory(
+        title: trans['title_two'] ?? 'Animals',
+        accentColor: const Color(0xFFFF8A00),
+        modelsInfo: 'Models EfficientNet-B0, NLP | ACTIVE',
+        description: trans['description_two'] ?? '',
+        imagePath: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=1000',
+      ),
+      FindWayCategory(
+        title: trans['title_three'] ?? 'Things',
+        accentColor: const Color(0xFF2ECC71),
+        modelsInfo: 'Models EfficientNet-B0, NLP | ACTIVE',
+        description: trans['description_three'] ?? '',
+        imagePath: 'https://images.unsplash.com/photo-1516714435131-44d6b64dc6a2?q=80&w=1000',
+      ),
+    ];
+  }
+
+  String _getRawCategoryName(int index) {
+    switch (index) {
+      case 0: return 'people';
+      case 1: return 'animals';
+      case 2: return 'things';
+      default: return 'people';
+    }
+  }
+
+  // --- UI ФРОНТЕНД ---
   Widget _buildMultiColorPostButton() {
     return Container(
-      width: 72,
-      height: 72,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-      ),
+      width: 72, height: 72,
+      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
       padding: const EdgeInsets.all(3),
       child: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           shape: BoxShape.circle,
-          gradient: const SweepGradient(
-            colors: [
-              Color(0xFF23E5DB),
-              Color(0xFF002F34),
-              Color(0xFF6A11CB),
-              Color(0xFFFF5F6D),
-              Color(0xFFFFCE32),
-              Color(0xFF23E5DB),
-            ],
+          gradient: SweepGradient(
+            colors: [Color(0xFF23E5DB), Color(0xFF002F34), Color(0xFF6A11CB), Color(0xFFFF5F6D), Color(0xFFFFCE32), Color(0xFF23E5DB)],
             stops: [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
           ),
         ),
         child: Container(
           margin: const EdgeInsets.all(4),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.add,
-            size: 38,
-            color: Color(0xFF002F34),
-          ),
+          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+          child: const Icon(Icons.add, size: 38, color: Color(0xFF002F34)),
         ),
       ),
     );
   }
-   
-  // Стандартный AppBar с прозрачным фоном и кастомным стилем текста
+
   PreferredSizeWidget _buildAppBar(Map<String, dynamic> translations, String currentLocale, BuildContext context) {
     return AppBar(
       backgroundColor: Colors.transparent,
@@ -160,8 +214,7 @@ class SearchPage extends StatelessWidget {
       ),
     );
   }
-  
-  // Панель фильтров с категориями, полем поиска и динамическими фильтрами
+
   Widget _buildFilterPanel(BuildContext context, SearchState state, Map<String, dynamic> translations, String currentLocale, dynamic filters, Map<String, dynamic> selectedFilterValues, String activeCategory) {
     const Color darkSlate = Color(0xFF1E293B);
     const Color neonBlue = Color(0xFF00F2FF);
@@ -171,8 +224,7 @@ class SearchPage extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: darkSlate,
-          borderRadius: BorderRadius.circular(24),
+          color: darkSlate, borderRadius: BorderRadius.circular(24),
           border: Border.all(color: darkSlate, width: 2),
         ),
         child: Column(
@@ -187,8 +239,7 @@ class SearchPage extends StatelessWidget {
                 data: Theme.of(context).copyWith(
                   canvasColor: Colors.white,
                   inputDecorationTheme: InputDecorationTheme(
-                    filled: true,
-                    fillColor: Colors.white,
+                    filled: true, fillColor: Colors.white,
                     contentPadding: const EdgeInsets.only(left: 16, right: 16, top: 24, bottom: 10),
                     floatingLabelStyle: const TextStyle(color: neonBlue, fontWeight: FontWeight.bold, fontSize: 16, height: 0.2),
                     labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
@@ -212,8 +263,7 @@ class SearchPage extends StatelessWidget {
       ),
     );
   }
-  
-  // Поле поиска с иконкой и кнопкой для выполнения поиска
+
   Widget _buildSearchField(BuildContext context, Map<String, dynamic> translations) {
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
@@ -236,8 +286,7 @@ class SearchPage extends StatelessWidget {
       ),
     );
   }
-  
-  // Сетка результатов поиска с карточками статей
+
   Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -252,8 +301,7 @@ class SearchPage extends StatelessWidget {
       ),
     );
   }
-  
-  // Кнопки категорий с динамическим стилем для активной категории
+
   Widget _buildCategoryButtons(BuildContext context, String activeCategory, Map<String, dynamic> translations, String currentLocale) {
     return Row(
       children: [
@@ -265,8 +313,7 @@ class SearchPage extends StatelessWidget {
       ],
     );
   }
-  
-  // Отдельная вкладка категории с динамическим стилем для активной категории
+
   Widget _categoryTab(BuildContext context, String cat, String label, Color color, bool isActive, String locale) {
     return Expanded(
       child: GestureDetector(
@@ -283,15 +330,14 @@ class SearchPage extends StatelessWidget {
       ),
     );
   }
-  
-  // Кнопка для применения выбранных фильтров с кастомным стилем
+
   Widget _buildApplyFiltersButton(BuildContext context, Map<String, dynamic> translations) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
         onPressed: () => context.read<SearchBloc>().add(const PerformSearch()),
         icon: const Icon(Icons.filter_list),
-        label: Text(translations['filter_button'] ?? "Застосувати фільтри"),
+        label: Text(translations['filter_button'] ?? "Застосувати фильтри"),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFFF8A00).withOpacity(0.1),
           foregroundColor: const Color(0xFFFF8A00),
@@ -300,19 +346,17 @@ class SearchPage extends StatelessWidget {
       ),
     );
   }
-  
-  // Кнопка для сброса фильтров и загрузки начальных данных с кастомным стилем
+
   Widget _buildResetFiltersButton(BuildContext context, String currentLocale, Map<String, dynamic> translations) {
     return TextButton.icon(
       onPressed: () => context.read<SearchBloc>().add(LoadFilters(category: 'people', locale: currentLocale)),
       icon: const Icon(Icons.refresh, size: 16),
-      label: Text(translations['last'] ?? "Скинути фільтри"),
+      label: Text(translations['last'] ?? "Скинути фильтри"),
       style: TextButton.styleFrom(foregroundColor: const Color(0xFF00F2FF)),
     );
   }
 
-  // ==== Экстракторы состояния ====
-
+  // --- Экстракторы состояния ---
   Map<String, dynamic> _extractTranslations(SearchState state) {
     if (state is FiltersLoaded) return state.uiTranslations;
     if (state is SearchSuccess) return state.uiTranslations;
@@ -322,7 +366,8 @@ class SearchPage extends StatelessWidget {
 
   String _extractLocale(BuildContext context, SearchState state, Map<String, dynamic> translations) {
     if (state is FiltersLoaded && state.currentLocale.isNotEmpty) return state.currentLocale;
-    return translations['locale_code']?.toString() ?? '';
+    // ГАРАНТИЯ: Если стейт не загружен, возвращаем 'uk' по умолчанию
+    return translations['locale_code']?.toString() ?? 'uk';
   }
 
   List<dynamic> _extractResults(SearchState state) {
@@ -340,15 +385,18 @@ class SearchPage extends StatelessWidget {
   }
 
   Map<String, dynamic> _extractSelectedValues(SearchState state) {
-    if (state is FiltersLoaded) return state.selectedValues;
-    if (state is SearchSuccess) return state.selectedValues;
-    if (state is ResultsLoading) return state.selectedValues;
+    if (state is FiltersLoaded) return state.selectedValues.cast<String, dynamic>();
+    if (state is SearchSuccess) return state.selectedValues.cast<String, dynamic>();
+    if (state is ResultsLoading) return state.selectedValues.cast<String, dynamic>();
     return {};
   }
 
   String _extractCategory(SearchState state) {
     if (state is FiltersLoaded) return state.currentCategory;
-    return 'people';
+    if (state is SearchLoading || state is ResultsLoading || state is SearchSuccess) {
+      return 'active_session'; 
+    }
+    return '';
   }
 
   int _extractTabIndex(SearchState state) {
@@ -359,20 +407,64 @@ class SearchPage extends StatelessWidget {
   }
 }
 
-// Кастомная нижняя навигационная панель с интегрированным селектором языка и динамическими пунктами меню
+// === ВИДЖЕТ КАРТОЧКИ КАТЕГОРИИ ===
+class CategoryCard extends StatelessWidget {
+  final FindWayCategory category;
+  final VoidCallback onTap;
+
+  const CategoryCard({super.key, required this.category, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      height: 250,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        image: DecorationImage(
+          image: NetworkImage(category.imagePath),
+          fit: BoxFit.cover,
+          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.55), BlendMode.darken),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Row(children: [
+                    Container(width: 7, height: 7, decoration: BoxDecoration(color: category.accentColor, shape: BoxShape.circle)),
+                    const SizedBox(width: 8),
+                    Text(category.modelsInfo.toUpperCase(), style: const TextStyle(color: Colors.white70, fontSize: 9, fontFamily: 'Orbitron')),
+                  ]),
+                  const SizedBox(height: 8),
+                  Text(category.title.toUpperCase(), style: TextStyle(color: category.accentColor, fontSize: 28, fontWeight: FontWeight.w900, fontFamily: 'Orbitron')),
+                  const SizedBox(height: 8),
+                  Text(category.description, style: const TextStyle(color: Colors.white, fontSize: 13), maxLines: 3, overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
   final String currentLocale; 
   final Function(int) onTap;
   final Map<String, dynamic> translations;
 
-  const CustomBottomNavBar({
-    required this.currentIndex,
-    required this.currentLocale,
-    required this.onTap,
-    required this.translations,
-    super.key
-  });
+  const CustomBottomNavBar({required this.currentIndex, required this.currentLocale, required this.onTap, required this.translations, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -380,21 +472,16 @@ class CustomBottomNavBar extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 30),
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
+        color: Colors.white, borderRadius: BorderRadius.circular(30),
         border: Border.all(color: const Color(0xFF1E293B), width: 2),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20)],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          LocaleSelector(currentLocale: currentLocale, isInNavBar: true), // Селектор языка в навигационной панели
+          LocaleSelector(currentLocale: currentLocale, isInNavBar: true),
           _navItem(1, Icons.search, translations['nav_search'] ?? 'Search'),
-          
-          // Пространство под центральную кнопку FAB
           const SizedBox(width: 48), 
-          
-         // _navItem(2, Icons.favorite_border, translations['nav_likes'] ?? 'Likes'),
           _navItem(3, Icons.notifications_none, translations['nav_notif'] ?? 'Notif'),
           _navItem(4, Icons.person_outline, translations['nav_profile'] ?? 'Profile'),
         ],
@@ -402,7 +489,6 @@ class CustomBottomNavBar extends StatelessWidget {
     );
   }
   
-  // Отдельный пункт навигации с иконкой и текстом, который меняет стиль при активном состоянии
   Widget _navItem(int index, IconData icon, String label) {
     final bool isActive = currentIndex == index;
     return GestureDetector(
