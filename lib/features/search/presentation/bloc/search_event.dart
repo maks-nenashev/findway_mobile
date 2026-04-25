@@ -60,3 +60,8 @@ class ChangeTab extends SearchEvent {
   @override
   List<Object> get props => [index];
 }
+
+class RestoreSearch extends SearchEvent {
+  @override
+  List<Object> get props => [];
+}

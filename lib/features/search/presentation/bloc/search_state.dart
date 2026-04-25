@@ -71,11 +71,15 @@ class ResultsLoading extends SearchState {
   @override
   List<Object?> get props => [super.props, tabIndex, filters, selectedValues, uiTranslations, results];
 
-  ResultsLoading copyWith({int? tabIndex, String? currentLocale}) => ResultsLoading(
+  ResultsLoading copyWith({
+    int? tabIndex, 
+    String? currentLocale,
+    Map<String, dynamic>? selectedValues, // ✅ ИСПРАВЛЕНО: Добавлен параметр
+  }) => ResultsLoading(
     currentLocale: currentLocale ?? this.currentLocale,
     tabIndex: tabIndex ?? this.tabIndex,
     filters: filters,
-    selectedValues: selectedValues,
+    selectedValues: selectedValues ?? this.selectedValues, // ✅ ИСПРАВЛЕНО
     uiTranslations: uiTranslations,
     results: results,
   );
@@ -121,6 +125,7 @@ class FiltersLoaded extends SearchState {
   );
 }
 
+// ✅ ВОССТАНОВЛЕН КЛАСС ЦЕЛИКОМ
 class SearchSuccess extends SearchState {
   final int tabIndex;
   final List<dynamic> results;
@@ -140,13 +145,17 @@ class SearchSuccess extends SearchState {
   @override
   List<Object?> get props => [super.props, tabIndex, results, uiTranslations, filters, selectedValues];
 
-  SearchSuccess copyWith({int? tabIndex, String? currentLocale}) => SearchSuccess(
+  SearchSuccess copyWith({
+    int? tabIndex, 
+    String? currentLocale,
+    Map<String, dynamic>? selectedValues, // ✅ ИСПРАВЛЕНО: Добавлен параметр
+  }) => SearchSuccess(
     results,
     currentLocale: currentLocale ?? this.currentLocale,
     tabIndex: tabIndex ?? this.tabIndex,
     uiTranslations: uiTranslations,
     filters: filters,
-    selectedValues: selectedValues,
+    selectedValues: selectedValues ?? this.selectedValues, // ✅ ИСПРАВЛЕНО
   );
 }
 
