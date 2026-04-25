@@ -53,9 +53,7 @@ class ArticleCard extends StatelessWidget {
         // 3. После возврата автоматически обновляем фильтры и список
         // ✅ ИСПРАВЛЕНО: Используем динамическую категорию вместо захардкоженного 'people'
         if (context.mounted) {
-          bloc.add(
-            LoadFilters(category: category, locale: currentLocale),
-          );
+          bloc.add(RestoreSearch());
         }
       },
       child: Container(

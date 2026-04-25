@@ -10,7 +10,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   // Внутренняя память BLoC для синхронизации запросов
   String _currentLocale; 
   String _activeCategory = '';
-  Map<String, dynamic> _selectedValues = {}; // 🔒 ГЛАВНЫЙ ИСТОЧНИК ИСТИНЫ ДЛЯ ФИЛЬТРОВ
+  Map<String, dynamic> _selectedValues = {}; 
 
   String get currentLocale => _currentLocale;
 
@@ -55,11 +55,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
     // 3. ОБНОВЛЕНИЕ ЗНАЧЕНИЙ ФИЛЬТРОВ
     on<UpdateFilterValue>((event, emit) {
-      // ✅ ШАГ 1: Обновляем внутреннюю память BLoC
       _selectedValues = Map<String, dynamic>.from(_selectedValues);
       _selectedValues[event.filterId] = event.value;
 
-      // ✅ ШАГ 2: Обновляем UI
       if (state is FiltersLoaded) {
         final s = state as FiltersLoaded;
         emit(s.copyWith(selectedValues: _selectedValues));
@@ -86,12 +84,11 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           currentLocale: _currentLocale, 
           uiTranslations: translations,
           filters: filters,
-          selectedValues: _selectedValues, // ✅ Берем фильтры из обновленной внутренней памяти
+          selectedValues: _selectedValues, 
           results: (s is FiltersLoaded) ? s.results : (s as SearchSuccess).results,
         ));
 
         try {
-          // ✅ Отправляем на сервер актуальные фильтры
           final results = await repository.search(
             category: category, 
             filters: _selectedValues, 
@@ -103,7 +100,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
             currentLocale: _currentLocale, 
             uiTranslations: translations,
             filters: filters,
-            selectedValues: _selectedValues, // ✅ Сохраняем фильтры в UI
+            selectedValues: _selectedValues,
           ));
         } catch (e) {
           emit(SearchError(e.toString(), currentLocale: _currentLocale, uiTranslations: translations));
@@ -118,7 +115,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       if (s is SearchSuccess) emit(s.copyWith(tabIndex: event.index));
     });
 
-    // 6. ЗАГРУЗКА ДЕТАЛЕЙ ПОСТА (Фикс локализации)
+    // 6. ЗАГРУЗКА ДЕТАЛЕЙ ПОСТА
     on<LoadPostDetails>((event, emit) async {
       List<dynamic> currentResults = [];
       List<FilterModel> currentFilters = [];
@@ -131,11 +128,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         currentFilters = (state as SearchSuccess).filters;
       }
 
-      // ✅ Используем event.locale вместо внутренней памяти
       emit(PostDetailsLoading(currentLocale: event.locale, uiTranslations: _extractTranslations(state)));
 
       try {
-        // ✅ Отправляем в репозиторий event.locale
         final data = await repository.getPostDetails(
           id: event.id, 
           category: event.category, 
@@ -143,7 +138,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         );
         
         emit(PostDetailsLoaded(
-          currentLocale: event.locale, // ✅ Сохраняем правильную локаль
+          currentLocale: event.locale, 
           post: data['record'],
           uiTranslations: data['translations'],
           searchResults: currentResults,
@@ -153,7 +148,22 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         emit(SearchError(e.toString(), currentLocale: event.locale, uiTranslations: _extractTranslations(state)));
       }
     });
-  } 
+
+    // 7. ВОССТАНОВЛЕНИЕ ПОИСКА (Теперь находится ПРАВИЛЬНО, внутри конструктора)
+    on<RestoreSearch>((event, emit) {
+      if (state is PostDetailsLoaded) {
+        final s = state as PostDetailsLoaded;
+        emit(SearchSuccess(
+          s.searchResults,
+          currentLocale: _currentLocale,
+          uiTranslations: s.uiTranslations,
+          filters: s.filters,
+          selectedValues: _selectedValues, // Восстанавливаем из внутренней памяти BLoC
+        ));
+      }
+    });
+
+  } // <--- ВОТ ЗДЕСЬ ЗАКРЫВАЕТСЯ КОНСТРУКТОР
 
   // Хелпер для переводов
   Map<String, dynamic> _extractTranslations(SearchState state) {

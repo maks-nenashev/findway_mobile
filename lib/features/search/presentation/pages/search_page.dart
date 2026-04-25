@@ -48,6 +48,12 @@ class _SearchPageState extends State<SearchPage> {
       },
       // ✅ ИСПРАВЛЕНО: Используем BlocConsumer для прослушивания событий
       child: BlocConsumer<SearchBloc, SearchState>(
+        // 👇 ВОТ ЭТА БРОНЯ 👇
+        buildWhen: (previous, current) {
+          // Запрещаем перерисовку страницы поиска, когда грузятся детали поста!
+          return current is! PostDetailsLoading && current is! PostDetailsLoaded;
+        },
+        // 👆 КОНЕЦ БРОНИ 👆
         listener: (context, state) {
           // Как только фильтры загружены, UI намертво запоминает категорию
           if (state is FiltersLoaded) {
