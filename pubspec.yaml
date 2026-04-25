@@ -47,7 +47,12 @@ dev_dependencies:
   build_runner: ^2.4.8 # Обновил до стабильного
 
 flutter:
-  # ЭТОТ ФЛАГ ОБЯЗАТЕЛЕН
-  # Он заставляет компилятор упаковать шрифт MaterialIcons.ttf в бандл приложения.
-  # Без него стандартные Icons.search, Icons.filter_list и т.д. превратятся в те самые "конвертики".
+  # Этот флаг разрешает использование встроенных иконок Material
   uses-material-design: true
+
+  # Регистрация ресурсов. Ключ 'assets' пишется ТОЛЬКО ОДИН РАЗ.
+  assets:
+    - assets/images/  # Этого достаточно, чтобы увидеть ВСЕ файлы в этой папке
+    - assets/images/peop.png
+    - assets/images/cat.png
+    - assets/images/things.png

@@ -8,6 +8,7 @@ import '../bloc/search_state.dart';
 import '../widgets/filter_builder.dart';
 import '../widgets/article_card.dart';
 import '../widgets/locale_selector.dart';
+import 'package:flutter/material.dart';
 
 // === 1. МОДЕЛЬ ДАННЫХ КАТЕГОРИЙ (Architecture) ===
 class FindWayCategory {
@@ -120,32 +121,57 @@ class SearchPage extends StatelessWidget {
   }
 
   // --- ЛЕЙАУТ: ТИТУЛЬНЫЙ ЛИСТ ---
-  Widget _buildTitleLayout(BuildContext context, Map<String, dynamic> trans) {
-    final categories = _getLocalizedCategories(trans);
-    return CustomScrollView(
-      key: const ValueKey('TitleLayout'),
-      slivers: [
-        const SliverToBoxAdapter(child: SizedBox(height: 40)),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) => CategoryCard(
+ // 1. Метод отрисовки картинки (умный переключатель)
+// 1. Метод-переключатель (добавь его в класс или рядом с виджетом)
+Widget _buildCategoryImage(String imagePath) {
+  if (imagePath.startsWith('http')) {
+    // Если это старая ссылка (URL)
+    return Image.network(
+      imagePath,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image),
+    );
+  } else {
+    // Если это твой новый путь к ассету
+    return Image.asset(
+      imagePath,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported),
+    );
+  }
+}
+
+// 2. Интеграция в лейаут
+Widget _buildTitleLayout(BuildContext context, Map<String, dynamic> trans) {
+  final categories = _getLocalizedCategories(trans);
+  return CustomScrollView(
+    slivers: [
+      const SliverToBoxAdapter(child: SizedBox(height: 40)),
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              return CategoryCard(
                 category: categories[index],
+                // ВАЖНО: Убедись, что внутри CategoryCard 
+                // для отображения картинки вызывается метод, 
+                // аналогичный нашему _buildCategoryImage
                 onTap: () {
                   context.read<SearchBloc>().add(
                     LoadFilters(category: _getRawCategoryName(index), locale: '')
                   );
                 },
-              ),
-              childCount: categories.length,
-            ),
+              );
+            },
+            childCount: categories.length,
           ),
         ),
-      ],
-    );
-  }
-
+      ),
+    ],
+  );
+}
+  
   List<FindWayCategory> _getLocalizedCategories(Map<String, dynamic> trans) {
     return [
       FindWayCategory(
@@ -153,21 +179,21 @@ class SearchPage extends StatelessWidget {
         accentColor: const Color(0xFF00F2FF),
         modelsInfo: 'Models EfficientNet-B0, ArcFace & NLP | ACTIVE',
         description: trans['description_one'] ?? '',
-        imagePath: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?q=80&w=1000',
+        imagePath: 'assets/images/peop.png',
       ),
       FindWayCategory(
         title: trans['title_two'] ?? 'Animals',
         accentColor: const Color(0xFFFF8A00),
         modelsInfo: 'Models EfficientNet-B0, NLP | ACTIVE',
         description: trans['description_two'] ?? '',
-        imagePath: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=1000',
+        imagePath: 'assets/images/cat.png',
       ),
       FindWayCategory(
         title: trans['title_three'] ?? 'Things',
         accentColor: const Color(0xFF2ECC71),
         modelsInfo: 'Models EfficientNet-B0, NLP | ACTIVE',
         description: trans['description_three'] ?? '',
-        imagePath: 'https://images.unsplash.com/photo-1516714435131-44d6b64dc6a2?q=80&w=1000',
+        imagePath: 'assets/images/things.png',
       ),
     ];
   }
@@ -203,17 +229,40 @@ class SearchPage extends StatelessWidget {
       ),
     );
   }
-
+  
+  //  
   PreferredSizeWidget _buildAppBar(Map<String, dynamic> translations, String currentLocale, BuildContext context) {
-    return AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      title: Text(
-        translations['page_title'] ?? 'FindWay',
-        style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 24, fontFamily: 'Orbitron', letterSpacing: 2),
+  return AppBar(
+    backgroundColor: Colors.transparent,
+    elevation: 0,
+    // Заменяем текстовый заголовок на изображение логотипа
+    title: Padding(
+      // Добавим небольшой отступ слева, чтобы логотип не прижимался,
+      // если он используется как заголовок по центру (по умолчанию на iOS)
+      padding: const EdgeInsets.only(left: 5.0), // регулируйте по необходимости
+      child: Image.asset(
+        // Путь к файлу, зарегистрированному в pubspec.yaml
+        'assets/images/logo1.png',
+        
+        // В HTML (Ruby on Rails) вы использовали width: 100, height: 40.
+        // Во Flutter для AppBar лучше задать только высоту,
+        // чтобы сохранить пропорции. Высота AppBar обычно 56dp, 
+        // поэтому 35-40dp для логотипа выглядит хорошо.
+        height: 65, 
+        
+        // Позволяет логотипу вписаться в отведенную высоту, сохраняя пропорции
+        fit: BoxFit.contain,
+        
+        // Альтернативный текст для доступности (Accessibility)
+        semanticLabel: 'FindWay Logo', 
       ),
-    );
-  }
+    ),
+    
+    // Если вам нужно сохранить текст translations['page_title'] как текстовый лейбл
+    // где-то еще, вы можете добавить его в actions: или Row рядом с логотипом.
+    // Если же цель была полностью заменить лейбл логотипом, то код выше верный.
+  );
+}
 
   Widget _buildFilterPanel(BuildContext context, SearchState state, Map<String, dynamic> translations, String currentLocale, dynamic filters, Map<String, dynamic> selectedFilterValues, String activeCategory) {
     const Color darkSlate = Color(0xFF1E293B);
@@ -412,19 +461,27 @@ class CategoryCard extends StatelessWidget {
   final FindWayCategory category;
   final VoidCallback onTap;
 
-  const CategoryCard({super.key, required this.category, required this.onTap});
+  const CategoryCard({required this.category, required this.onTap, super.key});
 
   @override
   Widget build(BuildContext context) {
+    final String path = category.imagePath;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       height: 250,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         image: DecorationImage(
-          image: NetworkImage(category.imagePath),
+          // ✅ Умный выбор провайдера
+          image: path.startsWith('http')
+              ? NetworkImage(path) as ImageProvider
+              : AssetImage(path) as ImageProvider,
           fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.55), BlendMode.darken),
+          colorFilter: ColorFilter.mode(
+            Colors.black.withOpacity(0.55),
+            BlendMode.darken,
+          ),
         ),
       ),
       child: ClipRRect(
@@ -440,14 +497,29 @@ class CategoryCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   Row(children: [
-                    Container(width: 7, height: 7, decoration: BoxDecoration(color: category.accentColor, shape: BoxShape.circle)),
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(color: category.accentColor, shape: BoxShape.circle),
+                    ),
                     const SizedBox(width: 8),
-                    Text(category.modelsInfo.toUpperCase(), style: const TextStyle(color: Colors.white70, fontSize: 9, fontFamily: 'Orbitron')),
+                    Text(
+                      category.modelsInfo.toUpperCase(),
+                      style: const TextStyle(color: Colors.white70, fontSize: 9, fontFamily: 'Orbitron'),
+                    ),
                   ]),
                   const SizedBox(height: 8),
-                  Text(category.title.toUpperCase(), style: TextStyle(color: category.accentColor, fontSize: 28, fontWeight: FontWeight.w900, fontFamily: 'Orbitron')),
+                  Text(
+                    category.title.toUpperCase(),
+                    style: TextStyle(color: category.accentColor, fontSize: 28, fontWeight: FontWeight.w900, fontFamily: 'Orbitron'),
+                  ),
                   const SizedBox(height: 8),
-                  Text(category.description, style: const TextStyle(color: Colors.white, fontSize: 13), maxLines: 3, overflow: TextOverflow.ellipsis),
+                  Text(
+                    category.description,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
@@ -456,7 +528,7 @@ class CategoryCard extends StatelessWidget {
       ),
     );
   }
-}
+} // <--- ПРОВЕРЬ НАЛИЧИЕ ЭТОЙ СКОБКИ (Конец CategoryCard)
 
 class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
