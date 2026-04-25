@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart'; // Если используешь Bloc
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:findway_mobile/features/comments/presentation/widgets/comments_section.dart';
 
 import '../bloc/search_bloc.dart';
@@ -22,22 +22,24 @@ class ArticleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Получаем метку статуса (верхний голубой бейдж)
-    final String statusLabel =
-        (post['choice_label'] ?? '').toString().toUpperCase();
+    final String statusLabel = (post['choice_label'] ?? '').toString().toUpperCase();
 
+    // ✅ ИСПРАВЛЕНО: Добавлен return, чтобы виджет вернулся на экран
     return GestureDetector(
-      // --- При тапе показываем экран с деталями ---
+      // ✅ ИСПРАВЛЕНО: Сделали функцию async для работы с Navigator
       onTap: () async {
+        // Захватываем bloc до асинхронного перехода, чтобы передать его на следующий экран
         final bloc = context.read<SearchBloc>();
-        bloc.add(
-          LoadPostDetails(
-            id: post['id'],
-            category: 'people', // Если разные — передавать нужно реальную
-            locale: currentLocale,
-          ),
-        );
+        final String category = post['category'] ?? 'people';
 
-        // Переходим на страницу деталей, не теряя bloc-контекста
+        // 1. Отправляем событие с ПРАВИЛЬНОЙ ЛОКАЛЬЮ
+        bloc.add(LoadPostDetails(
+          id: post['id'], 
+          category: category, 
+          locale: currentLocale, // 🔒 Фикс: жестко передаем локаль интерфейса
+        ));
+
+        // 2. Переходим на страницу деталей, прокидывая текущий BLoC
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -48,10 +50,11 @@ class ArticleCard extends StatelessWidget {
           ),
         );
 
-        // После возврата автоматически обновляем фильтры и список
+        // 3. После возврата автоматически обновляем фильтры и список
+        // ✅ ИСПРАВЛЕНО: Используем динамическую категорию вместо захардкоженного 'people'
         if (context.mounted) {
           bloc.add(
-            LoadFilters(category: 'people', locale: currentLocale),
+            LoadFilters(category: category, locale: currentLocale),
           );
         }
       },
@@ -76,8 +79,7 @@ class ArticleCard extends StatelessWidget {
               Image.network(
                 post['image_url'] ?? "",
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    Container(color: Colors.grey[900]), // если картинки нет
+                errorBuilder: (_, __, ___) => Container(color: Colors.grey[900]), // если картинки нет
               ),
 
               // ------ Полупрозрачный градиент-сабблер ------
@@ -104,8 +106,7 @@ class ArticleCard extends StatelessWidget {
                     // ===== Метка статуса (если есть)
                     if (statusLabel.isNotEmpty)
                       Container(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         margin: const EdgeInsets.only(bottom: 6),
                         decoration: BoxDecoration(
                           color: const Color(0xFF00F2FF).withOpacity(0.1),

@@ -389,8 +389,11 @@ class _SearchPageState extends State<SearchPage> {
     return {};
   }
 
-  String _extractLocale(BuildContext context, SearchState state, Map<String, dynamic> translations) {
-    if (state is FiltersLoaded && state.currentLocale.isNotEmpty) return state.currentLocale;
+ String _extractLocale(BuildContext context, SearchState state, Map<String, dynamic> translations) {
+    // ✅ ИСПРАВЛЕНО: Берем язык СТРОГО из базового стейта BLoC'а.
+    // Теперь интерфейс никогда не переключится на английский из-за ответа сервера.
+    if (state.currentLocale.isNotEmpty) return state.currentLocale;
+    
     return translations['locale_code']?.toString() ?? 'uk';
   }
 
