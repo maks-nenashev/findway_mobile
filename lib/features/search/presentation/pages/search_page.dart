@@ -8,9 +8,8 @@ import '../bloc/search_state.dart';
 import '../widgets/filter_builder.dart';
 import '../widgets/article_card.dart';
 import '../widgets/locale_selector.dart';
-import 'package:flutter/material.dart';
 
-// === 1. МОДЕЛЬ ДАННЫХ КАТЕГОРИЙ (Architecture) ===
+// === 1. МОДЕЛЬ ДАННЫХ КАТЕГОРИЙ ===
 class FindWayCategory {
   final String title;
   final String description;
@@ -27,37 +26,51 @@ class FindWayCategory {
   });
 }
 
-class SearchPage extends StatelessWidget {
+// ✅ ИСПРАВЛЕНО: Теперь это StatefulWidget, который сам помнит категорию
+class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
+
+  @override
+  State<SearchPage> createState() => _SearchPageState();
+}
+
+class _SearchPageState extends State<SearchPage> {
+  // ✅ ЛОКАЛЬНАЯ ПАМЯТЬ: UI сам хранит категорию, чтобы не зависеть от BLoC
+  String _localActiveCategory = '';
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) {
         final bloc = sl<SearchBloc>();
-        // ГАРАНТИЯ ЛОКАЛИ: Загружаем украинский сразу для титула
         bloc.add(const LoadFilters(category: '', locale: 'uk')); 
         return bloc;
       },
-      child: BlocBuilder<SearchBloc, SearchState>(
+      // ✅ ИСПРАВЛЕНО: Используем BlocConsumer для прослушивания событий
+      child: BlocConsumer<SearchBloc, SearchState>(
+        listener: (context, state) {
+          // Как только фильтры загружены, UI намертво запоминает категорию
+          if (state is FiltersLoaded) {
+            setState(() {
+              _localActiveCategory = state.currentCategory;
+            });
+          }
+        },
         builder: (context, state) {
           final translations = _extractTranslations(state);
           final currentLocale = _extractLocale(context, state, translations);
           final searchResults = _extractResults(state);
           final filters = _extractFilters(state);
           final selectedFilterValues = _extractSelectedValues(state);
-          final activeCategory = _extractCategory(state);
           final currentTabIndex = _extractTabIndex(state);
 
-          // Титульный лист отображается, если категория пуста
-          final bool isTitlePage = activeCategory.isEmpty;
+          final bool isTitlePage = _localActiveCategory.isEmpty;
 
           return Scaffold( 
             extendBody: true,
             backgroundColor: const Color(0xFFF0F4F8),
             appBar: _buildAppBar(translations, currentLocale, context),
             
-            // КНОПКА ВОЗВРАЩЕНА: Теперь она видна и на титуле
             floatingActionButton: GestureDetector(
               onTap: () {
                 // Логика создания поста
@@ -72,6 +85,8 @@ class SearchPage extends StatelessWidget {
               translations: translations,
               onTap: (index) {
                 if (index == 1) {
+                  // Сброс на титульный лист
+                  setState(() => _localActiveCategory = '');
                   context.read<SearchBloc>().add(const LoadFilters(category: '', locale: ''));
                 } else {
                   context.read<SearchBloc>().add(ChangeTab(index));
@@ -91,7 +106,7 @@ class SearchPage extends StatelessWidget {
                           SliverToBoxAdapter(
                             child: _buildFilterPanel(
                               context, state, translations, currentLocale,
-                              filters, selectedFilterValues, activeCategory,
+                              filters, selectedFilterValues, _localActiveCategory,
                             ),
                           ),
                           if (searchResults.isNotEmpty)
@@ -121,56 +136,32 @@ class SearchPage extends StatelessWidget {
   }
 
   // --- ЛЕЙАУТ: ТИТУЛЬНЫЙ ЛИСТ ---
- // 1. Метод отрисовки картинки (умный переключатель)
-// 1. Метод-переключатель (добавь его в класс или рядом с виджетом)
-Widget _buildCategoryImage(String imagePath) {
-  if (imagePath.startsWith('http')) {
-    // Если это старая ссылка (URL)
-    return Image.network(
-      imagePath,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image),
-    );
-  } else {
-    // Если это твой новый путь к ассету
-    return Image.asset(
-      imagePath,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported),
-    );
-  }
-}
-
-// 2. Интеграция в лейаут
-Widget _buildTitleLayout(BuildContext context, Map<String, dynamic> trans) {
-  final categories = _getLocalizedCategories(trans);
-  return CustomScrollView(
-    slivers: [
-      const SliverToBoxAdapter(child: SizedBox(height: 40)),
-      SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        sliver: SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              return CategoryCard(
-                category: categories[index],
-                // ВАЖНО: Убедись, что внутри CategoryCard 
-                // для отображения картинки вызывается метод, 
-                // аналогичный нашему _buildCategoryImage
-                onTap: () {
-                  context.read<SearchBloc>().add(
-                    LoadFilters(category: _getRawCategoryName(index), locale: '')
-                  );
-                },
-              );
-            },
-            childCount: categories.length,
+  Widget _buildTitleLayout(BuildContext context, Map<String, dynamic> trans) {
+    final categories = _getLocalizedCategories(trans);
+    return CustomScrollView(
+      slivers: [
+        const SliverToBoxAdapter(child: SizedBox(height: 40)),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                return CategoryCard(
+                  category: categories[index],
+                  onTap: () {
+                    context.read<SearchBloc>().add(
+                      LoadFilters(category: _getRawCategoryName(index), locale: '')
+                    );
+                  },
+                );
+              },
+              childCount: categories.length,
+            ),
           ),
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
   
   List<FindWayCategory> _getLocalizedCategories(Map<String, dynamic> trans) {
     return [
@@ -230,39 +221,21 @@ Widget _buildTitleLayout(BuildContext context, Map<String, dynamic> trans) {
     );
   }
   
-  //  
   PreferredSizeWidget _buildAppBar(Map<String, dynamic> translations, String currentLocale, BuildContext context) {
-  return AppBar(
-    backgroundColor: Colors.transparent,
-    elevation: 0,
-    // Заменяем текстовый заголовок на изображение логотипа
-    title: Padding(
-      // Добавим небольшой отступ слева, чтобы логотип не прижимался,
-      // если он используется как заголовок по центру (по умолчанию на iOS)
-      padding: const EdgeInsets.only(left: 5.0), // регулируйте по необходимости
-      child: Image.asset(
-        // Путь к файлу, зарегистрированному в pubspec.yaml
-        'assets/images/logo1.png',
-        
-        // В HTML (Ruby on Rails) вы использовали width: 100, height: 40.
-        // Во Flutter для AppBar лучше задать только высоту,
-        // чтобы сохранить пропорции. Высота AppBar обычно 56dp, 
-        // поэтому 35-40dp для логотипа выглядит хорошо.
-        height: 65, 
-        
-        // Позволяет логотипу вписаться в отведенную высоту, сохраняя пропорции
-        fit: BoxFit.contain,
-        
-        // Альтернативный текст для доступности (Accessibility)
-        semanticLabel: 'FindWay Logo', 
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      title: Padding(
+        padding: const EdgeInsets.only(left: 5.0), 
+        child: Image.asset(
+          'assets/images/logo1.png',
+          height: 65, 
+          fit: BoxFit.contain,
+          semanticLabel: 'FindWay Logo', 
+        ),
       ),
-    ),
-    
-    // Если вам нужно сохранить текст translations['page_title'] как текстовый лейбл
-    // где-то еще, вы можете добавить его в actions: или Row рядом с логотипом.
-    // Если же цель была полностью заменить лейбл логотипом, то код выше верный.
-  );
-}
+    );
+  }
 
   Widget _buildFilterPanel(BuildContext context, SearchState state, Map<String, dynamic> translations, String currentLocale, dynamic filters, Map<String, dynamic> selectedFilterValues, String activeCategory) {
     const Color darkSlate = Color(0xFF1E293B);
@@ -306,7 +279,7 @@ Widget _buildTitleLayout(BuildContext context, Map<String, dynamic> trans) {
               const SizedBox(height: 16),
               _buildApplyFiltersButton(context, translations),
             ],
-            if (state is SearchSuccess) _buildResetFiltersButton(context, currentLocale, translations),
+            if (state is SearchSuccess) _buildResetFiltersButton(context, currentLocale, activeCategory, translations),
           ],
         ),
       ),
@@ -366,7 +339,10 @@ Widget _buildTitleLayout(BuildContext context, Map<String, dynamic> trans) {
   Widget _categoryTab(BuildContext context, String cat, String label, Color color, bool isActive, String locale) {
     return Expanded(
       child: GestureDetector(
-        onTap: () => context.read<SearchBloc>().add(LoadFilters(category: cat, locale: locale)),
+        onTap: () {
+          setState(() => _localActiveCategory = cat);
+          context.read<SearchBloc>().add(LoadFilters(category: cat, locale: locale));
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
@@ -396,9 +372,9 @@ Widget _buildTitleLayout(BuildContext context, Map<String, dynamic> trans) {
     );
   }
 
-  Widget _buildResetFiltersButton(BuildContext context, String currentLocale, Map<String, dynamic> translations) {
+  Widget _buildResetFiltersButton(BuildContext context, String currentLocale, String activeCategory, Map<String, dynamic> translations) {
     return TextButton.icon(
-      onPressed: () => context.read<SearchBloc>().add(LoadFilters(category: 'people', locale: currentLocale)),
+      onPressed: () => context.read<SearchBloc>().add(LoadFilters(category: activeCategory, locale: currentLocale)),
       icon: const Icon(Icons.refresh, size: 16),
       label: Text(translations['last'] ?? "Скинути фильтри"),
       style: TextButton.styleFrom(foregroundColor: const Color(0xFF00F2FF)),
@@ -415,7 +391,6 @@ Widget _buildTitleLayout(BuildContext context, Map<String, dynamic> trans) {
 
   String _extractLocale(BuildContext context, SearchState state, Map<String, dynamic> translations) {
     if (state is FiltersLoaded && state.currentLocale.isNotEmpty) return state.currentLocale;
-    // ГАРАНТИЯ: Если стейт не загружен, возвращаем 'uk' по умолчанию
     return translations['locale_code']?.toString() ?? 'uk';
   }
 
@@ -438,14 +413,6 @@ Widget _buildTitleLayout(BuildContext context, Map<String, dynamic> trans) {
     if (state is SearchSuccess) return state.selectedValues.cast<String, dynamic>();
     if (state is ResultsLoading) return state.selectedValues.cast<String, dynamic>();
     return {};
-  }
-
-  String _extractCategory(SearchState state) {
-    if (state is FiltersLoaded) return state.currentCategory;
-    if (state is SearchLoading || state is ResultsLoading || state is SearchSuccess) {
-      return 'active_session'; 
-    }
-    return '';
   }
 
   int _extractTabIndex(SearchState state) {
@@ -473,7 +440,6 @@ class CategoryCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         image: DecorationImage(
-          // ✅ Умный выбор провайдера
           image: path.startsWith('http')
               ? NetworkImage(path) as ImageProvider
               : AssetImage(path) as ImageProvider,
@@ -528,8 +494,9 @@ class CategoryCard extends StatelessWidget {
       ),
     );
   }
-} // <--- ПРОВЕРЬ НАЛИЧИЕ ЭТОЙ СКОБКИ (Конец CategoryCard)
+}
 
+// === НИЖНЯЯ НАВИГАЦИЯ ===
 class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
   final String currentLocale; 

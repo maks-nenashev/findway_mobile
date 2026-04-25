@@ -47,15 +47,23 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       add(LoadFilters(category: 'people', locale: _currentLocale));
     });
 
-    // 3. Обновление значений фильтров в UI
-    on<UpdateFilterValue>((event, emit) {
-      if (state is FiltersLoaded) {
-        final s = state as FiltersLoaded;
-        final newValues = Map<String, dynamic>.from(s.selectedValues);
-        newValues[event.filterId] = event.value;
-        emit(s.copyWith(selectedValues: newValues));
-      }
-    });
+   // 3. Обновление значений фильтров в UI (ИСПРАВЛЕНО)
+on<UpdateFilterValue>((event, emit) {
+  // Обрабатываем клики до первого поиска
+  if (state is FiltersLoaded) {
+    final s = state as FiltersLoaded;
+    final newValues = Map<String, dynamic>.from(s.selectedValues);
+    newValues[event.filterId] = event.value;
+    emit(s.copyWith(selectedValues: newValues));
+  } 
+  // Обрабатываем клики после успешного поиска
+  else if (state is SearchSuccess) {
+    final s = state as SearchSuccess;
+    final newValues = Map<String, dynamic>.from(s.selectedValues);
+    newValues[event.filterId] = event.value;
+    emit(s.copyWith(selectedValues: newValues));
+  }
+});
   
     // 4. Выполнение поиска (только один обработчик)
     on<PerformSearch>((event, emit) async {
