@@ -8,6 +8,7 @@ import '../bloc/search_state.dart';
 import '../widgets/filter_builder.dart';
 import '../widgets/article_card.dart';
 import '../widgets/locale_selector.dart';
+import 'post_create_page.dart'; //  Импорт страницы создания
 
 // === 1. МОДЕЛЬ ДАННЫХ КАТЕГОРИЙ ===
 class FindWayCategory {
@@ -72,33 +73,46 @@ class _SearchPageState extends State<SearchPage> {
 
           final bool isTitlePage = _localActiveCategory.isEmpty;
 
-          return Scaffold( 
-            extendBody: true,
-            backgroundColor: const Color(0xFFF0F4F8),
-            appBar: _buildAppBar(translations, currentLocale, context),
-            
-            floatingActionButton: GestureDetector(
-              onTap: () {
-                // Логика создания поста
-              },
-              child: _buildMultiColorPostButton(),
-            ),
-            floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+         return Scaffold( 
+  extendBody: true,
+  backgroundColor: const Color(0xFFF0F4F8),
+  appBar: _buildAppBar(translations, currentLocale, context),
+  
+  floatingActionButton: GestureDetector(
+    onTap: () {
+      // 1. Определяем категорию для формы
+      final String targetCategory = _localActiveCategory.isEmpty ? 'people' : _localActiveCategory;
 
-            bottomNavigationBar: CustomBottomNavBar( 
-              currentIndex: currentTabIndex,
-              currentLocale: currentLocale,
-              translations: translations,
-              onTap: (index) {
-                if (index == 1) {
-                  // Сброс на титульный лист
-                  setState(() => _localActiveCategory = '');
-                  context.read<SearchBloc>().add(const LoadFilters(category: '', locale: ''));
-                } else {
-                  context.read<SearchBloc>().add(ChangeTab(index));
-                }
-              },
-            ),
+      // 2. Переходим на страницу создания, пробрасывая текущий SearchBloc
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BlocProvider.value(
+            value: context.read<SearchBloc>(), // Передаем существующий экземпляр Блока
+            child: PostCreatePage(initialCategory: targetCategory),
+          ),
+        ),
+      );
+    },
+    child: _buildMultiColorPostButton(),
+  ),
+  floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
+  bottomNavigationBar: CustomBottomNavBar( 
+    currentIndex: currentTabIndex,
+    currentLocale: currentLocale,
+    translations: translations,
+    onTap: (index) {
+      if (index == 1) {
+        // Сброс на титульный лист
+        setState(() => _localActiveCategory = '');
+        context.read<SearchBloc>().add(const LoadFilters(category: '', locale: ''));
+      } else {
+        context.read<SearchBloc>().add(ChangeTab(index));
+      }
+    },
+  ),
+  
 
             body: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
@@ -204,7 +218,7 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
-  // --- UI ФРОНТЕНД ---
+  // ---  Button Customization ---
   Widget _buildMultiColorPostButton() {
     return Container(
       width: 72, height: 72,

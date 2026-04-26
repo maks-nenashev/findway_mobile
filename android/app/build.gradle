@@ -55,4 +55,15 @@ flutter {
 dependencies {
     implementation "androidx.appcompat:appcompat:1.7.0"
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.8.2"
+
+}
+
+configurations.all {
+    resolutionStrategy {
+        // Принудительно держим библиотеки на версиях, которые понимает AGP 8.6.0
+        force 'androidx.activity:activity:1.8.0'
+        force 'androidx.activity:activity-ktx:1.8.0'
+        force 'androidx.core:core:1.13.0'
+        force 'androidx.core:core-ktx:1.13.0'
+    }
 }

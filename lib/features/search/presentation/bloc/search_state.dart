@@ -167,3 +167,14 @@ class SearchError extends SearchState {
   @override
   List<Object?> get props => [super.props, message, uiTranslations];
 }
+
+//  НОВЫЕ СОСТОЯНИЯ ДЛЯ СОЗДАНИЯ ПОСТА
+class PostCreateSuccess extends SearchState {
+  final int postId;
+  const PostCreateSuccess({required this.postId, required super.currentLocale});
+}
+
+class PostCreateError extends SearchState {
+  final String error;
+  const PostCreateError({required this.error, required super.currentLocale});
+}
