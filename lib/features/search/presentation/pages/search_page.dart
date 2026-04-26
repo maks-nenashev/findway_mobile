@@ -6,134 +6,148 @@ import '../bloc/search_bloc.dart';
 import '../bloc/search_event.dart';
 import '../bloc/search_state.dart';
 import '../widgets/filter_builder.dart';
-import 'search_details_page.dart';
+import '../widgets/article_card.dart';
+import '../widgets/locale_selector.dart';
+import 'post_create_page.dart'; //  Импорт страницы создания
 
-class SearchPage extends StatelessWidget {
+// === 1. МОДЕЛЬ ДАННЫХ КАТЕГОРИЙ ===
+class FindWayCategory {
+  final String title;
+  final String description;
+  final String imagePath;
+  final String modelsInfo;
+  final Color accentColor;
+
+  const FindWayCategory({
+    required this.title,
+    required this.description,
+    required this.imagePath,
+    required this.modelsInfo,
+    required this.accentColor,
+  });
+}
+
+// ✅ ИСПРАВЛЕНО: Теперь это StatefulWidget, который сам помнит категорию
+class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
 
- @override
+  @override
+  State<SearchPage> createState() => _SearchPageState();
+}
+
+class _SearchPageState extends State<SearchPage> {
+  // ✅ ЛОКАЛЬНАЯ ПАМЯТЬ: UI сам хранит категорию, чтобы не зависеть от BLoC
+  String _localActiveCategory = '';
+
+  @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => sl<SearchBloc>()..add(const LoadFilters(category: 'people', locale: '')),
-      child: BlocBuilder<SearchBloc, SearchState>(
-builder: (context, state) {
-  // 1. Извлекаем переводы
-  final Map<String, dynamic> tr = (state is FiltersLoaded) 
-      ? state.uiTranslations 
-      : (state is SearchSuccess) ? state.uiTranslations 
-      : (state is PostDetailsLoaded) ? state.uiTranslations : {};
+      create: (context) {
+        final bloc = sl<SearchBloc>();
+        bloc.add(const LoadFilters(category: '', locale: 'uk')); 
+        return bloc;
+      },
+      // ✅ ИСПРАВЛЕНО: Используем BlocConsumer для прослушивания событий
+      child: BlocConsumer<SearchBloc, SearchState>(
+        // 👇 ВОТ ЭТА БРОНЯ 👇
+        buildWhen: (previous, current) {
+          // Запрещаем перерисовку страницы поиска, когда грузятся детали поста!
+          return current is! PostDetailsLoading && current is! PostDetailsLoaded;
+        },
+        // 👆 КОНЕЦ БРОНИ 👆
+        listener: (context, state) {
+          // Как только фильтры загружены, UI намертво запоминает категорию
+          if (state is FiltersLoaded) {
+            setState(() {
+              _localActiveCategory = state.currentCategory;
+            });
+          }
+        },
+        builder: (context, state) {
+          final translations = _extractTranslations(state);
+          final currentLocale = _extractLocale(context, state, translations);
+          final searchResults = _extractResults(state);
+          final filters = _extractFilters(state);
+          final selectedFilterValues = _extractSelectedValues(state);
+          final currentTabIndex = _extractTabIndex(state);
 
-  // 2. УМНАЯ ЛОКАЛЬ (Fix): Ищем локаль везде, где она может быть
-  String currentLocale = 'en'; 
+          final bool isTitlePage = _localActiveCategory.isEmpty;
 
-  if (state is FiltersLoaded) {
-    currentLocale = state.currentLocale;
-  } else if (tr.containsKey('locale_code') && tr['locale_code'] != null) {
-    // Если мы в SearchSuccess или PostDetailsLoaded — берем из пришедших данных
-    currentLocale = tr['locale_code'].toString();
-  } else if (state is SearchLoading || state is ResultsLoading) {
-    // Если мы в процессе загрузки, пытаемся сохранить текущую локаль из предыдущего состояния
-    final previousState = context.read<SearchBloc>().state;
-    if (previousState is FiltersLoaded) {
-      currentLocale = previousState.currentLocale;
-    }
-  }
-          return Scaffold(
-            backgroundColor: const Color(0xFFF0F4F8),// Цвет фона для всего экрана
-            // --- ВОЗВРАЩЕННАЯ ШАПКА ---
-            appBar: AppBar(
-              backgroundColor: Colors.transparent,// Прозрачный фон для эффекта "плавающей" шапки
-              elevation: 0,
-              title: Text(
-                tr['page_title'] ?? 'FindWay',// Локализованный заголовок страницы
-                style: const TextStyle(
-                  color: Colors.black, // Цвет текста
-                  fontWeight: FontWeight.bold, // Жирный шрифт
-                  fontSize: 24, // Размер шрифта
-                  fontFamily: 'Orbitron', // Твой стиль
-                  letterSpacing: 2
-                ),
-              ),
-              actions: [
-                _LocaleSelector(currentLocale: currentLocale),
-              ],
-            ),
-            body: CustomScrollView(
-              slivers: [
-                // 1. DASHBOARD
-                SliverToBoxAdapter(// Весь контентный блок с отступами и карточкой
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),// Отступы для всего блока
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                     decoration: BoxDecoration(
-                     color: const Color(0xFF0A0E14), // Глубокий "космический" черный
-                     borderRadius: BorderRadius.circular(24),
-                     border: Border.all(
-                     color: const Color(0xFF00F2FF).withOpacity(0.2), // Тонкая неоновая рамка
-                     width: 1,
-                   ),
-                     boxShadow: [
-                 BoxShadow(
-                     color: const Color(0xFF00F2FF).withOpacity(0.05), // Неоновое свечение вместо тени
-                     blurRadius: 30,
-                     spreadRadius: 5,
-                    )
-                 ],
-              ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildCategoryNavigation(context, state, tr, currentLocale),
-                          const SizedBox(height: 24),
-                          _buildSearchInput(context, tr),
-                          const SizedBox(height: 16),
-                          
-                          if (state is FiltersLoaded) ...[
-                            FilterBuilder(
-                              filters: state.filters,
-                              selectedValues: state.selectedValues,
-                              currentCategory: state.currentCategory,
-                              onFilterChanged: (id, val) => context.read<SearchBloc>().add(
-                                UpdateFilterValue(filterId: id, value: val),
+         return Scaffold( 
+  extendBody: true,
+  backgroundColor: const Color(0xFFF0F4F8),
+  appBar: _buildAppBar(translations, currentLocale, context),
+  
+  floatingActionButton: GestureDetector(
+    onTap: () {
+      // 1. Определяем категорию для формы
+      final String targetCategory = _localActiveCategory.isEmpty ? 'people' : _localActiveCategory;
+
+      // 2. Переходим на страницу создания, пробрасывая текущий SearchBloc
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BlocProvider.value(
+            value: context.read<SearchBloc>(), // Передаем существующий экземпляр Блока
+            child: PostCreatePage(initialCategory: targetCategory),
+          ),
+        ),
+      );
+    },
+    child: _buildMultiColorPostButton(),
+  ),
+  floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
+  bottomNavigationBar: CustomBottomNavBar( 
+    currentIndex: currentTabIndex,
+    currentLocale: currentLocale,
+    translations: translations,
+    onTap: (index) {
+      if (index == 1) {
+        // Сброс на титульный лист
+        setState(() => _localActiveCategory = '');
+        context.read<SearchBloc>().add(const LoadFilters(category: '', locale: ''));
+      } else {
+        context.read<SearchBloc>().add(ChangeTab(index));
+      }
+    },
+  ),
+  
+
+            body: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: isTitlePage 
+                ? _buildTitleLayout(context, translations) 
+                : Stack( 
+                    key: const ValueKey('ModelLayout'),
+                    children: [
+                      CustomScrollView(
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: _buildFilterPanel(
+                              context, state, translations, currentLocale,
+                              filters, selectedFilterValues, _localActiveCategory,
+                            ),
+                          ),
+                          if (searchResults.isNotEmpty)
+                            _buildResultsGrid(searchResults, currentLocale)
+                          else if (state is! SearchLoading && state is! ResultsLoading)
+                            SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: Center(
+                                child: Text(
+                                  translations['no_results'] ?? 'No results found',
+                                  style: const TextStyle(fontSize: 16),
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 16),
-                            _buildFilterButton(context, tr),
-                          ],
-
-                          if (state is SearchSuccess)
-                            _buildReturnToFiltersButton(context, state, currentLocale, tr),
+                          const SliverToBoxAdapter(child: SizedBox(height: 120)),
                         ],
                       ),
-                    ),
+                      if (state is SearchLoading)
+                        const Positioned.fill(child: Center(child: CircularProgressIndicator(color: Color(0xFF00F2FF)))),
+                    ],
                   ),
-                ),
-
-                // 2. GRID РЕЗУЛЬТАТОВ
-                if (state is SearchSuccess)
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    sliver: SliverGrid(
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2, // Две карточки в ряд
-                        mainAxisSpacing: 16, // Вертикальный отступ между карточками
-                        crossAxisSpacing: 16, // Горизонтальный отступ между карточками
-                        childAspectRatio: 0.75, // Соотношение сторон карточки (можешь подстроить под свой дизайн)
-                      ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => _ArticleCard(
-                          post: state.results[index],
-                          currentLocale: currentLocale,
-                        ),
-                        childCount: state.results.length,
-                      ),
-                    ),
-                  ),
-                
-                if (state is SearchLoading || state is ResultsLoading)
-                  const SliverFillRemaining(child: Center(child: CircularProgressIndicator())),
-              ],
             ),
           );
         },
@@ -141,225 +155,413 @@ builder: (context, state) {
     );
   }
 
-  // --- PRIVATE HELPERS ---
-
-  Widget _buildCategoryNavigation(BuildContext context, SearchState state, Map tr, String locale) {
-    final currentCat = (state is FiltersLoaded) ? state.currentCategory : 'people';
-    return Row(
-      children: [
-        _pillButton(context, 'people', tr['button_article'] ?? 'Люди', const Color(0xFF00F2FF), currentCat == 'people', locale),
-        const SizedBox(width: 8),//
-        _pillButton(context, 'animals', tr['button_sense'] ?? 'Тварини', const Color(0xFFFF8A00), currentCat == 'animals', locale),
-        const SizedBox(width: 8),
-        _pillButton(context, 'things', tr['button_thing'] ?? 'Речі', const Color(0xFF2ECC71), currentCat == 'things', locale),
+  // --- ЛЕЙАУТ: ТИТУЛЬНЫЙ ЛИСТ ---
+  Widget _buildTitleLayout(BuildContext context, Map<String, dynamic> trans) {
+    final categories = _getLocalizedCategories(trans);
+    return CustomScrollView(
+      slivers: [
+        const SliverToBoxAdapter(child: SizedBox(height: 40)),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                return CategoryCard(
+                  category: categories[index],
+                  onTap: () {
+                    context.read<SearchBloc>().add(
+                      LoadFilters(category: _getRawCategoryName(index), locale: '')
+                    );
+                  },
+                );
+              },
+              childCount: categories.length,
+            ),
+          ),
+        ),
       ],
     );
   }
+  
+  List<FindWayCategory> _getLocalizedCategories(Map<String, dynamic> trans) {
+    return [
+      FindWayCategory(
+        title: trans['title_one'] ?? 'People',
+        accentColor: const Color(0xFF00F2FF),
+        modelsInfo: 'Models EfficientNet-B0, ArcFace & NLP | ACTIVE',
+        description: trans['description_one'] ?? '',
+        imagePath: 'assets/images/peop.png',
+      ),
+      FindWayCategory(
+        title: trans['title_two'] ?? 'Animals',
+        accentColor: const Color(0xFFFF8A00),
+        modelsInfo: 'Models EfficientNet-B0, NLP | ACTIVE',
+        description: trans['description_two'] ?? '',
+        imagePath: 'assets/images/cat.png',
+      ),
+      FindWayCategory(
+        title: trans['title_three'] ?? 'Things',
+        accentColor: const Color(0xFF2ECC71),
+        modelsInfo: 'Models EfficientNet-B0, NLP | ACTIVE',
+        description: trans['description_three'] ?? '',
+        imagePath: 'assets/images/things.png',
+      ),
+    ];
+  }
 
-  Widget _pillButton(BuildContext context, String cat, String label, Color color, bool isActive, String locale) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => context.read<SearchBloc>().add(LoadFilters(category: cat, locale: locale)),
+  String _getRawCategoryName(int index) {
+    switch (index) {
+      case 0: return 'people';
+      case 1: return 'animals';
+      case 2: return 'things';
+      default: return 'people';
+    }
+  }
+
+  // ---  Button Customization ---
+  Widget _buildMultiColorPostButton() {
+    return Container(
+      width: 72, height: 72,
+      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+      padding: const EdgeInsets.all(3),
+      child: Container(
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: SweepGradient(
+            colors: [Color(0xFF23E5DB), Color(0xFF002F34), Color(0xFF6A11CB), Color(0xFFFF5F6D), Color(0xFFFFCE32), Color(0xFF23E5DB)],
+            stops: [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+          ),
+        ),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isActive ? color.withOpacity(0.1) : const Color(0xFFF8FAFC),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isActive ? color : Colors.transparent, width: 2),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: isActive ? color : Colors.grey[600], fontWeight: FontWeight.bold, fontSize: 11),
-          ),
+          margin: const EdgeInsets.all(4),
+          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+          child: const Icon(Icons.add, size: 38, color: Color(0xFF002F34)),
+        ),
+      ),
+    );
+  }
+  
+  PreferredSizeWidget _buildAppBar(Map<String, dynamic> translations, String currentLocale, BuildContext context) {
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      title: Padding(
+        padding: const EdgeInsets.only(left: 5.0), 
+        child: Image.asset(
+          'assets/images/logo1.png',
+          height: 65, 
+          fit: BoxFit.contain,
+          semanticLabel: 'FindWay Logo', 
         ),
       ),
     );
   }
 
-  Widget _buildSearchInput(BuildContext context, Map tr) {
+  Widget _buildFilterPanel(BuildContext context, SearchState state, Map<String, dynamic> translations, String currentLocale, dynamic filters, Map<String, dynamic> selectedFilterValues, String activeCategory) {
+    const Color darkSlate = Color(0xFF1E293B);
+    const Color neonBlue = Color(0xFF00F2FF);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: darkSlate, borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: darkSlate, width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildCategoryButtons(context, activeCategory, translations, currentLocale),
+            const SizedBox(height: 24),
+            _buildSearchField(context, translations),
+            const SizedBox(height: 16),
+            if (filters != null) ...[
+              Theme(
+                data: Theme.of(context).copyWith(
+                  canvasColor: Colors.white,
+                  inputDecorationTheme: InputDecorationTheme(
+                    filled: true, fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.only(left: 16, right: 16, top: 24, bottom: 10),
+                    floatingLabelStyle: const TextStyle(color: neonBlue, fontWeight: FontWeight.bold, fontSize: 16, height: 0.2),
+                    labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: darkSlate)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: neonBlue, width: 2)),
+                  ),
+                ),
+                child: FilterBuilder(
+                  filters: filters,
+                  selectedValues: selectedFilterValues,
+                  currentCategory: activeCategory,
+                  onFilterChanged: (id, val) => context.read<SearchBloc>().add(UpdateFilterValue(filterId: id, value: val)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildApplyFiltersButton(context, translations),
+            ],
+            if (state is SearchSuccess) _buildResetFiltersButton(context, currentLocale, activeCategory, translations),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchField(BuildContext context, Map<String, dynamic> translations) {
     return Container(
-      decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
       child: TextField(
+        style: const TextStyle(color: Colors.black),
         decoration: InputDecoration(
-          hintText: tr['plac_title'] ?? 'Пошук...',
-          prefixIcon: const Icon(Icons.search, size: 20),
+          hintText: translations['plac_title'] ?? 'Пошук...',
+          prefixIcon: const Icon(Icons.search, color: Colors.grey),
           suffixIcon: Padding(
             padding: const EdgeInsets.all(6.0),
             child: ElevatedButton(
               onPressed: () => context.read<SearchBloc>().add(const PerformSearch()),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF8A00),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                elevation: 0,
-              ),
-              child: Text(tr['find'] ?? 'FIND', style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF8A00)),
+              child: Text(translations['find'] ?? 'FIND', style: const TextStyle(color: Colors.white, fontSize: 12)),
             ),
           ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 15),
+          contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
         ),
       ),
     );
   }
 
-  Widget _buildFilterButton(BuildContext context, Map tr) {
+  Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2, mainAxisSpacing: 16, crossAxisSpacing: 16, childAspectRatio: 0.75,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) => ArticleCard(post: results[index], currentLocale: currentLocale),
+          childCount: results.length,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryButtons(BuildContext context, String activeCategory, Map<String, dynamic> translations, String currentLocale) {
+    return Row(
+      children: [
+        _categoryTab(context, 'people', translations['button_article'] ?? 'Люди', const Color(0xFF00F2FF), activeCategory == 'people', currentLocale),
+        const SizedBox(width: 8),
+        _categoryTab(context, 'animals', translations['button_sense'] ?? 'Тварини', const Color(0xFFFF8A00), activeCategory == 'animals', currentLocale),
+        const SizedBox(width: 8),
+        _categoryTab(context, 'things', translations['button_thing'] ?? 'Речі', const Color(0xFF2ECC71), activeCategory == 'things', currentLocale),
+      ],
+    );
+  }
+
+  Widget _categoryTab(BuildContext context, String cat, String label, Color color, bool isActive, String locale) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _localActiveCategory = cat);
+          context.read<SearchBloc>().add(LoadFilters(category: cat, locale: locale));
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isActive ? color : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF1E293B), width: 2),
+          ),
+          child: Center(child: Text(label, style: TextStyle(color: isActive ? Colors.white : const Color(0xFF1E293B), fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Orbitron'))),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildApplyFiltersButton(BuildContext context, Map<String, dynamic> translations) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
         onPressed: () => context.read<SearchBloc>().add(const PerformSearch()),
         icon: const Icon(Icons.filter_list),
-        label: Text(tr['filter'] ?? 'ФІЛЬТРУВАТИ'),
+        label: Text(translations['filter_button'] ?? "Застосувати фильтри"),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFFF8A00).withOpacity(0.1),//
-          foregroundColor: const Color(0xFFFF8A00),//
-          elevation: 0,
+          backgroundColor: const Color(0xFFFF8A00).withOpacity(0.1),
+          foregroundColor: const Color(0xFFFF8A00),
           side: const BorderSide(color: Color(0xFFFF8A00)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.symmetric(vertical: 12),
         ),
       ),
     );
   }
 
-  Widget _buildReturnToFiltersButton(BuildContext context, SearchSuccess state, String locale, Map tr) {
+  Widget _buildResetFiltersButton(BuildContext context, String currentLocale, String activeCategory, Map<String, dynamic> translations) {
     return TextButton.icon(
-      onPressed: () => context.read<SearchBloc>().add(LoadFilters(category: 'people', locale: locale)),
-      icon: const Icon(Icons.arrow_back, size: 16),
-      label: Text(tr['last'] ?? "Фільтри"),
-      style: TextButton.styleFrom(foregroundColor: const Color(0xFFFF8A00)),
+      onPressed: () => context.read<SearchBloc>().add(LoadFilters(category: activeCategory, locale: currentLocale)),
+      icon: const Icon(Icons.refresh, size: 16),
+      label: Text(translations['last'] ?? "Скинути фильтри"),
+      style: TextButton.styleFrom(foregroundColor: const Color(0xFF00F2FF)),
     );
+  }
+
+  // --- Экстракторы состояния ---
+  Map<String, dynamic> _extractTranslations(SearchState state) {
+    if (state is FiltersLoaded) return state.uiTranslations;
+    if (state is SearchSuccess) return state.uiTranslations;
+    if (state is ResultsLoading) return state.uiTranslations;
+    return {};
+  }
+
+ String _extractLocale(BuildContext context, SearchState state, Map<String, dynamic> translations) {
+    // ✅ ИСПРАВЛЕНО: Берем язык СТРОГО из базового стейта BLoC'а.
+    // Теперь интерфейс никогда не переключится на английский из-за ответа сервера.
+    if (state.currentLocale.isNotEmpty) return state.currentLocale;
+    
+    return translations['locale_code']?.toString() ?? 'uk';
+  }
+
+  List<dynamic> _extractResults(SearchState state) {
+    if (state is FiltersLoaded) return state.results;
+    if (state is SearchSuccess) return state.results;
+    if (state is ResultsLoading) return state.results;
+    return [];
+  }
+
+  dynamic _extractFilters(SearchState state) {
+    if (state is FiltersLoaded) return state.filters;
+    if (state is ResultsLoading) return state.filters;
+    if (state is SearchSuccess) return state.filters;
+    return null;
+  }
+
+  Map<String, dynamic> _extractSelectedValues(SearchState state) {
+    if (state is FiltersLoaded) return state.selectedValues.cast<String, dynamic>();
+    if (state is SearchSuccess) return state.selectedValues.cast<String, dynamic>();
+    if (state is ResultsLoading) return state.selectedValues.cast<String, dynamic>();
+    return {};
+  }
+
+  int _extractTabIndex(SearchState state) {
+    if (state is FiltersLoaded) return state.tabIndex;
+    if (state is SearchSuccess) return state.tabIndex;
+    if (state is ResultsLoading) return state.tabIndex;
+    return 1;
   }
 }
 
-// --- КЛАСС СЕЛЕКТОРА ЛОКАЛИ ---
-class _LocaleSelector extends StatelessWidget {
-  final String currentLocale;
-  const _LocaleSelector({required this.currentLocale});
+// === ВИДЖЕТ КАРТОЧКИ КАТЕГОРИИ ===
+class CategoryCard extends StatelessWidget {
+  final FindWayCategory category;
+  final VoidCallback onTap;
+
+  const CategoryCard({required this.category, required this.onTap, super.key});
 
   @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      onSelected: (locale) => context.read<SearchBloc>().add(ChangeLocale(locale)),
-      itemBuilder: (context) => [
-        const PopupMenuItem(value: 'uk', child: Text('Українська (UA)')),
-        const PopupMenuItem(value: 'en', child: Text('English (EN)')),
-        const PopupMenuItem(value: 'pl', child: Text('Polski (PL)')),
-        const PopupMenuItem(value: 'nl', child: Text('Nederlands (NL)')),
-      ],
-      icon: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFF00F2FF).withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF00F2FF).withOpacity(0.5)),
+    final String path = category.imagePath;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      height: 250,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        image: DecorationImage(
+          image: path.startsWith('http')
+              ? NetworkImage(path) as ImageProvider
+              : AssetImage(path) as ImageProvider,
+          fit: BoxFit.cover,
+          colorFilter: ColorFilter.mode(
+            Colors.black.withOpacity(0.55),
+            BlendMode.darken,
+          ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.language, color: Color(0xFF00F2FF), size: 16),
-            const SizedBox(width: 8),
-            Text(
-              currentLocale.toUpperCase(),
-              style: const TextStyle(color: Color(0xFF00F2FF), fontWeight: FontWeight.bold, fontSize: 12),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Row(children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(color: category.accentColor, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      category.modelsInfo.toUpperCase(),
+                      style: const TextStyle(color: Colors.white70, fontSize: 9, fontFamily: 'Orbitron'),
+                    ),
+                  ]),
+                  const SizedBox(height: 8),
+                  Text(
+                    category.title.toUpperCase(),
+                    style: TextStyle(color: category.accentColor, fontSize: 28, fontWeight: FontWeight.w900, fontFamily: 'Orbitron'),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    category.description,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-// --- КАРТОЧКА (Article Card с динамическим статусом) ---
-class _ArticleCard extends StatelessWidget {
-  final dynamic post;
-  final String currentLocale;
-  const _ArticleCard({required this.post, required this.currentLocale});
+// === НИЖНЯЯ НАВИГАЦИЯ ===
+class CustomBottomNavBar extends StatelessWidget {
+  final int currentIndex;
+  final String currentLocale; 
+  final Function(int) onTap;
+  final Map<String, dynamic> translations;
+
+  const CustomBottomNavBar({required this.currentIndex, required this.currentLocale, required this.onTap, required this.translations, super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Извлекаем статус (Нашли/Ищем) из Rails JSON
-   final String statusLabel = (post['choice_label'] ?? "").toString().toUpperCase();
-    // Вставь это ПЕРЕД return GestureDetector
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 30),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white, borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: const Color(0xFF1E293B), width: 2),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20)],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          LocaleSelector(currentLocale: currentLocale, isInNavBar: true),
+          _navItem(1, Icons.search, translations['nav_search'] ?? 'Search'),
+          const SizedBox(width: 48), 
+          _navItem(3, Icons.notifications_none, translations['nav_notif'] ?? 'Notif'),
+          _navItem(4, Icons.person_outline, translations['nav_profile'] ?? 'Profile'),
+        ],
+      ),
+    );
+  }
+  
+  Widget _navItem(int index, IconData icon, String label) {
+    final bool isActive = currentIndex == index;
     return GestureDetector(
-      onTap: () {
-        final bloc = context.read<SearchBloc>();
-        bloc.add(LoadPostDetails(id: post['id'], category: 'people', locale: currentLocale));
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => BlocProvider.value(value: bloc, child: const SearchDetailsPage()),
-          ),
-        );
-      },
-      child: Container(
-        // ЗДЕСЬ ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЕМ КЛЮЧИ (decoration:)
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Image.network(
-                post['image_url'] ?? "",
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(color: Colors.grey[200]),
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // --- ТВОЙ ДИНАМИЧЕСКИЙ БЕЙДЖ (С ФИКСОМ СИНТАКСИСА) ---
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), // Добавлена метка padding:
-                      decoration: BoxDecoration( // Добавлена метка decoration:
-                        color: const Color(0xFF00F2FF).withOpacity(0.2),
-                        border: Border.all(color: const Color(0xFF00F2FF)),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        statusLabel,
-                        style: const TextStyle(
-                          color: Color(0xFF00F2FF), 
-                          fontSize: 9, 
-                          fontWeight: FontWeight.bold
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      post['title'] ?? "", 
-                      style: const TextStyle(
-                        color: Colors.white, 
-                        fontWeight: FontWeight.bold, 
-                        fontSize: 13, 
-                        fontFamily: 'Orbitron'
-                      ), 
-                      maxLines: 2, 
-                      overflow: TextOverflow.ellipsis
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+      onTap: () => onTap(index),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B), size: 24),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B), fontSize: 10, fontFamily: 'Orbitron')),
+        ],
       ),
     );
   }

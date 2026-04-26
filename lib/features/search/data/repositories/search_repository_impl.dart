@@ -56,4 +56,18 @@ class SearchRepositoryImpl implements SearchRepository {
       'translations': data['translations'] as Map<String, dynamic>,
     };
   }
+  
+@override
+Future<Map<String, dynamic>> createPost({
+  required String category, required String title, required String text,
+  required int localId, required int choiceId, int? catId,
+  required String locale, required List<String> imagePaths,
+}) {
+  return remoteDataSource.createPost(
+    category: category, title: title, text: text,
+    localId: localId, choiceId: choiceId, catId: catId,
+    locale: locale, imagePaths: imagePaths,
+  );
+}
+
 }

@@ -9,7 +9,7 @@ abstract class SearchEvent extends Equatable {
 
 class LoadFilters extends SearchEvent {
   final String category;
-  final String locale; // Обязательный параметр для предотвращения сброса
+  final String locale;
 
   const LoadFilters({required this.category, required this.locale});
 
@@ -29,7 +29,6 @@ class UpdateFilterValue extends SearchEvent {
 
 class PerformSearch extends SearchEvent {
   const PerformSearch();
-  // Здесь параметры не нужны, Блок возьмет их из текущего FiltersLoaded стейта
 }
 
 class ChangeLocale extends SearchEvent {
@@ -43,7 +42,7 @@ class ChangeLocale extends SearchEvent {
 class LoadPostDetails extends SearchEvent {
   final int id;
   final String category;
-  final String locale; // Передаем локаль для получения верного блока .show из YAML
+  final String locale;
 
   const LoadPostDetails({
     required this.id, 
@@ -53,4 +52,37 @@ class LoadPostDetails extends SearchEvent {
 
   @override
   List<Object?> get props => [id, category, locale];
+}
+
+class ChangeTab extends SearchEvent {
+  final int index;
+  const ChangeTab(this.index);
+  @override
+  List<Object> get props => [index];
+}
+
+class RestoreSearch extends SearchEvent {
+  @override
+  List<Object> get props => [];
+}
+
+// Новый ивент для создания поста
+class CreatePost extends SearchEvent {
+  final String category;
+  final String title;
+  final String text;
+  final int localId;
+  final int choiceId;
+  final int? catId;
+  final String locale;
+  final List<String> imagePaths;
+
+  const CreatePost({
+    required this.category, required this.title, required this.text,
+    required this.localId, required this.choiceId, this.catId,
+    required this.locale, required this.imagePaths,
+  });
+
+  @override
+  List<Object?> get props => [category, title, text, localId, choiceId, catId, locale, imagePaths];
 }

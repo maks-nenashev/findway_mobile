@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/search_bloc.dart';
 import '../bloc/search_state.dart';
+import '../../../../features/comments/presentation/bloc/comments_bloc.dart';
+import '../../../../features/comments/presentation/bloc/comments_event.dart';
+import '../../../../features/comments/presentation/bloc/comments_state.dart';
+import '../../../../features/comments/data/models/comment_model.dart';
+import '../../../../injection_container.dart';
 
 class SearchDetailsPage extends StatelessWidget {
   const SearchDetailsPage({super.key});
@@ -10,6 +15,7 @@ class SearchDetailsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true,
       body: BlocBuilder<SearchBloc, SearchState>(
         builder: (context, state) {
           if (state is PostDetailsLoading) {
@@ -19,134 +25,73 @@ class SearchDetailsPage extends StatelessWidget {
           if (state is PostDetailsLoaded) {
             final post = state.post;
             final tr = state.uiTranslations;
+            final String mappedCategory = _mapCategory(post.category);
 
-            return CustomScrollView(
-              slivers: [
-                // 1. ГАЛЕРЕЯ
-                SliverAppBar(
-                  expandedHeight: 350.0,
-                  pinned: true,
-                  flexibleSpace: FlexibleSpaceBar(
-                    background: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (post.images.isNotEmpty)
-                          Image.network(
-                            post.images.first, 
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _buildImagePlaceholder(),
-                          )
-                        else
-                          _buildImagePlaceholder(),
-                        const DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Colors.black54, Colors.transparent],
-                              stops: [0.0, 0.3],
-                            ),
+            // ✅ Провайдер на всю страницу, чтобы кнопки видели данные комментов
+            return BlocProvider(
+              create: (context) => sl<CommentsBloc>(
+                param1: post.id,
+                param2: mappedCategory,
+              )..add(const FetchComments()),
+              child: Builder(
+                builder: (pageContext) {
+                  return CustomScrollView(
+                    slivers: [
+                      // 1. ГАЛЕРЕЯ
+                      _buildGallery(post),
+
+                      // 2. КОНТЕНТНАЯ ЧАСТЬ ПОСТА
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildAuthorHeader(post),
+                              const Divider(height: 32),
+                              Text(
+                                post.title,
+                                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                post.text,
+                                style: const TextStyle(fontSize: 16, height: 1.6, color: Colors.black87),
+                              ),
+                              const SizedBox(height: 16),
+                              _buildLocationRow(post),
+                              const SizedBox(height: 24),
+                              // ✅ Передаем pageContext и переводы в кнопки управления
+                              _buildControlPanel(pageContext, tr),
+                              const SizedBox(height: 32),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
 
-                // 2. КОНТЕНТНАЯ ЧАСТЬ
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Автор
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: Colors.blueGrey[50],
-                              backgroundImage: post.author.avatarUrl != null 
-                                  ? NetworkImage(post.author.avatarUrl!) 
-                                  : null,
-                              child: post.author.avatarUrl == null 
-                                  ? const Icon(Icons.person, color: Colors.grey) 
-                                  : null,
-                              radius: 20,
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text("POSTED BY", style: TextStyle(fontSize: 10, color: Colors.grey)),
-                                Text(post.author.username, style: const TextStyle(fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            const Spacer(),
-                            Text(post.createdAt, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                          ],
+                      // 3. СЕКЦИЯ КОММЕНТАРИЕВ (Чистая, без дублей)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                tr['comments_title'] ?? "Comments",
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 16),
+                              _buildCommentsList(tr), // ✅ Передаем tr в список
+                            ],
+                          ),
                         ),
-                        const Divider(height: 32),
+                      ),
 
-                        // Заголовок и Текст
-                        Text(post.title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 16),
-                        Text(post.text, style: const TextStyle(fontSize: 16, height: 1.6, color: Colors.black87)),
-                        
-                        const SizedBox(height: 16),
-                        // Локация
-                        Row(
-                          children: [
-                            const Icon(Icons.location_on, color: Colors.blueAccent, size: 18),
-                            const SizedBox(width: 4),
-                            Text(post.local, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)),
-                          ],
-                        ),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // CONTROL PANEL
-                        Row(
-                          children: [
-                            // Теперь этот вызов НЕ БУДЕТ выдавать ошибку
-                            _actionButton(Icons.arrow_back, Colors.white, () {
-                              Navigator.pop(context);
-                            }, bgColor: const Color(0xFF0A0E14)), 
-                            
-                            const SizedBox(width: 12),
-                            
-                            _actionButton(Icons.alternate_email, Colors.cyan, () {
-                              debugPrint("Open Message Form");
-                            }),
-                            
-                            const SizedBox(width: 12),
-                            
-                            _actionButton(Icons.chat_bubble_outline, Colors.orange, () {
-                              debugPrint("Open Comment Form");
-                            }),
-                          ],
-                        ),
-                        
-                        const SizedBox(height: 32),
-                        Text(tr['comments_title'] ?? "Comments", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // 3. СПИСОК КОММЕНТАРИЕВ
-                SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final comment = post.comments[index];
-                      return _CommentNode(comment: comment);
-                    },
-                    childCount: post.comments.length,
-                  ),
-                ),
-                
-                const SliverToBoxAdapter(child: SizedBox(height: 50)),
-              ],
+                      const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                    ],
+                  );
+                },
+              ),
             );
           }
 
@@ -160,32 +105,191 @@ class SearchDetailsPage extends StatelessWidget {
     );
   }
 
-  // --- ВОТ ЭТО И ЕСТЬ "НИЗ" КЛАССА SearchDetailsPage ---
+  // ========== ЛОГИКА И ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ==========
 
-  Widget _buildImagePlaceholder() {
-    return Container(
-      color: Colors.blueGrey[100], 
-      child: const Icon(Icons.image_not_supported, size: 50, color: Colors.grey)
+  String _mapCategory(String? rawType) {
+    final type = rawType?.toLowerCase() ?? 'article';
+    if (type == 'article' || type == 'people') return 'people';
+    if (type == 'sense' || type == 'animal' || type == 'animals') return 'animals';
+    if (type == 'thing' || type == 'things') return 'things';
+    return 'people';
+  }
+
+  void _showCommentSheet(BuildContext context, Map<String, dynamic> tr) {
+    final controller = TextEditingController();
+    final bloc = context.read<CommentsBloc>();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          left: 20, right: 20, top: 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              tr['your_comment'] ?? "Новий коментар",
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: tr['place_writhe'] ?? "Напишіть щось...",
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                filled: true,
+                fillColor: Colors.black26,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () {
+                if (controller.text.trim().isNotEmpty) {
+                  bloc.add(AddComment(controller.text.trim()));
+                  Navigator.pop(context);
+                }
+              },
+              child: Text(
+                tr['submit_comment'] ?? "ВІДПРАВИТИ",
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  // ОБНОВЛЕННЫЙ МЕТОД (Теперь принимает bgColor)
+  Widget _buildGallery(dynamic post) {
+    return SliverAppBar(
+      expandedHeight: 350.0,
+      pinned: true,
+      backgroundColor: const Color(0xFF0A0E14),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (post.images.isNotEmpty)
+              Image.network(post.images.first, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildImagePlaceholder())
+            else
+              _buildImagePlaceholder(),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.black54, Colors.transparent],
+                  stops: [0.0, 0.3],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlPanel(BuildContext context, Map<String, dynamic> tr) {
+    return Row(
+      children: [
+        _actionButton(Icons.arrow_back, Colors.white, () => Navigator.pop(context), bgColor: const Color(0xFF0A0E14)),
+        const SizedBox(width: 12),
+        _actionButton(Icons.alternate_email, Colors.cyan, () => debugPrint("Email Click")),
+        const SizedBox(width: 12),
+        _actionButton(
+          Icons.chat_bubble_outline, 
+          Colors.orange, 
+          () => _showCommentSheet(context, tr),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCommentsList(Map<String, dynamic> tr) {
+    return BlocBuilder<CommentsBloc, CommentsState>(
+      builder: (context, state) {
+        if (state is CommentsLoading) {
+          return const Center(child: CircularProgressIndicator(color: Colors.orange));
+        }
+        if (state is CommentsLoaded) {
+          if (state.comments.isEmpty) {
+            return const Center(child: Text("No comments yet", style: TextStyle(color: Colors.grey)));
+          }
+          return ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            itemCount: state.comments.length,
+            itemBuilder: (context, index) => _CommentNode(
+              comment: state.comments[index],
+              tr: tr,
+            ),
+          );
+        }
+        return const SizedBox.shrink();
+      },
+    );
+  }
+
+  Widget _buildAuthorHeader(dynamic post) {
+    return Row(
+      children: [
+        CircleAvatar(
+          backgroundImage: post.author.avatarUrl != null ? NetworkImage(post.author.avatarUrl!) : null,
+          child: post.author.avatarUrl == null ? const Icon(Icons.person) : null,
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("POSTED BY", style: TextStyle(fontSize: 10, color: Colors.grey)),
+            Text(post.author.username, style: const TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        const Spacer(),
+        Text(post.createdAt, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+      ],
+    );
+  }
+
+  Widget _buildLocationRow(dynamic post) {
+    return Row(
+      children: [
+        const Icon(Icons.location_on, color: Colors.blueAccent, size: 18),
+        const SizedBox(width: 4),
+        Text(post.local, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+      ],
+    );
+  }
+
+  Widget _buildImagePlaceholder() {
+    return Container(color: Colors.grey[200], child: const Icon(Icons.image_not_supported));
+  }
+
   Widget _actionButton(IconData icon, Color color, VoidCallback onTap, {Color? bgColor}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        width: 52,
-        height: 52,
+        width: 52, height: 52,
         decoration: BoxDecoration(
-          // Логика: если bgColor есть (черная кнопка), берем его. 
-          // Если нет (цветные кнопки) — берем color с прозрачностью.
           color: bgColor ?? color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: bgColor != null ? color.withOpacity(0.5) : color.withOpacity(0.5), 
-            width: 2
-          ),
+          border: Border.all(color: color.withOpacity(0.3), width: 2),
         ),
         child: Icon(icon, color: color, size: 24),
       ),
@@ -193,44 +297,128 @@ class SearchDetailsPage extends StatelessWidget {
   }
 }
 
-// Отдельный класс для комментариев (вне SearchDetailsPage)
+// ========== ФУНКЦИИ ВНЕ КЛАССОВ (Для доступа отовсюду) ==========
+
+void _showEditSheet(BuildContext context, CommentModel comment, Map<String, dynamic> tr) {
+  final controller = TextEditingController(text: comment.body);
+  final bloc = context.read<CommentsBloc>();
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: const Color(0xFF1E293B),
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (context) => Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+        left: 20, right: 20, top: 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            tr['your_comment'] ?? "Редагувати",
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: controller,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            maxLines: 3,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.black26,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent, 
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty && controller.text != comment.body) {
+                bloc.add(UpdateComment(
+                  commentId: comment.id,
+                  newBody: controller.text.trim(),
+                ));
+              }
+              Navigator.pop(context);
+            },
+            child: Text(
+              tr['edit_comment'] ?? "ЗБЕРЕГТИ", 
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// ========== ВИДЖЕТ КАРТОЧКИ КОММЕНТАРИЯ ==========
+
 class _CommentNode extends StatelessWidget {
-  final dynamic comment;
-  const _CommentNode({required this.comment});
+  final CommentModel comment;
+  final Map<String, dynamic> tr;
+
+  const _CommentNode({required this.comment, required this.tr});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CircleAvatar(
-            backgroundColor: Colors.blueGrey[50],
-            backgroundImage: comment.avatar != null ? NetworkImage(comment.avatar) : null,
-            child: comment.avatar == null ? const Icon(Icons.person, size: 20, color: Colors.grey) : null,
+            backgroundImage: comment.avatarUrl != null ? NetworkImage(comment.avatarUrl!) : null,
+            child: comment.avatarUrl == null ? const Icon(Icons.person, size: 20) : null,
             radius: 18,
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(12),
-              ),
+              decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(comment.username, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text(comment.date, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                      Text(comment.username, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      Text(comment.createdAt, style: const TextStyle(fontSize: 10, color: Colors.grey)),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(comment.body),
+                  Text(comment.body, style: const TextStyle(fontSize: 14)),
+                  
+                  // Ряд кнопок управления (Редактировать / Удалить)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (comment.canEdit)
+                        GestureDetector(
+                          onTap: () => _showEditSheet(context, comment, tr),
+                          child: const Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Icon(Icons.edit_outlined, size: 18, color: Colors.blueAccent),
+                          ),
+                        ),
+                      if (comment.canDelete)
+                        GestureDetector(
+                          onTap: () => context.read<CommentsBloc>().add(DeleteComment(commentId: comment.id)),
+                          child: const Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
               ),
             ),
