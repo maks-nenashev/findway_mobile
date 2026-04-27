@@ -27,7 +27,6 @@ class SearchDetailsPage extends StatelessWidget {
             final tr = state.uiTranslations;
             final String mappedCategory = _mapCategory(post.category);
 
-            // ✅ Провайдер на всю страницу, чтобы кнопки видели данные комментов
             return BlocProvider(
               create: (context) => sl<CommentsBloc>(
                 param1: post.id,
@@ -37,7 +36,7 @@ class SearchDetailsPage extends StatelessWidget {
                 builder: (pageContext) {
                   return CustomScrollView(
                     slivers: [
-                      // 1. ГАЛЕРЕЯ
+                      // 1. ГАЛЕРЕЯ (ОЖИВЛЕННАЯ)
                       _buildGallery(post),
 
                       // 2. КОНТЕНТНАЯ ЧАСТЬ ПОСТА
@@ -61,7 +60,6 @@ class SearchDetailsPage extends StatelessWidget {
                               const SizedBox(height: 16),
                               _buildLocationRow(post),
                               const SizedBox(height: 24),
-                              // ✅ Передаем pageContext и переводы в кнопки управления
                               _buildControlPanel(pageContext, tr),
                               const SizedBox(height: 32),
                             ],
@@ -69,7 +67,7 @@ class SearchDetailsPage extends StatelessWidget {
                         ),
                       ),
 
-                      // 3. СЕКЦИЯ КОММЕНТАРИЕВ (Чистая, без дублей)
+                      // 3. СЕКЦИЯ КОММЕНТАРИЕВ
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -81,7 +79,7 @@ class SearchDetailsPage extends StatelessWidget {
                                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                               ),
                               const SizedBox(height: 16),
-                              _buildCommentsList(tr), // ✅ Передаем tr в список
+                              _buildCommentsList(tr),
                             ],
                           ),
                         ),
@@ -133,7 +131,7 @@ class SearchDetailsPage extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              tr['your_comment'] ?? "Новий коментар",
+              tr['your_comment'] ?? "Your Comment",
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
@@ -164,7 +162,7 @@ class SearchDetailsPage extends StatelessWidget {
                 }
               },
               child: Text(
-                tr['submit_comment'] ?? "ВІДПРАВИТИ",
+                tr['submit_comment'] ?? "SUBMIT",
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
@@ -180,24 +178,8 @@ class SearchDetailsPage extends StatelessWidget {
       pinned: true,
       backgroundColor: const Color(0xFF0A0E14),
       flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (post.images.isNotEmpty)
-              Image.network(post.images.first, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _buildImagePlaceholder())
-            else
-              _buildImagePlaceholder(),
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.black54, Colors.transparent],
-                  stops: [0.0, 0.3],
-                ),
-              ),
-            ),
-          ],
+        background: _PostDetailsGallery(
+          images: post.images != null ? List<String>.from(post.images) : [],
         ),
       ),
     );
@@ -276,10 +258,6 @@ class SearchDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildImagePlaceholder() {
-    return Container(color: Colors.grey[200], child: const Icon(Icons.image_not_supported));
-  }
-
   Widget _actionButton(IconData icon, Color color, VoidCallback onTap, {Color? bgColor}) {
     return InkWell(
       onTap: onTap,
@@ -297,7 +275,122 @@ class SearchDetailsPage extends StatelessWidget {
   }
 }
 
-// ========== ФУНКЦИИ ВНЕ КЛАССОВ (Для доступа отовсюду) ==========
+// ========== ВНУТРЕННИЙ ВИДЖЕТ ГАЛЕРЕИ ДЛЯ ПОСТА (Перелистывание картинок!!) ==========
+
+class _PostDetailsGallery extends StatefulWidget {
+  final List<String> images;
+  const _PostDetailsGallery({required this.images});
+
+  @override
+  State<_PostDetailsGallery> createState() => _PostDetailsGalleryState();
+}
+
+class _PostDetailsGalleryState extends State<_PostDetailsGallery> {
+  late PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.images.isEmpty) {
+      return Container(color: Colors.grey[200], child: const Icon(Icons.image_not_supported, size: 50));
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        PageView.builder(
+          controller: _pageController,
+          itemCount: widget.images.length,
+          onPageChanged: (int page) => setState(() => _currentPage = page),
+          itemBuilder: (context, index) {
+            return Image.network(
+              widget.images[index],
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(color: Colors.black87),
+            );
+          },
+        ),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.black54, Colors.transparent, Colors.black54],
+              stops: [0.0, 0.4, 1.0],
+            ),
+          ),
+        ),
+        if (widget.images.length > 1) ...[
+          if (_currentPage > 0)
+            Positioned(
+              left: 10, top: 0, bottom: 0,
+              child: Center(
+                child: _buildArrow(Icons.arrow_back_ios_new, () {
+                  _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                }),
+              ),
+            ),
+          if (_currentPage < widget.images.length - 1)
+            Positioned(
+              right: 10, top: 0, bottom: 0,
+              child: Center(
+                child: _buildArrow(Icons.arrow_forward_ios, () {
+                  _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                }),
+              ),
+            ),
+          Positioned(
+            bottom: 20, left: 0, right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                widget.images.length,
+                (index) => _buildDot(index == _currentPage),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildArrow(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
+        child: Icon(icon, color: Colors.white, size: 20),
+      ),
+    );
+  }
+
+  Widget _buildDot(bool isActive) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      height: 4, width: isActive ? 16 : 4,
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFF00F2FF) : Colors.white54,
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+}
+
+// ========== ФУНКЦИИ И ВИДЖЕТЫ КОММЕНТАРИЕВ (БЕЗ ИЗМЕНЕНИЙ) ==========
 
 void _showEditSheet(BuildContext context, CommentModel comment, Map<String, dynamic> tr) {
   final controller = TextEditingController(text: comment.body);
@@ -316,10 +409,7 @@ void _showEditSheet(BuildContext context, CommentModel comment, Map<String, dyna
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            tr['your_comment'] ?? "Редагувати",
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
+          Text(tr['your_comment'] ?? "Редагувати", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           TextField(
             controller: controller,
@@ -341,17 +431,11 @@ void _showEditSheet(BuildContext context, CommentModel comment, Map<String, dyna
             ),
             onPressed: () {
               if (controller.text.trim().isNotEmpty && controller.text != comment.body) {
-                bloc.add(UpdateComment(
-                  commentId: comment.id,
-                  newBody: controller.text.trim(),
-                ));
+                bloc.add(UpdateComment(commentId: comment.id, newBody: controller.text.trim()));
               }
               Navigator.pop(context);
             },
-            child: Text(
-              tr['edit_comment'] ?? "ЗБЕРЕГТИ", 
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
-            ),
+            child: Text(tr['edit_comment'] ?? "ЗБЕРЕГТИ", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -359,12 +443,9 @@ void _showEditSheet(BuildContext context, CommentModel comment, Map<String, dyna
   );
 }
 
-// ========== ВИДЖЕТ КАРТОЧКИ КОММЕНТАРИЯ ==========
-
 class _CommentNode extends StatelessWidget {
   final CommentModel comment;
   final Map<String, dynamic> tr;
-
   const _CommentNode({required this.comment, required this.tr});
 
   @override
@@ -396,26 +477,18 @@ class _CommentNode extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(comment.body, style: const TextStyle(fontSize: 14)),
-                  
-                  // Ряд кнопок управления (Редактировать / Удалить)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       if (comment.canEdit)
                         GestureDetector(
                           onTap: () => _showEditSheet(context, comment, tr),
-                          child: const Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: Icon(Icons.edit_outlined, size: 18, color: Colors.blueAccent),
-                          ),
+                          child: const Padding(padding: EdgeInsets.all(8.0), child: Icon(Icons.edit_outlined, size: 18, color: Colors.blueAccent)),
                         ),
                       if (comment.canDelete)
                         GestureDetector(
                           onTap: () => context.read<CommentsBloc>().add(DeleteComment(commentId: comment.id)),
-                          child: const Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
-                          ),
+                          child: const Padding(padding: EdgeInsets.all(8.0), child: Icon(Icons.delete_outline, size: 18, color: Colors.redAccent)),
                         ),
                     ],
                   ),
