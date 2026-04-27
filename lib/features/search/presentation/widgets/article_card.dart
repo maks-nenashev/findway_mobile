@@ -1,149 +1,204 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:findway_mobile/features/comments/presentation/widgets/comments_section.dart';
-
 import '../bloc/search_bloc.dart';
 import '../bloc/search_event.dart';
 import '../pages/search_details_page.dart';
 
-/// Карточка материала (человека, вещи, животного) в сетке поиска.
-/// Показывает картинку, статус, название – с плавным градиентом.
-/// При клике загружает детали и после возврата обновляет список.
-class ArticleCard extends StatelessWidget {
-  final dynamic post;           // Данные поста/материала
-  final String currentLocale;   // Текущая локаль
+class ArticleCard extends StatefulWidget {
+  final dynamic post;
+  final String currentLocale;
 
-  const ArticleCard({
-    required this.post,
-    required this.currentLocale,
-    Key? key,
-  }) : super(key: key);
+  const ArticleCard({required this.post, required this.currentLocale, Key? key}) : super(key: key);
+
+  @override
+  State<ArticleCard> createState() => _ArticleCardState();
+}
+
+class _ArticleCardState extends State<ArticleCard> {
+  late PageController _pageController;
+  int _currentPage = 0;
+  List<String> _images = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    _parseImages();
+  }
+
+  // Если список обновился, обновляем картинки
+  @override
+  void didUpdateWidget(ArticleCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.post != widget.post) _parseImages();
+  }
+
+  void _parseImages() {
+    final List<String> temp = [];
+    // Проверяем все возможные ключи из твоего JSON
+    final dynamic imagesData = widget.post['images_urls'] ?? widget.post['images'] ?? widget.post['photos'];
+
+    if (imagesData is List && imagesData.isNotEmpty) {
+      temp.addAll(imagesData.map((e) => e.toString()));
+    } else if (widget.post['image_url'] != null) {
+      temp.add(widget.post['image_url'].toString());
+    }
+
+    setState(() => _images = temp);
+
+    // 🕵️‍♂️ ДИАГНОСТИКА: Посмотри это в консоли!
+    debugPrint('--- CARD DIAGNOSTIC (ID: ${widget.post['id']}) ---');
+    debugPrint('Images found: ${_images.length}');
+    debugPrint('Data from server: ${widget.post}');
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Получаем метку статуса (верхний голубой бейдж)
-    final String statusLabel = (post['choice_label'] ?? '').toString().toUpperCase();
+    final String statusLabel = (widget.post['choice_label'] ?? '').toString().toUpperCase();
 
-    // ✅ ИСПРАВЛЕНО: Добавлен return, чтобы виджет вернулся на экран
-    return GestureDetector(
-      // ✅ ИСПРАВЛЕНО: Сделали функцию async для работы с Navigator
-      onTap: () async {
-        // Захватываем bloc до асинхронного перехода, чтобы передать его на следующий экран
-        final bloc = context.read<SearchBloc>();
-        final String category = post['category'] ?? 'people';
-
-        // 1. Отправляем событие с ПРАВИЛЬНОЙ ЛОКАЛЬЮ
-        bloc.add(LoadPostDetails(
-          id: post['id'], 
-          category: category, 
-          locale: currentLocale, // 🔒 Фикс: жестко передаем локаль интерфейса
-        ));
-
-        // 2. Переходим на страницу деталей, прокидывая текущий BLoC
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => BlocProvider.value(
-              value: bloc,
-              child: const SearchDetailsPage(),
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          children: [
+            // 1. ПЕРЕЛИСТЫВАНИЕ (Самый нижний слой)
+            Positioned.fill(
+              child: _images.isNotEmpty
+                  ? PageView.builder(
+                      controller: _pageController,
+                      itemCount: _images.length,
+                      onPageChanged: (i) => setState(() => _currentPage = i),
+                      itemBuilder: (context, index) => GestureDetector(
+                        // Тап по самой картинке ведет в детали
+                        onTap: _navigateToDetails,
+                        child: Image.network(
+                          _images[index],
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(color: Colors.black87),
+                        ),
+                      ),
+                    )
+                  : Container(color: Colors.grey[900]),
             ),
-          ),
-        );
 
-        // 3. После возврата автоматически обновляем фильтры и список
-        // ✅ ИСПРАВЛЕНО: Используем динамическую категорию вместо захардкоженного 'people'
-        if (context.mounted) {
-          bloc.add(RestoreSearch());
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          // Эффект тени под картой
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // ------ ФОТО ------
-              Image.network(
-                post['image_url'] ?? "",
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(color: Colors.grey[900]), // если картинки нет
-              ),
-
-              // ------ Полупрозрачный градиент-сабблер ------
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.8),
-                    ],
+            // 2. ГРАДИЕНТ (Сквозной для нажатий)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
+                    ),
                   ),
                 ),
               ),
+            ),
 
-              // ------ Контент-область снизу ------
-              Padding(
-                padding: const EdgeInsets.all(12.0),
+            // 3. СТРЕЛКИ И ТОЧКИ (Только если есть что листать)
+            if (_images.length > 1) ...[
+              // Левая
+              if (_currentPage > 0)
+                Positioned(
+                  left: 5, top: 0, bottom: 0,
+                  child: Center(child: _buildArrow(Icons.arrow_back_ios_new, () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.ease))),
+                ),
+              // Правая
+              if (_currentPage < _images.length - 1)
+                Positioned(
+                  right: 5, top: 0, bottom: 0,
+                  child: Center(child: _buildArrow(Icons.arrow_forward_ios, () => _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.ease))),
+                ),
+              // Индикаторы
+              Positioned(
+                bottom: 50, left: 0, right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(_images.length, (i) => _buildDot(i == _currentPage)),
+                ),
+              ),
+            ],
+
+            // 4. ТЕКСТ (Сквозной для нажатий)
+            Positioned(
+              left: 12, right: 12, bottom: 12,
+              child: IgnorePointer(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ===== Метка статуса (если есть)
-                    if (statusLabel.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        margin: const EdgeInsets.only(bottom: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF00F2FF).withOpacity(0.1),
-                          border: Border.all(
-                            color: const Color(0xFF00F2FF),
-                            width: 1,
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          statusLabel,
-                          style: const TextStyle(
-                            color: Color(0xFF00F2FF),
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                            fontFamily: 'Orbitron',
-                          ),
-                        ),
-                      ),
-
-                    // ===== Название поста
+                    if (statusLabel.isNotEmpty) _buildStatusBadge(statusLabel),
                     Text(
-                      post['title'] ?? "",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        fontFamily: 'Orbitron',
-                      ),
+                      widget.post['title'] ?? "",
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Orbitron'),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  void _navigateToDetails() async {
+    final bloc = context.read<SearchBloc>();
+    bloc.add(LoadPostDetails(
+      id: widget.post['id'],
+      category: widget.post['category'] ?? 'people',
+      locale: widget.currentLocale,
+    ));
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => BlocProvider.value(value: bloc, child: const SearchDetailsPage())),
+    );
+    if (context.mounted) bloc.add(RestoreSearch());
+  }
+
+  Widget _buildStatusBadge(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      margin: const EdgeInsets.only(bottom: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF00F2FF).withOpacity(0.1),
+        border: Border.all(color: const Color(0xFF00F2FF), width: 1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(label, style: const TextStyle(color: Color(0xFF00F2FF), fontSize: 9, fontWeight: FontWeight.bold, fontFamily: 'Orbitron')),
+    );
+  }
+
+  Widget _buildArrow(IconData icon, VoidCallback action) {
+    return GestureDetector(
+      onTap: action,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(color: Colors.black26, shape: BoxShape.circle),
+        child: Icon(icon, color: Colors.white70, size: 14),
+      ),
+    );
+  }
+
+  Widget _buildDot(bool active) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.symmetric(horizontal: 2),
+      height: 3, width: active ? 10 : 3,
+      decoration: BoxDecoration(color: active ? const Color(0xFF00F2FF) : Colors.white38, borderRadius: BorderRadius.circular(2)),
     );
   }
 }
