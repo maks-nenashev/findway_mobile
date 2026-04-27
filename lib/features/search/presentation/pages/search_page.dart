@@ -73,46 +73,49 @@ class _SearchPageState extends State<SearchPage> {
 
           final bool isTitlePage = _localActiveCategory.isEmpty;
 
-         return Scaffold( 
-  extendBody: true,
-  backgroundColor: const Color(0xFFF0F4F8),
-  appBar: _buildAppBar(translations, currentLocale, context),
-  
-  floatingActionButton: GestureDetector(
-    onTap: () {
-      // 1. Определяем категорию для формы
-      final String targetCategory = _localActiveCategory.isEmpty ? 'people' : _localActiveCategory;
+          return Scaffold( 
+            extendBody: true,
+            backgroundColor: const Color(0xFFF0F4F8),
+            appBar: _buildAppBar(translations, currentLocale, context),
+            
+            // ✅ CUSTOM BUTTON: Опускаем custom кнопку вниз через Transform.translate
+            floatingActionButton: Transform.translate(
+              offset: const Offset(0, 32), // Сдвиг button на 32 пикселя вниз
+              child: GestureDetector(
+                onTap: () {
+                  // 1. Определяем категорию для формы
+                  final String targetCategory = _localActiveCategory.isEmpty ? 'people' : _localActiveCategory;
 
-      // 2. Переходим на страницу создания, пробрасывая текущий SearchBloc
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => BlocProvider.value(
-            value: context.read<SearchBloc>(), // Передаем существующий экземпляр Блока
-            child: PostCreatePage(initialCategory: targetCategory),
-          ),
-        ),
-      );
-    },
-    child: _buildMultiColorPostButton(),
-  ),
-  floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+                  // 2. Переходим на страницу создания, пробрасывая текущий SearchBloc
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => BlocProvider.value(
+                        value: context.read<SearchBloc>(), // Передаем существующий экземпляр Блока
+                        child: PostCreatePage(initialCategory: targetCategory),
+                      ),
+                    ),
+                  );
+                },
+                child: _buildMultiColorPostButton(),
+              ),
+            ),// ✅ CUSTOM BUTTON: stop
+            floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
-  bottomNavigationBar: CustomBottomNavBar( 
-    currentIndex: currentTabIndex,
-    currentLocale: currentLocale,
-    translations: translations,
-    onTap: (index) {
-      if (index == 1) {
-        // Сброс на титульный лист
-        setState(() => _localActiveCategory = '');
-        context.read<SearchBloc>().add(const LoadFilters(category: '', locale: ''));
-      } else {
-        context.read<SearchBloc>().add(ChangeTab(index));
-      }
-    },
-  ),
-  
+            bottomNavigationBar: CustomBottomNavBar( 
+              currentIndex: currentTabIndex,
+              currentLocale: currentLocale,
+              translations: translations,
+              onTap: (index) {
+                if (index == 1) {
+                  // Сброс на титульный лист
+                  setState(() => _localActiveCategory = '');
+                  context.read<SearchBloc>().add(const LoadFilters(category: '', locale: ''));
+                } else {
+                  context.read<SearchBloc>().add(ChangeTab(index));
+                }
+              },
+            ),
 
             body: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
