@@ -35,9 +35,9 @@ dependencies:
   cookie_jar: ^4.0.8
   # Network & Data
   dio: ^5.4.0
+  path_provider: ^2.1.1  # Оставь только это вхождение
   drift: ^2.14.0
   sqlite3_flutter_libs: ^0.5.18
-  path_provider: ^2.1.1
   dartz: ^0.10.1
   equatable: ^2.0.8
   shared_preferences: ^2.5.5
