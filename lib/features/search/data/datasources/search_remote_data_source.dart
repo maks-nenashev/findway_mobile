@@ -28,7 +28,7 @@ abstract class SearchRemoteDataSource {
     required String text,
     required int localId,
     required int choiceId,
-    int? catId,
+    int? catId, // НЕ МЕНЯЕМ (важно)
     required String locale,
     required List<String> imagePaths,
   });
@@ -141,25 +141,42 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     required String text,
     required int localId,
     required int choiceId,
-    int? catId,
+    int? catId, // используем как универсальный subCategoryId
     required String locale,
     required List<String> imagePaths,
   }) async {
     final normalizedCategory = category.toLowerCase();
 
-    String subCategoryKey = 'phone_id';
-    if (normalizedCategory == 'people') subCategoryKey = 'live_id';
-    if (normalizedCategory == 'animals') subCategoryKey = 'cat_id';
+    // ✅ ЖЁСТКИЙ МАППИНГ (исправление бага)
+    String? subCategoryKey;
 
-    final formData = FormData.fromMap({
+    switch (normalizedCategory) {
+      case 'people':
+        subCategoryKey = 'live_id';
+        break;
+      case 'animals':
+        subCategoryKey = 'cat_id';
+        break;
+      case 'things':
+        subCategoryKey = 'phone_id';
+        break;
+    }
+
+    final Map<String, dynamic> data = {
       'category': normalizedCategory,
       'title': title,
       'text': text,
       'local_id': localId,
       'choice_id': choiceId,
-      if (catId != null) subCategoryKey: catId,
       'locale': locale,
-    });
+    };
+
+    // ✅ КЛЮЧЕВОЙ ФИКС
+    if (catId != null && subCategoryKey != null) {
+      data[subCategoryKey] = catId;
+    }
+
+    final formData = FormData.fromMap(data);
 
     for (final path in imagePaths) {
       formData.files.add(
@@ -183,9 +200,9 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
       ),
     );
 
-    final data = response.data;
+    final resData = response.data;
 
-    if (data is Map<String, dynamic>) return data;
+    if (resData is Map<String, dynamic>) return resData;
 
     throw Exception("Invalid response format on createPost");
   }

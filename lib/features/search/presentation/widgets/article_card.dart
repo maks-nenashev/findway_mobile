@@ -26,7 +26,6 @@ class _ArticleCardState extends State<ArticleCard> {
     _parseImages();
   }
 
-  // Если список обновился, обновляем картинки
   @override
   void didUpdateWidget(ArticleCard oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -35,7 +34,6 @@ class _ArticleCardState extends State<ArticleCard> {
 
   void _parseImages() {
     final List<String> temp = [];
-    // Проверяем все возможные ключи из твоего JSON
     final dynamic imagesData = widget.post['images_urls'] ?? widget.post['images'] ?? widget.post['photos'];
 
     if (imagesData is List && imagesData.isNotEmpty) {
@@ -44,12 +42,12 @@ class _ArticleCardState extends State<ArticleCard> {
       temp.add(widget.post['image_url'].toString());
     }
 
-    setState(() => _images = temp);
+    // ✅ ДОБАВЛЕНО: Если картинок нет, ставим заглушку из твоих ассетов
+    if (temp.isEmpty) {
+      temp.add('assets/images/peop.png');
+    }
 
-    // 🕵️‍♂️ ДИАГНОСТИКА: Посмотри это в консоли!
-    debugPrint('--- CARD DIAGNOSTIC (ID: ${widget.post['id']}) ---');
-    debugPrint('Images found: ${_images.length}');
-    debugPrint('Data from server: ${widget.post}');
+    setState(() => _images = temp);
   }
 
   @override
@@ -71,27 +69,31 @@ class _ArticleCardState extends State<ArticleCard> {
         borderRadius: BorderRadius.circular(20),
         child: Stack(
           children: [
-            // 1. ПЕРЕЛИСТЫВАНИЕ (Самый нижний слой)
+            // 1. ПЕРЕЛИСТЫВАНИЕ (Нижний слой)
             Positioned.fill(
               child: _images.isNotEmpty
                   ? PageView.builder(
                       controller: _pageController,
                       itemCount: _images.length,
                       onPageChanged: (i) => setState(() => _currentPage = i),
-                      itemBuilder: (context, index) => GestureDetector(
-                        // Тап по самой картинке ведет в детали
-                        onTap: _navigateToDetails,
-                        child: Image.network(
-                          _images[index],
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(color: Colors.black87),
-                        ),
-                      ),
+                      itemBuilder: (context, index) {
+                        final imgPath = _images[index];
+                        // ✅ ДОБАВЛЕНО: Проверка - сеть или ассет
+                        if (imgPath.startsWith('http')) {
+                          return Image.network(
+                            imgPath,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Image.asset('assets/images/peop.png', fit: BoxFit.cover),
+                          );
+                        } else {
+                          return Image.asset(imgPath, fit: BoxFit.cover);
+                        }
+                      },
                     )
                   : Container(color: Colors.grey[900]),
             ),
 
-            // 2. ГРАДИЕНТ (Сквозной для нажатий)
+            // 2. ГРАДИЕНТ (Визуал)
             Positioned.fill(
               child: IgnorePointer(
                 child: Container(
@@ -106,31 +108,18 @@ class _ArticleCardState extends State<ArticleCard> {
               ),
             ),
 
-            // 3. СТРЕЛКИ И ТОЧКИ (Только если есть что листать)
-            if (_images.length > 1) ...[
-              // Левая
-              if (_currentPage > 0)
-                Positioned(
-                  left: 5, top: 0, bottom: 0,
-                  child: Center(child: _buildArrow(Icons.arrow_back_ios_new, () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.ease))),
-                ),
-              // Правая
-              if (_currentPage < _images.length - 1)
-                Positioned(
-                  right: 5, top: 0, bottom: 0,
-                  child: Center(child: _buildArrow(Icons.arrow_forward_ios, () => _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.ease))),
-                ),
-              // Индикаторы
-              Positioned(
-                bottom: 50, left: 0, right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(_images.length, (i) => _buildDot(i == _currentPage)),
-                ),
+            // 3. ✅ МАСТЕР-ДЕТЕКТОР (Решение проблемы "статики")
+            // Мы вынесли клик из PageView на отдельный слой.
+            // Теперь карточка кликабельна ВСЕГДА, даже если картинок нет.
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _navigateToDetails,
+                child: const SizedBox.expand(),
               ),
-            ],
+            ),
 
-            // 4. ТЕКСТ (Сквозной для нажатий)
+            // 4. ТЕКСТ (Пропускает нажатия сквозь себя на Детектор)
             Positioned(
               left: 12, right: 12, bottom: 12,
               child: IgnorePointer(
@@ -149,6 +138,27 @@ class _ArticleCardState extends State<ArticleCard> {
                 ),
               ),
             ),
+
+            // 5. УПРАВЛЕНИЕ (Самый верхний слой, перехватывает клики только на стрелках)
+            if (_images.length > 1) ...[
+              if (_currentPage > 0)
+                Positioned(
+                  left: 5, top: 0, bottom: 0,
+                  child: Center(child: _buildArrow(Icons.arrow_back_ios_new, () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.ease))),
+                ),
+              if (_currentPage < _images.length - 1)
+                Positioned(
+                  right: 5, top: 0, bottom: 0,
+                  child: Center(child: _buildArrow(Icons.arrow_forward_ios, () => _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.ease))),
+                ),
+              Positioned(
+                bottom: 50, left: 0, right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(_images.length, (i) => _buildDot(i == _currentPage)),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -185,10 +195,11 @@ class _ArticleCardState extends State<ArticleCard> {
   Widget _buildArrow(IconData icon, VoidCallback action) {
     return GestureDetector(
       onTap: action,
+      behavior: HitTestBehavior.opaque, // Чтобы легче было попасть пальцем
       child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.black26, shape: BoxShape.circle),
-        child: Icon(icon, color: Colors.white70, size: 14),
+        padding: const EdgeInsets.all(12),
+        decoration: const BoxDecoration(color: Colors.black26, shape: BoxShape.circle),
+        child: Icon(icon, color: Colors.white, size: 16),
       ),
     );
   }
