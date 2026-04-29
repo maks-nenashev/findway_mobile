@@ -100,7 +100,7 @@ class _PostCreatePageState extends State<PostCreatePage> {
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pop(context);
+          Navigator.pop(context, true); // Возвращаем true, чтобы IndexPage знал, что нужно обновить список
         }
 
         if (state is PostCreateError) {

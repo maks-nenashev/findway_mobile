@@ -78,29 +78,37 @@ class _SearchPageState extends State<SearchPage> {
             backgroundColor: const Color(0xFFF0F4F8),
             appBar: _buildAppBar(translations, currentLocale, context),
             
-            // ✅ CUSTOM BUTTON: Опускаем custom кнопку вниз через Transform.translate
-            floatingActionButton: Transform.translate(
-              offset: const Offset(0, 32), // Сдвиг button на 32 пикселя вниз
-              child: GestureDetector(
-                onTap: () {
-                  // 1. Определяем категорию для формы
-                  final String targetCategory = _localActiveCategory.isEmpty ? 'people' : _localActiveCategory;
+// ✅ CUSTOM BUTTON: Опускаем custom кнопку вниз через Transform.translate
+floatingActionButton: Transform.translate(
+  offset: const Offset(0, 32), // Поднимаем кнопку на 32 пикселя вверх
+  child: GestureDetector(
+    // ✅ Делаем функцию асинхронной (async)
+    onTap: () async { 
+      final String targetCategory = _localActiveCategory.isEmpty ? 'people' : _localActiveCategory;
 
-                  // 2. Переходим на страницу создания, пробрасывая текущий SearchBloc
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => BlocProvider.value(
-                        value: context.read<SearchBloc>(), // Передаем существующий экземпляр Блока
-                        child: PostCreatePage(initialCategory: targetCategory),
-                      ),
-                    ),
-                  );
-                },
-                child: _buildMultiColorPostButton(),
-              ),
-            ),// ✅ CUSTOM BUTTON: stop
-            floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      // ✅ Ждем результат закрытия страницы (await)
+      final bool? needRefresh = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BlocProvider.value(
+            value: context.read<SearchBloc>(),
+            child: PostCreatePage(initialCategory: targetCategory),
+          ),
+        ),
+      );
+
+      // ✅ Если вернулось true (пост создан) — обновляем список Posts in index with new filters
+      if (needRefresh == true && mounted) {
+        context.read<SearchBloc>().add(LoadFilters(
+          category: targetCategory,
+          locale: context.read<SearchBloc>().currentLocale,
+        ));
+      }
+    },
+    child: _buildMultiColorPostButton(),
+  ),
+),
+floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
             bottomNavigationBar: CustomBottomNavBar( 
               currentIndex: currentTabIndex,
