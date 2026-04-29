@@ -26,13 +26,7 @@ class _ArticleCardState extends State<ArticleCard> {
     _parseImages();
   }
 
-  @override
-  void didUpdateWidget(ArticleCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.post != widget.post) _parseImages();
-  }
-
-  void _parseImages() {
+void _parseImages() {
     final List<String> temp = [];
     final dynamic imagesData = widget.post['images_urls'] ?? widget.post['images'] ?? widget.post['photos'];
 
@@ -42,9 +36,23 @@ class _ArticleCardState extends State<ArticleCard> {
       temp.add(widget.post['image_url'].toString());
     }
 
-    // Заглушка: гарантирует, что массив никогда не будет пустым.
+    // ✅ ОБНОВЛЕННАЯ ЛОГИКА ЗАГЛУШЕК ДЛЯ КАРТОЧКИ
     if (temp.isEmpty) {
-      temp.add('assets/images/peop.png');
+      // Пытаемся достать категорию из данных поста
+      final String cat = (widget.post['category'] ?? '').toString().toLowerCase();
+      
+      switch (cat) {
+        case 'animals':
+          temp.add('assets/images/cat.png');
+          break;
+        case 'things':
+          temp.add('assets/images/things.png');
+          break;
+        case 'people':
+        default:
+          temp.add('assets/images/peop.png');
+          break;
+      }
     }
 
     setState(() => _images = temp);
