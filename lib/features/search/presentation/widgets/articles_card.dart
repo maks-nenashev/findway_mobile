@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/search_bloc.dart';
 import '../bloc/search_event.dart';
-import '../pages/search_details_page.dart';
+import '../pages/post_card_page.dart';
 
 class ArticleCard extends StatefulWidget {
   final dynamic post;

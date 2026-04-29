@@ -6,7 +6,7 @@ import '../bloc/search_bloc.dart';
 import '../bloc/search_event.dart';
 import '../bloc/search_state.dart';
 import '../widgets/filter_builder.dart';
-import '../widgets/article_card.dart';
+import '../widgets/articles_card.dart';
 import '../widgets/locale_selector.dart';
 import 'post_create_page.dart'; //  Импорт страницы создания
 
