@@ -42,7 +42,7 @@ class _ArticleCardState extends State<ArticleCard> {
       temp.add(widget.post['image_url'].toString());
     }
 
-    // ✅ ДОБАВЛЕНО: Если картинок нет, ставим заглушку из твоих ассетов
+    // Заглушка: гарантирует, что массив никогда не будет пустым.
     if (temp.isEmpty) {
       temp.add('assets/images/peop.png');
     }
@@ -71,29 +71,32 @@ class _ArticleCardState extends State<ArticleCard> {
           children: [
             // 1. ПЕРЕЛИСТЫВАНИЕ (Нижний слой)
             Positioned.fill(
-              child: _images.isNotEmpty
-                  ? PageView.builder(
-                      controller: _pageController,
-                      itemCount: _images.length,
-                      onPageChanged: (i) => setState(() => _currentPage = i),
-                      itemBuilder: (context, index) {
-                        final imgPath = _images[index];
-                        // ✅ ДОБАВЛЕНО: Проверка - сеть или ассет
-                        if (imgPath.startsWith('http')) {
-                          return Image.network(
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: _images.length,
+                onPageChanged: (i) => setState(() => _currentPage = i),
+                itemBuilder: (context, index) {
+                  final imgPath = _images[index];
+                  // ✅ ИСПРАВЛЕНО: Детектор нажатий возвращен на саму картинку.
+                  // Теперь PageView снова может ловить жесты свайпа.
+                  return GestureDetector(
+                    onTap: _navigateToDetails,
+                    child: imgPath.startsWith('http')
+                        ? Image.network(
                             imgPath,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Image.asset('assets/images/peop.png', fit: BoxFit.cover),
-                          );
-                        } else {
-                          return Image.asset(imgPath, fit: BoxFit.cover);
-                        }
-                      },
-                    )
-                  : Container(color: Colors.grey[900]),
+                          )
+                        : Image.asset(
+                            imgPath,
+                            fit: BoxFit.cover,
+                          ),
+                  );
+                },
+              ),
             ),
 
-            // 2. ГРАДИЕНТ (Визуал)
+            // 2. ГРАДИЕНТ (Визуал - сквозной благодаря IgnorePointer)
             Positioned.fill(
               child: IgnorePointer(
                 child: Container(
@@ -108,18 +111,7 @@ class _ArticleCardState extends State<ArticleCard> {
               ),
             ),
 
-            // 3. ✅ МАСТЕР-ДЕТЕКТОР (Решение проблемы "статики")
-            // Мы вынесли клик из PageView на отдельный слой.
-            // Теперь карточка кликабельна ВСЕГДА, даже если картинок нет.
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _navigateToDetails,
-                child: const SizedBox.expand(),
-              ),
-            ),
-
-            // 4. ТЕКСТ (Пропускает нажатия сквозь себя на Детектор)
+            // 3. ТЕКСТ (Пропускает нажатия сквозь себя на картинку)
             Positioned(
               left: 12, right: 12, bottom: 12,
               child: IgnorePointer(
@@ -139,7 +131,7 @@ class _ArticleCardState extends State<ArticleCard> {
               ),
             ),
 
-            // 5. УПРАВЛЕНИЕ (Самый верхний слой, перехватывает клики только на стрелках)
+            // 4. УПРАВЛЕНИЕ (Верхний слой, перехватывает клики только на своих элементах)
             if (_images.length > 1) ...[
               if (_currentPage > 0)
                 Positioned(
@@ -195,7 +187,7 @@ class _ArticleCardState extends State<ArticleCard> {
   Widget _buildArrow(IconData icon, VoidCallback action) {
     return GestureDetector(
       onTap: action,
-      behavior: HitTestBehavior.opaque, // Чтобы легче было попасть пальцем
+      behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: const BoxDecoration(color: Colors.black26, shape: BoxShape.circle),
