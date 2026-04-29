@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/search_bloc.dart';
-import '../bloc/search_event.dart'; // Убедись, что импортируешь события
+import '../bloc/search_event.dart';
 import '../bloc/search_state.dart';
 import '../../../../features/comments/presentation/bloc/comments_bloc.dart';
 import '../../../../features/comments/presentation/bloc/comments_event.dart';
 import '../../../../injection_container.dart';
 
-// Импорты вынесенных виджетов (используем относительные пути согласно твоей структуре)
 import '../widgets/post_button_panel.dart';
 import '../widgets/comments_section.dart';
 
@@ -20,22 +19,27 @@ class PostCardPage extends StatelessWidget {
       backgroundColor: Colors.white,
       resizeToAvoidBottomInset: true,
       body: BlocListener<SearchBloc, SearchState>(
-        // ✅ Слушаем состояние успешного удаления
         listener: (context, state) {
-          if (state is PostDeleteSuccess) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Оголошення успішно видалено"),
-                backgroundColor: Colors.orange,
-              ),
-            );
-            // Возвращаем true, чтобы IndexPage обновил ленту
-            Navigator.pop(context, true);
-          }
-          
+        // В BlocListener (PostCardPage)
+if (state is PostDeleteSuccess) {
+  // Мы явно берем переводы из пришедшего стейта
+  final msg = state.uiTranslations['destroy_success'] ?? "Deleted successfully!";
+  
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(msg), // ✅ НИКОГДА не используем const здесь
+      backgroundColor: Colors.orange,
+    ),
+  );
+  Navigator.pop(context, true);
+}
+
           if (state is SearchError) {
-             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message), backgroundColor: Colors.redAccent),
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(state.message),
+                backgroundColor: Colors.redAccent,
+              ),
             );
           }
         },
@@ -58,10 +62,7 @@ class PostCardPage extends StatelessWidget {
                   builder: (pageContext) {
                     return CustomScrollView(
                       slivers: [
-                        // 1. ГАЛЕРЕЯ
                         _buildGallery(post),
-
-                        // 2. КОНТЕНТНАЯ ЧАСТЬ ПОСТА
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.all(16.0),
@@ -73,41 +74,46 @@ class PostCardPage extends StatelessWidget {
                                 Text(
                                   post.title,
                                   style: const TextStyle(
-                                      fontSize: 24, fontWeight: FontWeight.bold),
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
                                   post.text,
                                   style: const TextStyle(
-                                      fontSize: 16, height: 1.6, color: Colors.black87),
+                                    fontSize: 16,
+                                    height: 1.6,
+                                    color: Colors.black87,
+                                  ),
                                 ),
                                 const SizedBox(height: 16),
                                 _buildLocationRow(post),
                                 const SizedBox(height: 24),
-
-                                // ✅ ПАНЕЛЬ УПРАВЛЕНИЯ (Теперь с логикой удаления)
+                                
                                 PostButtonPanel(
                                   tr: tr,
                                   onCommentTap: () =>
                                       CommentsSection.showAddCommentSheet(pageContext, tr),
                                   onEditTap: () => debugPrint("Edit Post Click"),
                                   onDeleteTap: () => _showDeleteConfirmation(
-                                      context, post.id, post.category ?? 'people'),
+                                    context,
+                                    post.id,
+                                    post.category ?? 'people',
+                                    tr, // Передаем словарь в диалог
+                                  ),
                                 ),
                                 const SizedBox(height: 32),
                               ],
                             ),
                           ),
                         ),
-
-                        // 3. СЕКЦИЯ КОММЕНТАРИЕВ
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16.0),
                             child: CommentsSection(tr: tr),
                           ),
                         ),
-
                         const SliverToBoxAdapter(child: SizedBox(height: 100)),
                       ],
                     );
@@ -115,15 +121,12 @@ class PostCardPage extends StatelessWidget {
                 ),
               );
             }
-
             return const SizedBox.shrink();
           },
         ),
       ),
     );
   }
-
-  // ========== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ==========
 
   String _mapCategory(String? rawType) {
     final type = rawType?.toLowerCase() ?? 'article';
@@ -159,15 +162,12 @@ class PostCardPage extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("POSTED BY",
-                style: TextStyle(fontSize: 10, color: Colors.grey)),
-            Text(post.author.username,
-                style: const TextStyle(fontWeight: FontWeight.bold)),
+            const Text("POSTED BY", style: TextStyle(fontSize: 10, color: Colors.grey)),
+            Text(post.author.username, style: const TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
         const Spacer(),
-        Text(post.createdAt,
-            style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(post.createdAt, style: const TextStyle(color: Colors.grey, fontSize: 12)),
       ],
     );
   }
@@ -177,40 +177,56 @@ class PostCardPage extends StatelessWidget {
       children: [
         const Icon(Icons.location_on, color: Colors.blueAccent, size: 18),
         const SizedBox(width: 4),
-        Text(post.local,
-            style: const TextStyle(
-                fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+        Text(post.local, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)),
       ],
     );
   }
 
-  // ✅ ИСПРАВЛЕННЫЙ МЕТОД УДАЛЕНИЯ
-  void _showDeleteConfirmation(BuildContext context, int postId, String category) {
+  // ✅ ИСПРАВЛЕННЫЙ МЕТОД УДАЛЕНИЯ С ПОДХВАТОМ ПЕРЕВОДОВ
+  void _showDeleteConfirmation(
+    BuildContext context,
+    int postId,
+    String category,
+    Map<String, dynamic> trData, // Получаем словарь переводов из билдера
+  ) {
     final searchBloc = context.read<SearchBloc>();
+
+    // Вспомогательная функция для ключей delete.title и т.д.
+    String t(String key, String fallback) {
+      final fullKey = 'delete.$key';
+      return (trData[fullKey] ?? trData[key] ?? fallback).toString();
+    }
 
     showDialog(
       context: context,
       builder: (confirmContext) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("Видалити пост?", style: TextStyle(color: Colors.white)),
-        content: const Text(
-          "Ви впевнені? Цю дію неможливо буде скасувати.",
-          style: TextStyle(color: Colors.white70),
+        title: Text(
+          t('delete_title', 'Delete?'),
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          t('delete_message', 'Are you sure?'),
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(confirmContext),
-            child: const Text("СКАСУВАТИ", style: TextStyle(color: Colors.white60)),
+            child: Text(
+              t('cancel', 'CANCEL'),
+              style: const TextStyle(color: Colors.white60),
+            ),
           ),
           TextButton(
             onPressed: () {
-              // Вызываем событие удаления через заранее сохраненный Bloc
               searchBloc.add(DeletePost(postId: postId, category: category));
               Navigator.pop(confirmContext);
             },
-            child: const Text("ВИДАЛИТИ",
-                style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            child: Text(
+              t('confirm', 'DELETE'),
+              style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -218,7 +234,7 @@ class PostCardPage extends StatelessWidget {
   }
 }
 
-// Внутренний виджет галереи (без изменений)
+// Вспомогательный виджет галереи
 class _PostDetailsGallery extends StatefulWidget {
   final List<String> images;
   const _PostDetailsGallery({required this.images});
@@ -229,25 +245,14 @@ class _PostDetailsGallery extends StatefulWidget {
 class _PostDetailsGalleryState extends State<_PostDetailsGallery> {
   late PageController _pageController;
   int _currentPage = 0;
-
   @override
-  void initState() {
-    super.initState();
-    _pageController = PageController();
-  }
-
+  void initState() { super.initState(); _pageController = PageController(); }
   @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
+  void dispose() { _pageController.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) {
     if (widget.images.isEmpty) {
-      return Container(
-          color: Colors.grey[200],
-          child: const Icon(Icons.image_not_supported, size: 50));
+      return Container(color: Colors.grey[200], child: const Icon(Icons.image_not_supported, size: 50));
     }
     return Stack(
       fit: StackFit.expand,
@@ -255,62 +260,24 @@ class _PostDetailsGalleryState extends State<_PostDetailsGallery> {
         PageView.builder(
           controller: _pageController,
           itemCount: widget.images.length,
-          onPageChanged: (int page) => setState(() => _currentPage = page),
-          itemBuilder: (context, index) {
-            return GestureDetector(
-              onTapUp: (details) {
-                final screenWidth = MediaQuery.of(context).size.width;
-                if (details.globalPosition.dx < screenWidth / 2) {
-                  if (_currentPage > 0) {
-                    _pageController.previousPage(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut);
-                  }
-                } else {
-                  if (_currentPage < widget.images.length - 1) {
-                    _pageController.nextPage(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut);
-                  }
-                }
-              },
-              child: Image.network(widget.images[index], fit: BoxFit.cover),
-            );
-          },
-        ),
-        IgnorePointer(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.black54, Colors.transparent, Colors.black54],
-              ),
-            ),
-          ),
+          onPageChanged: (page) => setState(() => _currentPage = page),
+          itemBuilder: (context, index) => Image.network(widget.images[index], fit: BoxFit.cover),
         ),
         Positioned(
-          bottom: 20,
-          left: 0,
-          right: 0,
+          bottom: 20, left: 0, right: 0,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-                widget.images.length, (index) => _buildDot(index == _currentPage)),
+            children: List.generate(widget.images.length, (index) => Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              height: 4, width: index == _currentPage ? 16 : 4,
+              decoration: BoxDecoration(
+                color: index == _currentPage ? const Color(0xFF00F2FF) : Colors.white54,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            )),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildDot(bool isActive) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      height: 4,
-      width: isActive ? 16 : 4,
-      decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF00F2FF) : Colors.white54,
-          borderRadius: BorderRadius.circular(2)),
     );
   }
 }
