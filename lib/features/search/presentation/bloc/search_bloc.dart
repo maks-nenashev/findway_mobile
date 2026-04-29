@@ -29,9 +29,13 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         _currentLocale = data['translations']['locale_code']?.toString() ?? targetLocale;
         final results = await repository.search(category: _activeCategory, filters: const {}, locale: _currentLocale);
 
+        // ✅ ИНТЕГРАЦИЯ ТВОЕГО КОДА: Слияние старых переводов с новыми
         emit(FiltersLoaded(
           filters: data['filters'],
-          uiTranslations: data['translations'],
+          uiTranslations: {
+            ..._extractTranslations(state),
+            ...data['translations'],
+          },
           currentCategory: _activeCategory,
           results: results,
           selectedValues: _selectedValues,
@@ -119,9 +123,8 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       }
     });
 
-    // 👇 НОВАЯ ЛОГИКА СОЗДАНИЯ ПОСТА 👇
     on<CreatePost>((event, emit) async {
-      final prevState = state; // Запоминаем текущее состояние (фильтры и т.д.)
+      final prevState = state; 
       
       try {
         final result = await repository.createPost(
@@ -132,7 +135,6 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
         if (result['success'] == true) {
           emit(PostCreateSuccess(postId: result['id'], currentLocale: _currentLocale));
-          // После успеха можно вернуть стейт фильтров, чтобы UI не ломался
           emit(prevState); 
         } else {
           emit(PostCreateError(error: (result['errors'] as List).join(', '), currentLocale: _currentLocale));

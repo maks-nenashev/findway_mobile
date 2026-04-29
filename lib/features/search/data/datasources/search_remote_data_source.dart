@@ -44,7 +44,9 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     required String category,
     required String locale,
   }) async {
-    final response = await client.get(
+    
+    // ✅ ИНТЕГРАЦИЯ: Запускаем два запроса ПАРАЛЛЕЛЬНО для максимальной скорости (Production-first)
+    final filtersFuture = client.get(
       '/api/v1/filters',
       queryParameters: {
         'category': category,
@@ -52,21 +54,55 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
       },
     );
 
-    final data = response.data;
+    // Запрашиваем твой ключевой эндпоинт с полными переводами
+    final metaFuture = client.get(
+      '/api/v1/search/new_meta',
+      queryParameters: {
+        'category': category,
+        'locale': locale,
+      },
+    ).catchError((e) {
+      // Safety First: Если роута нет, глушим ошибку, чтобы не сломать загрузку фильтров
+      return Response(
+        requestOptions: RequestOptions(path: ''),
+        data: {'translations': {}},
+      );
+    });
 
-    if (data is Map<String, dynamic>) {
-      final List rawFilters = data['filters'] ?? [];
+    // Ждем выполнения обоих запросов
+    final results = await Future.wait([filtersFuture, metaFuture]);
+    final filtersResponse = results[0];
+    final metaResponse = results[1];
+
+    final filtersData = filtersResponse.data;
+    final metaData = metaResponse.data;
+
+    if (filtersData is Map<String, dynamic>) {
+      final List rawFilters = filtersData['filters'] ?? [];
 
       final filters = rawFilters
           .map((json) => FilterModel.fromJson(json))
           .toList();
 
-      final translations =
-          data['translations'] as Map<String, dynamic>? ?? {};
+      // Извлекаем базовые переводы (от фильтров)
+      final baseTranslations = filtersData['translations'] is Map 
+          ? Map<String, dynamic>.from(filtersData['translations']) 
+          : <String, dynamic>{};
+
+      // Извлекаем полные переводы (от new_meta)
+      final metaTranslations = (metaData is Map<String, dynamic> && metaData['translations'] is Map)
+          ? Map<String, dynamic>.from(metaData['translations'])
+          : <String, dynamic>{};
+
+      // ✅ СЛИЯНИЕ: Соединяем словари. new_meta перекроет/дополнит базовые ключи
+      final combinedTranslations = {
+        ...baseTranslations,
+        ...metaTranslations,
+      };
 
       return {
         'filters': filters,
-        'translations': translations,
+        'translations': combinedTranslations, // Отдаем монолит в BLoC
       };
     }
 
@@ -147,7 +183,7 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
   }) async {
     final normalizedCategory = category.toLowerCase();
 
-    // ✅ ЖЁСТКИЙ МАППИНГ (исправление бага)
+    // ✅ ЖЁСТКИЙ МАППИНГ
     String? subCategoryKey;
 
     switch (normalizedCategory) {
@@ -171,7 +207,6 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
       'locale': locale,
     };
 
-    // ✅ КЛЮЧЕВОЙ ФИКС
     if (catId != null && subCategoryKey != null) {
       data[subCategoryKey] = catId;
     }

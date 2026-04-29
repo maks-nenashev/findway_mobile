@@ -11,7 +11,11 @@ import '../../data/models/filter_model.dart';
 
 class PostCreatePage extends StatefulWidget {
   final String initialCategory;
-  const PostCreatePage({super.key, required this.initialCategory});
+
+  const PostCreatePage({
+    super.key,
+    required this.initialCategory,
+  });
 
   @override
   State<PostCreatePage> createState() => _PostCreatePageState();
@@ -27,42 +31,68 @@ class _PostCreatePageState extends State<PostCreatePage> {
   final Color _textMuted = Colors.white54;
 
   late String _category;
+
   String _title = '';
   String _text = '';
 
   int? _localId;
-  int? _choiceId;   // subcategory
-  int? _actionId;   // status (choice_id)
+  int? _choiceId; // subcategory
+  int? _actionId; // status
+
   List<XFile> _images = [];
+
+  Map<String, dynamic> _translations = {};
+  List<FilterModel> _filters = [];
+
+  final Map<String, String> _fallback = const {
+    'title': 'New post!',
+    'tytul_2': 'Title',
+    'text_2': 'Text',
+    'submit_article': 'Submit',
+  };
 
   @override
   void initState() {
     super.initState();
     _category = widget.initialCategory;
+
+    final bloc = context.read<SearchBloc>();
+
+    // 🔥 КРИТИЧНО: загружаем filters + translations
+    bloc.add(LoadFilters(
+      category: _category,
+      locale: bloc.currentLocale,
+    ));
+  }
+
+  String tr(String key) {
+    return (_translations[key] ?? _fallback[key] ?? key).toString();
   }
 
   Future<void> _pickImages() async {
-    try {
-      final List<XFile> selected = await _picker.pickMultiImage(
-        imageQuality: 70,
-        maxWidth: 1440,
-      );
-      if (selected.isNotEmpty) {
-        setState(() => _images = [..._images, ...selected].take(4).toList());
-      }
-    } catch (e) {
-      debugPrint("ImagePicker Error: $e");
+    final selected = await _picker.pickMultiImage(
+      imageQuality: 70,
+      maxWidth: 1440,
+    );
+
+    if (selected.isNotEmpty) {
+      setState(() {
+        _images = [..._images, ...selected].take(4).toList();
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final searchState = context.watch<SearchBloc>().state;
-    final Map<String, dynamic> trans = _getTranslations(searchState);
-    final List<FilterModel> availableFilters = _getFilters(searchState);
-
-    return BlocListener<SearchBloc, SearchState>(
+    return BlocConsumer<SearchBloc, SearchState>(
       listener: (context, state) {
+        if (state is FiltersLoaded) {
+          setState(() {
+            _translations = state.uiTranslations;
+            _filters = state.filters;
+          });
+        }
+
         if (state is PostCreateSuccess) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -72,6 +102,7 @@ class _PostCreatePageState extends State<PostCreatePage> {
           );
           Navigator.pop(context);
         }
+
         if (state is PostCreateError) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -81,201 +112,66 @@ class _PostCreatePageState extends State<PostCreatePage> {
           );
         }
       },
-      child: Scaffold(
-        backgroundColor: _bgDark,
-        appBar: AppBar(
+      builder: (context, state) {
+        return Scaffold(
           backgroundColor: _bgDark,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.close, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text(
-            trans['title'] ?? "Створити пост",
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
+          appBar: AppBar(
+            backgroundColor: _bgDark,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: Text(
+              tr('title'),
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
             ),
           ),
-        ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildPhotoSelector(),
-                const SizedBox(height: 25),
+          body: _filters.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        _buildPhotos(),
+                        const SizedBox(height: 24),
 
-                _buildFilterGrid(availableFilters, trans),
+                        _buildFilters(),
 
-                const SizedBox(height: 20),
-                _buildStyledTextField(
-                  label: trans['tytul'] ?? "Заголовок",
-                  onChanged: (v) => _title = v,
+                        const SizedBox(height: 20),
+                        _input(tr('tytul_2'), (v) => _title = v),
+
+                        const SizedBox(height: 20),
+                        _input(tr('text_2'), (v) => _text = v, max: 6),
+
+                        const SizedBox(height: 40),
+                        _submitButton(),
+                      ],
+                    ),
+                  ),
                 ),
-
-                const SizedBox(height: 20),
-                _buildStyledTextField(
-                  label: trans['text'] ?? "Опишіть вашу ситуацію...",
-                  maxLines: 7,
-                  onChanged: (v) => _text = v,
-                ),
-
-                const SizedBox(height: 40),
-                _buildSubmitButton(),
-                const SizedBox(height: 50),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ================= FILTERS =================
-
-  Widget _buildFilterGrid(List<FilterModel> filters, Map<String, dynamic> trans) {
-    if (filters.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: Center(
-          child: CircularProgressIndicator(color: Colors.orange),
-        ),
-      );
-    }
-
-    final actionFilter = filters.firstWhere(
-      (f) => f.label.toLowerCase().contains('do') ||
-             f.label.toLowerCase().contains('choic'),
-      orElse: () => filters[0],
-    );
-
-    final subCatFilter = filters.length > 1 ? filters[1] : null;
-
-    final regionFilter = filters.firstWhere(
-      (f) => f.label.toLowerCase().contains('regio') ||
-             f.label.toLowerCase().contains('local'),
-      orElse: () => filters.last,
-    );
-
-    return Column(
-      children: [
-        // STATUS (choice_id)
-        _buildFilterDropdown(
-          filter: actionFilter,
-          selectedValue: _actionId,
-          onChanged: (val) => setState(() => _actionId = val),
-        ),
-
-        const SizedBox(height: 16),
-
-        // SUBCATEGORY (cat_id / live_id / phone_id)
-        if (subCatFilter != null)
-          _buildFilterDropdown(
-            filter: subCatFilter,
-            selectedValue: _choiceId,
-            onChanged: (val) => setState(() => _choiceId = val),
-          ),
-
-        const SizedBox(height: 16),
-
-        // REGION
-        _buildFilterDropdown(
-          filter: regionFilter,
-          selectedValue: _localId,
-          onChanged: (val) => setState(() => _localId = val),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFilterDropdown({
-    required FilterModel filter,
-    required int? selectedValue,
-    required Function(int?) onChanged,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _cardDark,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButtonFormField<int>(
-          value: selectedValue,
-          items: filter.options?.map((opt) => DropdownMenuItem<int>(
-            value: opt.id,
-            child: Text(
-              opt.label,
-              style: const TextStyle(color: Colors.white),
-            ),
-          )).toList() ?? [],
-          onChanged: onChanged,
-          validator: (v) => v == null ? 'Обов\'язково' : null,
-          dropdownColor: _cardDark,
-          icon: Icon(Icons.expand_more, color: _accentOrange),
-          decoration: InputDecoration(
-            labelText: filter.label,
-            labelStyle: TextStyle(color: _textMuted),
-            border: InputBorder.none,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ================= SUBMIT =================
-
-  Widget _buildSubmitButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 60,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _accentOrange,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-        ),
-        onPressed: () {
-          if (_formKey.currentState!.validate()) {
-            context.read<SearchBloc>().add(CreatePost(
-              category: _category,
-              title: _title,
-              text: _text,
-              localId: _localId!,
-
-              // ✅ FIX (КЛЮЧЕВОЙ)
-              choiceId: _actionId!,   // статус
-              catId: _choiceId,       // подкатегория
-
-              locale: context.read<SearchBloc>().currentLocale,
-              imagePaths: _images.map((e) => e.path).toList(),
-            ));
-          }
-        },
-        child: const Text(
-          "ОПУБЛІКУВАТИ",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-      ),
+        );
+      },
     );
   }
 
   // ================= UI =================
 
-  Widget _buildPhotoSelector() {
+  Widget _buildPhotos() {
     return SizedBox(
       height: 90,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: _images.length < 4 ? _images.length + 1 : 4,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          if (index == _images.length && _images.length < 4) {
+        itemBuilder: (_, i) {
+          if (i == _images.length && _images.length < 4) {
             return GestureDetector(
               onTap: _pickImages,
               child: Container(
@@ -288,30 +184,77 @@ class _PostCreatePageState extends State<PostCreatePage> {
               ),
             );
           }
-          return Image.file(
-            File(_images[index].path),
-            width: 90,
-            height: 90,
-            fit: BoxFit.cover,
+
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.file(
+              File(_images[i].path),
+              width: 90,
+              height: 90,
+              fit: BoxFit.cover,
+            ),
           );
         },
       ),
     );
   }
 
-  Widget _buildStyledTextField({
-    required String label,
-    int maxLines = 1,
-    required Function(String) onChanged,
-  }) {
+  Widget _buildFilters() {
+    final action = _filters.first;
+    final sub = _filters.length > 1 ? _filters[1] : null;
+    final region = _filters.last;
+
+    return Column(
+      children: [
+        _dropdown(action, _actionId, (v) => _actionId = v),
+        const SizedBox(height: 16),
+
+        if (sub != null)
+          _dropdown(sub, _choiceId, (v) => _choiceId = v),
+
+        const SizedBox(height: 16),
+        _dropdown(region, _localId, (v) => _localId = v),
+      ],
+    );
+  }
+
+  Widget _dropdown(FilterModel f, int? val, Function(int?) onChanged) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: _cardDark,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: DropdownButtonFormField<int>(
+        value: val,
+        items: f.options
+                ?.map((e) => DropdownMenuItem(
+                      value: e.id,
+                      child: Text(e.label,
+                          style: const TextStyle(color: Colors.white)),
+                    ))
+                .toList() ??
+            [],
+        onChanged: (v) => setState(() => onChanged(v)),
+        validator: (v) => v == null ? 'Required' : null,
+        dropdownColor: _cardDark,
+        decoration: InputDecoration(
+          labelText: f.label,
+          labelStyle: TextStyle(color: _textMuted),
+          border: InputBorder.none,
+        ),
+      ),
+    );
+  }
+
+  Widget _input(String hint, Function(String) onChanged, {int max = 1}) {
     return TextFormField(
-      maxLines: maxLines,
+      maxLines: max,
       onChanged: onChanged,
-      validator: (v) =>
-          (v == null || v.isEmpty) ? 'Заповніть поле' : null,
+      validator: (v) => v == null || v.isEmpty ? 'Required' : null,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
-        hintText: label,
+        hintText: hint,
         filled: true,
         fillColor: _cardDark,
         border: OutlineInputBorder(
@@ -322,19 +265,36 @@ class _PostCreatePageState extends State<PostCreatePage> {
     );
   }
 
-  // ================= DATA =================
-
-  Map<String, dynamic> _getTranslations(SearchState state) {
-    if (state is FiltersLoaded) return state.uiTranslations;
-    if (state is SearchSuccess) return state.uiTranslations;
-    if (state is PostDetailsLoaded) return state.uiTranslations;
-    return {};
-  }
-
-  List<FilterModel> _getFilters(SearchState state) {
-    if (state is FiltersLoaded) return state.filters;
-    if (state is SearchSuccess) return state.filters;
-    if (state is PostDetailsLoaded) return state.filters;
-    return [];
+  Widget _submitButton() {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _accentOrange,
+        minimumSize: const Size(double.infinity, 60),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+        ),
+      ),
+      onPressed: () {
+        if (_formKey.currentState!.validate()) {
+          context.read<SearchBloc>().add(CreatePost(
+                category: _category,
+                title: _title,
+                text: _text,
+                localId: _localId!,
+                choiceId: _actionId!, // статус
+                catId: _choiceId,     // подкатегория
+                locale: context.read<SearchBloc>().currentLocale,
+                imagePaths: _images.map((e) => e.path).toList(),
+              ));
+        }
+      },
+      child: Text(
+        tr('submit_article'),
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
   }
 }
