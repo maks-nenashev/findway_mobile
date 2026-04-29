@@ -145,6 +145,18 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         emit(prevState);
       }
     });
+    
+    // Ивент для удаления поста
+on<DeletePost>((event, emit) async {
+  // Можно добавить состояние Loading, если хочешь заблокировать кнопку на время удаления
+  try {
+    // Предполагаем, что метод в репозитории называется deletePost
+    await repository.deletePost(event.postId, event.category);
+    emit(PostDeleteSuccess());
+  } catch (e) {
+    emit(SearchError(e.toString()));
+  }
+});
 
   }
 

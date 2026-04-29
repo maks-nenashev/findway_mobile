@@ -178,3 +178,6 @@ class PostCreateError extends SearchState {
   final String error;
   const PostCreateError({required this.error, required super.currentLocale});
 }
+
+// Новый класс для успешного удаления поста
+class PostDeleteSuccess extends SearchState {}

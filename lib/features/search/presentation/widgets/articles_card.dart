@@ -165,19 +165,35 @@ void _parseImages() {
     );
   }
 
-  void _navigateToDetails() async {
-    final bloc = context.read<SearchBloc>();
-    bloc.add(LoadPostDetails(
-      id: widget.post['id'],
-      category: widget.post['category'] ?? 'people',
-      locale: widget.currentLocale,
-    ));
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => BlocProvider.value(value: bloc, child: const SearchDetailsPage())),
-    );
-    if (context.mounted) bloc.add(RestoreSearch());
-  }
+void _navigateToDetails() async {
+  final bloc = context.read<SearchBloc>();
+  
+  // 1. Загружаем детали поста
+  bloc.add(LoadPostDetails(
+    id: widget.post['id'],
+    category: widget.post['category'] ?? 'people',
+    locale: widget.currentLocale,
+  ));
+
+  // 2. Переходим на страницу и ЖДЕМ результат (result)
+  final result = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => BlocProvider.value(
+        value: bloc, 
+        child: const PostCardPage(), // Если конструктор позволяет const — оставляй, если нет — удали const
+      ),
+    ),
+  );
+
+  // 3. ПРОВЕРКА: Если вернулся true (пост удален или создан), обновляем список
+ if (result == true && context.mounted) {
+  bloc.add(LoadFilters(
+    category: widget.post['category'] ?? 'people', 
+    locale: widget.currentLocale,
+  )); 
+}
+}
 
   Widget _buildStatusBadge(String label) {
     return Container(

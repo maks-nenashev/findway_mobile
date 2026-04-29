@@ -1,107 +1,129 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/search_bloc.dart';
+import '../bloc/search_event.dart'; // Убедись, что импортируешь события
 import '../bloc/search_state.dart';
 import '../../../../features/comments/presentation/bloc/comments_bloc.dart';
 import '../../../../features/comments/presentation/bloc/comments_event.dart';
 import '../../../../injection_container.dart';
 
-// Импорты новых вынесенных виджетов
+// Импорты вынесенных виджетов (используем относительные пути согласно твоей структуре)
 import '../widgets/post_button_panel.dart';
 import '../widgets/comments_section.dart';
 
-class SearchDetailsPage extends StatelessWidget {
-  const SearchDetailsPage({super.key});
+class PostCardPage extends StatelessWidget {
+  const PostCardPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       resizeToAvoidBottomInset: true,
-      body: BlocBuilder<SearchBloc, SearchState>(
-        builder: (context, state) {
-          if (state is PostDetailsLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (state is PostDetailsLoaded) {
-            final post = state.post;
-            final tr = state.uiTranslations;
-
-            return BlocProvider(
-              create: (context) => sl<CommentsBloc>(
-                param1: post.id,
-                param2: _mapCategory(post.category),
-              )..add(const FetchComments()),
-              child: Builder(
-                builder: (pageContext) {
-                  return CustomScrollView(
-                    slivers: [
-                      // 1. ГАЛЕРЕЯ
-                      _buildGallery(post),
-
-                      // 2. КОНТЕНТНАЯ ЧАСТЬ ПОСТА
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildAuthorHeader(post),
-                              const Divider(height: 32),
-                              Text(
-                                post.title,
-                                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                post.text,
-                                style: const TextStyle(fontSize: 16, height: 1.6, color: Colors.black87),
-                              ),
-                              const SizedBox(height: 16),
-                              _buildLocationRow(post),
-                              const SizedBox(height: 24),
-                              
-                              // ✅ ВЫНЕСЕННАЯ ПАНЕЛЬ УПРАВЛЕНИЯ
-                              PostButtonPanel( 
-                                 tr: tr,
-                                 onCommentTap: () => CommentsSection.showAddCommentSheet(pageContext, tr),
-                                 onEditTap: () => debugPrint("Edit Post Click"),
-                                 onDeleteTap: () => _showDeleteConfirmation(pageContext, post.id),
-                      ),
-                              const SizedBox(height: 32),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // 3. ВЫНЕСЕННАЯ СЕКЦИЯ КОММЕНТАРИЕВ
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: CommentsSection(tr: tr),
-                        ),
-                      ),
-
-                      const SliverToBoxAdapter(child: SizedBox(height: 100)),
-                    ],
-                  );
-                },
+      body: BlocListener<SearchBloc, SearchState>(
+        // ✅ Слушаем состояние успешного удаления
+        listener: (context, state) {
+          if (state is PostDeleteSuccess) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Оголошення успішно видалено"),
+                backgroundColor: Colors.orange,
               ),
             );
+            // Возвращаем true, чтобы IndexPage обновил ленту
+            Navigator.pop(context, true);
           }
-
+          
           if (state is SearchError) {
-            return Center(child: Text("Помилка: ${state.message}", style: const TextStyle(color: Colors.red)));
+             ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message), backgroundColor: Colors.redAccent),
+            );
           }
-
-          return const SizedBox.shrink();
         },
+        child: BlocBuilder<SearchBloc, SearchState>(
+          builder: (context, state) {
+            if (state is PostDetailsLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (state is PostDetailsLoaded) {
+              final post = state.post;
+              final tr = state.uiTranslations;
+
+              return BlocProvider(
+                create: (context) => sl<CommentsBloc>(
+                  param1: post.id,
+                  param2: _mapCategory(post.category),
+                )..add(const FetchComments()),
+                child: Builder(
+                  builder: (pageContext) {
+                    return CustomScrollView(
+                      slivers: [
+                        // 1. ГАЛЕРЕЯ
+                        _buildGallery(post),
+
+                        // 2. КОНТЕНТНАЯ ЧАСТЬ ПОСТА
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildAuthorHeader(post),
+                                const Divider(height: 32),
+                                Text(
+                                  post.title,
+                                  style: const TextStyle(
+                                      fontSize: 24, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  post.text,
+                                  style: const TextStyle(
+                                      fontSize: 16, height: 1.6, color: Colors.black87),
+                                ),
+                                const SizedBox(height: 16),
+                                _buildLocationRow(post),
+                                const SizedBox(height: 24),
+
+                                // ✅ ПАНЕЛЬ УПРАВЛЕНИЯ (Теперь с логикой удаления)
+                                PostButtonPanel(
+                                  tr: tr,
+                                  onCommentTap: () =>
+                                      CommentsSection.showAddCommentSheet(pageContext, tr),
+                                  onEditTap: () => debugPrint("Edit Post Click"),
+                                  onDeleteTap: () => _showDeleteConfirmation(
+                                      context, post.id, post.category ?? 'people'),
+                                ),
+                                const SizedBox(height: 32),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // 3. СЕКЦИЯ КОММЕНТАРИЕВ
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: CommentsSection(tr: tr),
+                          ),
+                        ),
+
+                        const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                      ],
+                    );
+                  },
+                ),
+              );
+            }
+
+            return const SizedBox.shrink();
+          },
+        ),
       ),
     );
   }
 
-  // ========== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ (ОСТАВЛЕНЫ ДЛЯ СТРУКТУРЫ) ==========
+  // ========== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ==========
 
   String _mapCategory(String? rawType) {
     final type = rawType?.toLowerCase() ?? 'article';
@@ -128,19 +150,24 @@ class SearchDetailsPage extends StatelessWidget {
     return Row(
       children: [
         CircleAvatar(
-          backgroundImage: post.author.avatarUrl != null ? NetworkImage(post.author.avatarUrl!) : null,
+          backgroundImage: post.author.avatarUrl != null
+              ? NetworkImage(post.author.avatarUrl!)
+              : null,
           child: post.author.avatarUrl == null ? const Icon(Icons.person) : null,
         ),
         const SizedBox(width: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("POSTED BY", style: TextStyle(fontSize: 10, color: Colors.grey)),
-            Text(post.author.username, style: const TextStyle(fontWeight: FontWeight.bold)),
+            const Text("POSTED BY",
+                style: TextStyle(fontSize: 10, color: Colors.grey)),
+            Text(post.author.username,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
         const Spacer(),
-        Text(post.createdAt, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(post.createdAt,
+            style: const TextStyle(color: Colors.grey, fontSize: 12)),
       ],
     );
   }
@@ -150,27 +177,40 @@ class SearchDetailsPage extends StatelessWidget {
       children: [
         const Icon(Icons.location_on, color: Colors.blueAccent, size: 18),
         const SizedBox(width: 4),
-        Text(post.local, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+        Text(post.local,
+            style: const TextStyle(
+                fontWeight: FontWeight.bold, color: Colors.blueAccent)),
       ],
     );
   }
 
-  void _showDeleteConfirmation(BuildContext context, int postId) {
+  // ✅ ИСПРАВЛЕННЫЙ МЕТОД УДАЛЕНИЯ
+  void _showDeleteConfirmation(BuildContext context, int postId, String category) {
+    final searchBloc = context.read<SearchBloc>();
+
     showDialog(
       context: context,
       builder: (confirmContext) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text("Видалити пост?", style: TextStyle(color: Colors.white)),
-        content: const Text("Цю дію неможливо буде скасувати.", style: TextStyle(color: Colors.white70)),
+        content: const Text(
+          "Ви впевнені? Цю дію неможливо буде скасувати.",
+          style: TextStyle(color: Colors.white70),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(confirmContext), child: const Text("СКАСУВАТИ")),
+          TextButton(
+            onPressed: () => Navigator.pop(confirmContext),
+            child: const Text("СКАСУВАТИ", style: TextStyle(color: Colors.white60)),
+          ),
           TextButton(
             onPressed: () {
-              // Здесь будет вызов удаления поста через SearchBloc
-              debugPrint("Удаляем пост $postId");
+              // Вызываем событие удаления через заранее сохраненный Bloc
+              searchBloc.add(DeletePost(postId: postId, category: category));
               Navigator.pop(confirmContext);
-            }, 
-            child: const Text("ВИДАЛИТИ", style: TextStyle(color: Colors.redAccent))
+            },
+            child: const Text("ВИДАЛИТИ",
+                style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -178,7 +218,7 @@ class SearchDetailsPage extends StatelessWidget {
   }
 }
 
-// Внутренний виджет галереи оставляем в этом файле, так как он специфичен только для деталей поста
+// Внутренний виджет галереи (без изменений)
 class _PostDetailsGallery extends StatefulWidget {
   final List<String> images;
   const _PostDetailsGallery({required this.images});
@@ -191,14 +231,23 @@ class _PostDetailsGalleryState extends State<_PostDetailsGallery> {
   int _currentPage = 0;
 
   @override
-  void initState() { super.initState(); _pageController = PageController(); }
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
   @override
-  void dispose() { _pageController.dispose(); super.dispose(); }
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     if (widget.images.isEmpty) {
-      return Container(color: Colors.grey[200], child: const Icon(Icons.image_not_supported, size: 50));
+      return Container(
+          color: Colors.grey[200],
+          child: const Icon(Icons.image_not_supported, size: 50));
     }
     return Stack(
       fit: StackFit.expand,
@@ -212,9 +261,17 @@ class _PostDetailsGalleryState extends State<_PostDetailsGallery> {
               onTapUp: (details) {
                 final screenWidth = MediaQuery.of(context).size.width;
                 if (details.globalPosition.dx < screenWidth / 2) {
-                  if (_currentPage > 0) _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                  if (_currentPage > 0) {
+                    _pageController.previousPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut);
+                  }
                 } else {
-                  if (_currentPage < widget.images.length - 1) _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                  if (_currentPage < widget.images.length - 1) {
+                    _pageController.nextPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut);
+                  }
                 }
               },
               child: Image.network(widget.images[index], fit: BoxFit.cover),
@@ -225,18 +282,21 @@ class _PostDetailsGalleryState extends State<_PostDetailsGallery> {
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
                 colors: [Colors.black54, Colors.transparent, Colors.black54],
               ),
             ),
           ),
         ),
-        // Индикаторы и стрелки (упрощено для краткости)
         Positioned(
-          bottom: 20, left: 0, right: 0,
+          bottom: 20,
+          left: 0,
+          right: 0,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(widget.images.length, (index) => _buildDot(index == _currentPage)),
+            children: List.generate(
+                widget.images.length, (index) => _buildDot(index == _currentPage)),
           ),
         ),
       ],
@@ -246,8 +306,11 @@ class _PostDetailsGalleryState extends State<_PostDetailsGallery> {
   Widget _buildDot(bool isActive) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4),
-      height: 4, width: isActive ? 16 : 4,
-      decoration: BoxDecoration(color: isActive ? const Color(0xFF00F2FF) : Colors.white54, borderRadius: BorderRadius.circular(2)),
+      height: 4,
+      width: isActive ? 16 : 4,
+      decoration: BoxDecoration(
+          color: isActive ? const Color(0xFF00F2FF) : Colors.white54,
+          borderRadius: BorderRadius.circular(2)),
     );
   }
 }

@@ -70,4 +70,10 @@ Future<Map<String, dynamic>> createPost({
   );
 }
 
+
+@override
+Future<void> deletePost(int postId, String category) async {
+  return await remoteDataSource.deletePost(postId, category);
+}
+
 }
