@@ -60,6 +60,8 @@ class SearchDetailsPage extends StatelessWidget {
                               const SizedBox(height: 16),
                               _buildLocationRow(post),
                               const SizedBox(height: 24),
+                              
+                              // ✅ ПАНЕЛЬ УПРАВЛЕНИЯ С НОВЫМИ КНОПКАМИ
                               _buildControlPanel(pageContext, tr),
                               const SizedBox(height: 32),
                             ],
@@ -185,19 +187,23 @@ class SearchDetailsPage extends StatelessWidget {
     );
   }
 
+  // ✅ ПАНЕЛЬ УПРАВЛЕНИЯ (Старый дизайн кнопок + Новые действия + Скролл от переполнения)
   Widget _buildControlPanel(BuildContext context, Map<String, dynamic> tr) {
-    return Row(
-      children: [
-        _actionButton(Icons.arrow_back, Colors.white, () => Navigator.pop(context), bgColor: const Color(0xFF0A0E14)),
-        const SizedBox(width: 12),
-        _actionButton(Icons.alternate_email, Colors.cyan, () => debugPrint("Email Click")),
-        const SizedBox(width: 12),
-        _actionButton(
-          Icons.chat_bubble_outline, 
-          Colors.orange, 
-          () => _showCommentSheet(context, tr),
-        ),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _actionButton(Icons.arrow_back, Colors.white, () => Navigator.pop(context), bgColor: const Color(0xFF0A0E14)),
+          const SizedBox(width: 12),
+          _actionButton(Icons.alternate_email, Colors.cyan, () => debugPrint("Email Click")),
+          const SizedBox(width: 12),
+          _actionButton(Icons.chat_bubble_outline, Colors.orange, () => _showCommentSheet(context, tr)),
+          const SizedBox(width: 12),
+          _actionButton(Icons.edit_outlined, Colors.blueAccent, () => debugPrint("Edit Click")), // Новая кнопка Редактирования
+          const SizedBox(width: 12),
+          _actionButton(Icons.delete_outline, Colors.redAccent, () => debugPrint("Delete Click")), // Новая кнопка Удаления
+        ],
+      ),
     );
   }
 
@@ -258,6 +264,7 @@ class SearchDetailsPage extends StatelessWidget {
     );
   }
 
+  // ✅ ВОЗВРАТ К СТАРОМУ ДИЗАЙНУ КНОПОК
   Widget _actionButton(IconData icon, Color color, VoidCallback onTap, {Color? bgColor}) {
     return InkWell(
       onTap: onTap,
@@ -275,7 +282,7 @@ class SearchDetailsPage extends StatelessWidget {
   }
 }
 
-// ========== ВНУТРЕННИЙ ВИДЖЕТ ГАЛЕРЕИ ДЛЯ ПОСТА (Перелистывание картинок!!) ==========
+// ========== ВНУТРЕННИЙ ВИДЖЕТ ГАЛЕРЕИ ДЛЯ ПОСТА ==========
 
 class _PostDetailsGallery extends StatefulWidget {
   final List<String> images;
@@ -315,23 +322,44 @@ class _PostDetailsGalleryState extends State<_PostDetailsGallery> {
           itemCount: widget.images.length,
           onPageChanged: (int page) => setState(() => _currentPage = page),
           itemBuilder: (context, index) {
-            return Image.network(
-              widget.images[index],
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(color: Colors.black87),
+            // ✅ ИНТЕРАКТИВНАЯ КАРТИНКА (TAP-TO-FLIP) СОХРАНЕНА
+            return GestureDetector(
+              onTapUp: (details) {
+                final screenWidth = MediaQuery.of(context).size.width;
+                if (details.globalPosition.dx < screenWidth / 2) {
+                  if (_currentPage > 0) {
+                    _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                  }
+                } else {
+                  if (_currentPage < widget.images.length - 1) {
+                    _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+                  }
+                }
+              },
+              child: Image.network(
+                widget.images[index],
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(color: Colors.black87),
+              ),
             );
           },
         ),
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.black54, Colors.transparent, Colors.black54],
-              stops: [0.0, 0.4, 1.0],
+        
+        // ГРАДИЕНТ НЕ БЛОКИРУЕТ НАЖАТИЯ
+        IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.black54, Colors.transparent, Colors.black54],
+                stops: const [0.0, 0.4, 1.0],
+              ),
             ),
           ),
         ),
+
+        // Стрелки и индикаторы
         if (widget.images.length > 1) ...[
           if (_currentPage > 0)
             Positioned(
@@ -353,11 +381,13 @@ class _PostDetailsGalleryState extends State<_PostDetailsGallery> {
             ),
           Positioned(
             bottom: 20, left: 0, right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                widget.images.length,
-                (index) => _buildDot(index == _currentPage),
+            child: IgnorePointer(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  widget.images.length,
+                  (index) => _buildDot(index == _currentPage),
+                ),
               ),
             ),
           ),
@@ -371,7 +401,7 @@ class _PostDetailsGalleryState extends State<_PostDetailsGallery> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
+        decoration: const BoxDecoration(color: Colors.black38, shape: BoxShape.circle),
         child: Icon(icon, color: Colors.white, size: 20),
       ),
     );
