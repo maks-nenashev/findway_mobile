@@ -9,8 +9,9 @@ dependencies:
   flutter:
     sdk: flutter
   
-  image_picker: ^1.1.2  # Эта версия еще не требует AGP 8.9.1
-  
+  file_selector: ^1.0.3
+  desktop_drop: ^0.4.4
+  image_picker: ^1.1.2
   # Icons (Исправлен отступ)
   bootstrap_icons: ^1.10.0
   

@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
@@ -13,6 +16,34 @@ import 'features/comments/data/datasources/comment_remote_data_source.dart';
 import 'features/comments/domain/repositories/comment_repository.dart';
 import 'features/comments/presentation/bloc/comments_bloc.dart';
 
+/// ==============================
+/// 🔧 CONFIG
+/// ==============================
+
+/// 👉 переключатель среды //////////////////////////////////////////////////////////////////////////////////////
+/// true  = реальный телефон
+/// false = Android эмулятор
+const bool useRealDevice = true;
+
+/// 👉 получаем baseUrl автоматически
+String getBaseUrl() {
+  if (kIsWeb) {
+    return "http://localhost:3000";
+  }
+
+  if (Platform.isAndroid) {
+    return useRealDevice
+        ? "http://192.168.1.106:3000" // 📱 реальный телефон
+        : "http://10.0.2.2:3000";     // 🤖 эмулятор
+  }
+
+  return "http://127.0.0.1:3000"; // 💻 desktop
+}
+
+/// ==============================
+/// 📦 LOCALE
+/// ==============================
+
 class LocaleRepository {
   final SharedPreferences prefs;
 
@@ -24,13 +55,20 @@ class LocaleRepository {
 
 final sl = GetIt.instance;
 
+/// ==============================
+/// 🚀 INIT
+/// ==============================
+
 Future<void> init() async {
   final sharedPreferences =
       await SharedPreferences.getInstance();
 
   sl.registerLazySingleton(() => sharedPreferences);
-
   sl.registerLazySingleton(() => LocaleRepository(sl()));
+
+  /// ==============================
+  /// 🔍 SEARCH
+  /// ==============================
 
   sl.registerFactory(() => SearchBloc(
         repository: sl(),
@@ -44,6 +82,10 @@ Future<void> init() async {
   sl.registerLazySingleton<SearchRemoteDataSource>(
     () => SearchRemoteDataSourceImpl(client: sl()),
   );
+
+  /// ==============================
+  /// 💬 COMMENTS
+  /// ==============================
 
   sl.registerFactoryParam<CommentsBloc, int, String>(
     (parentId, type) => CommentsBloc(
@@ -61,12 +103,16 @@ Future<void> init() async {
     () => CommentRemoteDataSourceImpl(client: sl()),
   );
 
+  /// ==============================
+  /// 🌐 NETWORK
+  /// ==============================
+
   sl.registerLazySingleton<CookieJar>(() => CookieJar());
 
   sl.registerLazySingleton<Dio>(() {
     final dio = Dio(
       BaseOptions(
-        baseUrl: 'http://10.0.2.2:3000',
+        baseUrl: getBaseUrl(),
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 10),
         headers: {
@@ -75,7 +121,10 @@ Future<void> init() async {
       ),
     );
 
+    /// cookies
     dio.interceptors.add(CookieManager(sl<CookieJar>()));
+
+    /// логирование (очень полезно)
     dio.interceptors.add(LogInterceptor(
       requestBody: true,
       responseBody: true,

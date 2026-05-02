@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_selector/file_selector.dart'; // ✅ ДОБАВЛЕНО
 import 'package:google_fonts/google_fonts.dart';
 
 import '../bloc/search_bloc.dart';
@@ -36,10 +37,10 @@ class _PostCreatePageState extends State<PostCreatePage> {
   String _text = '';
 
   int? _localId;
-  int? _choiceId; // subcategory
-  int? _actionId; // status
+  int? _choiceId;
+  int? _actionId;
 
-  List<XFile> _images = [];
+  List<File> _images = [];
 
   Map<String, dynamic> _translations = {};
   List<FilterModel> _filters = [];
@@ -58,7 +59,6 @@ class _PostCreatePageState extends State<PostCreatePage> {
 
     final bloc = context.read<SearchBloc>();
 
-    // 🔥 КРИТИЧНО: загружаем filters + translations
     bloc.add(LoadFilters(
       category: _category,
       locale: bloc.currentLocale,
@@ -69,7 +69,8 @@ class _PostCreatePageState extends State<PostCreatePage> {
     return (_translations[key] ?? _fallback[key] ?? key).toString();
   }
 
-  Future<void> _pickImages() async {
+  // ================= MOBILE PICKER =================
+  Future<void> _pickImagesMobile() async {
     final selected = await _picker.pickMultiImage(
       imageQuality: 70,
       maxWidth: 1440,
@@ -77,7 +78,29 @@ class _PostCreatePageState extends State<PostCreatePage> {
 
     if (selected.isNotEmpty) {
       setState(() {
-        _images = [..._images, ...selected].take(4).toList();
+        _images = [
+          ..._images,
+          ...selected.map((e) => File(e.path))
+        ].take(4).toList();
+      });
+    }
+  }
+
+  // ================= DESKTOP PICKER (НОВОЕ) =================
+  Future<void> _pickImagesDesktop() async {
+    final typeGroup = XTypeGroup(
+      label: 'images',
+      extensions: ['jpg', 'jpeg', 'png'],
+    );
+
+    final files = await openFiles(acceptedTypeGroups: [typeGroup]);
+
+    if (files.isNotEmpty) {
+      setState(() {
+        _images = [
+          ..._images,
+          ...files.map((f) => File(f.path))
+        ].take(4).toList();
       });
     }
   }
@@ -95,12 +118,12 @@ class _PostCreatePageState extends State<PostCreatePage> {
 
         if (state is PostCreateSuccess) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar( // ⚠️ Убрали const здесь
-              content: Text(tr('create_success')), // Используем наш метод
+            SnackBar(
+              content: Text(tr('create_success')),
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pop(context, true); // Возвращаем true, чтобы IndexPage знал, что нужно обновить список
+          Navigator.pop(context, true);
         }
 
         if (state is PostCreateError) {
@@ -141,15 +164,11 @@ class _PostCreatePageState extends State<PostCreatePage> {
                       children: [
                         _buildPhotos(),
                         const SizedBox(height: 24),
-
                         _buildFilters(),
-
                         const SizedBox(height: 20),
                         _input(tr('tytul_2'), (v) => _title = v),
-
                         const SizedBox(height: 20),
                         _input(tr('text_2'), (v) => _text = v, max: 6),
-
                         const SizedBox(height: 40),
                         _submitButton(),
                       ],
@@ -173,7 +192,14 @@ class _PostCreatePageState extends State<PostCreatePage> {
         itemBuilder: (_, i) {
           if (i == _images.length && _images.length < 4) {
             return GestureDetector(
-              onTap: _pickImages,
+              // ✅ ВОТ ЕДИНСТВЕННОЕ ИЗМЕНЕНИЕ ЛОГИКИ
+              onTap: () async {
+                try {
+                  await _pickImagesDesktop(); // пробуем desktop
+                } catch (_) {
+                  await _pickImagesMobile(); // fallback
+                }
+              },
               child: Container(
                 width: 90,
                 decoration: BoxDecoration(
@@ -188,7 +214,7 @@ class _PostCreatePageState extends State<PostCreatePage> {
           return ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: Image.file(
-              File(_images[i].path),
+              _images[i],
               width: 90,
               height: 90,
               fit: BoxFit.cover,
@@ -208,10 +234,8 @@ class _PostCreatePageState extends State<PostCreatePage> {
       children: [
         _dropdown(action, _actionId, (v) => _actionId = v),
         const SizedBox(height: 16),
-
         if (sub != null)
           _dropdown(sub, _choiceId, (v) => _choiceId = v),
-
         const SizedBox(height: 16),
         _dropdown(region, _localId, (v) => _localId = v),
       ],
@@ -270,9 +294,6 @@ class _PostCreatePageState extends State<PostCreatePage> {
       style: ElevatedButton.styleFrom(
         backgroundColor: _accentOrange,
         minimumSize: const Size(double.infinity, 60),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-        ),
       ),
       onPressed: () {
         if (_formKey.currentState!.validate()) {
@@ -281,20 +302,14 @@ class _PostCreatePageState extends State<PostCreatePage> {
                 title: _title,
                 text: _text,
                 localId: _localId!,
-                choiceId: _actionId!, // статус
-                catId: _choiceId,     // подкатегория
+                choiceId: _actionId!,
+                catId: _choiceId,
                 locale: context.read<SearchBloc>().currentLocale,
                 imagePaths: _images.map((e) => e.path).toList(),
               ));
         }
       },
-      child: Text(
-        tr('submit_article'),
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      child: Text(tr('submit_article')),
     );
   }
 }

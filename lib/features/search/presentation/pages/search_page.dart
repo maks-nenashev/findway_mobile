@@ -229,28 +229,50 @@ floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     }
   }
 
-  // ---  Button Customization ---
+  // ---  Button Customization -----------------------------------------------------------------------------------------
   Widget _buildMultiColorPostButton() {
-    return Container(
-      width: 72, height: 72,
-      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-      padding: const EdgeInsets.all(3),
+    return Transform.translate(
+      offset: const Offset(0, -04),// Поднимаем кнопку на 4 пикселя вверх для лучшего позиционирования
       child: Container(
+        width: 72,
+        height: 72,
         decoration: const BoxDecoration(
+          color: Colors.white,
           shape: BoxShape.circle,
-          gradient: SweepGradient(
-            colors: [Color(0xFF23E5DB), Color(0xFF002F34), Color(0xFF6A11CB), Color(0xFFFF5F6D), Color(0xFFFFCE32), Color(0xFF23E5DB)],
-            stops: [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
-          ),
         ),
+        padding: const EdgeInsets.all(3),
         child: Container(
-          margin: const EdgeInsets.all(4),
-          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-          child: const Icon(Icons.add, size: 38, color: Color(0xFF002F34)),
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: SweepGradient(
+              colors: [
+                Color(0xFF23E5DB),
+                Color(0xFF002F34),
+                Color(0xFF6A11CB),
+                Color(0xFFFF5F6D),
+                Color(0xFFFFCE32),
+                Color(0xFF23E5DB),
+              ],
+              stops: [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+            ),
+          ),
+          child: Container(
+            margin: const EdgeInsets.all(4),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.add,
+              size: 38,
+              color: Color(0xFF002F34),
+            ),
+          ),
         ),
       ),
     );
   }
+
   
   PreferredSizeWidget _buildAppBar(Map<String, dynamic> translations, String currentLocale, BuildContext context) {
     return AppBar(
