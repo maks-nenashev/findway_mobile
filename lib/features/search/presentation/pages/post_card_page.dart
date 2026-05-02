@@ -8,7 +8,7 @@ import '../../../../features/comments/presentation/bloc/comments_event.dart';
 import '../../../../injection_container.dart';
 
 import '../widgets/post_button_panel.dart';
-import '../widgets/comments_section.dart';
+import 'package:findway_mobile/features/comments/presentation/widgets/comments_section.dart';
 
 class PostCardPage extends StatelessWidget {
   const PostCardPage({super.key});
