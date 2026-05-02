@@ -542,8 +542,10 @@ class CustomBottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 30),
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+      //margin: const EdgeInsets.fromLTRB(20, 0, 20, 30),
+      margin: const EdgeInsets.fromLTRB(40, 0, 40, 20), 
+      //padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
       decoration: BoxDecoration(
         color: Colors.white, borderRadius: BorderRadius.circular(30),
         border: Border.all(color: const Color(0xFF1E293B), width: 2),
@@ -554,7 +556,7 @@ class CustomBottomNavBar extends StatelessWidget {
         children: [
           LocaleSelector(currentLocale: currentLocale, isInNavBar: true),
           _navItem(1, Icons.search, translations['nav_search'] ?? 'Search'),
-          const SizedBox(width: 48), 
+          const SizedBox(width: 40), // Отступ для плавающей кнопки
           _navItem(3, Icons.notifications_none, translations['nav_notif'] ?? 'Notif'),
           _navItem(4, Icons.person_outline, translations['nav_profile'] ?? 'Profile'),
         ],
