@@ -4,60 +4,113 @@ import '../models/comment_model.dart';
 
 abstract class CommentRemoteDataSource {
   Future<List<CommentModel>> getComments(int parentId, String type);
-  Future<CommentModel> createComment(int parentId, String type, String body);
-  Future<void> deleteComment(int commentId);
-  // ✅ ДОБАВЛЕНО: Интерфейс для обновления
-  Future<Map<String, dynamic>> updateComment(int commentId, String body);
+
+  /// 🔥 теперь возвращает Map
+  Future<Map<String, dynamic>> createComment(
+      int parentId,
+      String type,
+      String body,
+  );
+
+  Future<Map<String, dynamic>> updateComment(
+      int commentId,
+      String body,
+  );
+
+  /// 🔥 больше НЕ void
+  Future<Map<String, dynamic>> deleteComment(int commentId);
 }
 
 class CommentRemoteDataSourceImpl implements CommentRemoteDataSource {
   final Dio client;
+
   CommentRemoteDataSourceImpl({required this.client});
 
+  /// ==============================
+  /// GET
+  /// ==============================
   @override
   Future<List<CommentModel>> getComments(int parentId, String type) async {
     final url = _buildUrl(parentId, type);
-    debugPrint("📡 [GET] Requesting comments: $url");
+    debugPrint("📡 [GET] $url");
+
     final response = await client.get(url);
-    
-    if (response.data is List) {
-      return (response.data as List).map((j) => CommentModel.fromJson(j)).toList();
-    }
-    return [];
+
+    return (response.data as List)
+        .map((j) => CommentModel.fromJson(j))
+        .toList();
   }
 
+  /// ==============================
+  /// CREATE
+  /// ==============================
   @override
-  Future<CommentModel> createComment(int parentId, String type, String body) async {
+  Future<Map<String, dynamic>> createComment(
+      int parentId,
+      String type,
+      String body,
+  ) async {
     final url = _buildUrl(parentId, type);
-    debugPrint("📡 [POST] Creating comment: $url");
-    final response = await client.post(url, data: {'comment': {'body': body}});
-    return CommentModel.fromJson(response.data);
+    debugPrint("📡 [POST] $url");
+
+    final response = await client.post(
+      url,
+      data: {'comment': {'body': body}},
+    );
+
+    return Map<String, dynamic>.from(response.data);
   }
 
-  // ✅ ИСПРАВЛЕНО: Обновление комментария (PATCH)
+  /// ==============================
+  /// UPDATE
+  /// ==============================
   @override
-  Future<Map<String, dynamic>> updateComment(int commentId, String body) async {
+  Future<Map<String, dynamic>> updateComment(
+      int commentId,
+      String body,
+  ) async {
     final url = '/api/v1/comments/$commentId';
-    debugPrint("📡 [PATCH] Updating comment: $url");
+    debugPrint("📡 [PATCH] $url");
+
     final response = await client.patch(
       url,
       data: {'comment': {'body': body}},
     );
-    return response.data; // Возвращаем Map для обработки статуса модерации
+
+    return Map<String, dynamic>.from(response.data);
   }
 
+  /// ==============================
+  /// DELETE
+  /// ==============================
   @override
-  Future<void> deleteComment(int commentId) async {
+  Future<Map<String, dynamic>> deleteComment(int commentId) async {
     final url = '/api/v1/comments/$commentId';
-    debugPrint("📡 [DELETE] Removing comment: $url");
-    await client.delete(url);
+    debugPrint("📡 [DELETE] $url");
+
+    final response = await client.delete(url);
+
+    return Map<String, dynamic>.from(response.data);
   }
 
+  /// ==============================
+  /// URL BUILDER
+  /// ==============================
   String _buildUrl(int id, String type) {
-    final normalizedType = type.toLowerCase().trim();
-    if (normalizedType == 'people' || normalizedType == 'article') return '/api/v1/articles/$id/comments';
-    if (normalizedType == 'animals' || normalizedType == 'sense') return '/api/v1/senses/$id/comments';
-    if (normalizedType == 'things' || normalizedType == 'thing') return '/api/v1/things/$id/comments';
+    final normalized = type.toLowerCase().trim();
+
+    if (normalized == 'people' || normalized == 'article') {
+      return '/api/v1/articles/$id/comments';
+    }
+
+    if (normalized == 'animals' || normalized == 'sense') {
+      return '/api/v1/senses/$id/comments';
+    }
+
+    if (normalized == 'things' || normalized == 'thing') {
+      return '/api/v1/things/$id/comments';
+    }
+
     return '/api/v1/articles/$id/comments';
   }
 }

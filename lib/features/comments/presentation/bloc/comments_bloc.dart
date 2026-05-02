@@ -33,15 +33,25 @@ class CommentsBloc extends Bloc<CommentsEvent, CommentsState> {
     /// ==============================
     on<AddComment>((event, emit) async {
       try {
-        await repository.addComment(parentId, type, event.body);
+        final response = await repository.addComment(
+          parentId,
+          type,
+          event.body,
+        );
 
-        final comments = await repository.getComments(parentId, type);
+        /// 🔥 правильная логика модерации (ключ, не текст!)
+        final warningKey = response['published'] == false
+            ? (response['moderation_status'] == 'rejected'
+                ? 'rejected'
+                : 'pending')
+            : null;
 
-        emit(CommentsLoaded(
-          comments,
-          message: "Коментар створено",
-          warning: null, // 👉 или логика с published
+        emit(CommentActionSuccess(
+          success: response['success'],
+          warning: warningKey,
         ));
+
+        add(const FetchComments());
 
       } catch (e) {
         emit(CommentsError(e.toString()));
@@ -57,20 +67,22 @@ class CommentsBloc extends Bloc<CommentsEvent, CommentsState> {
       if (currentState is CommentsLoaded) {
         final oldComments = currentState.comments;
 
+        /// ⚡ optimistic UI
         final updatedList =
             oldComments.where((c) => c.id != event.commentId).toList();
 
         emit(currentState.copyWith(comments: updatedList));
 
         try {
-          await repository.deleteComment(event.commentId);
+          final response =
+              await repository.deleteComment(event.commentId);
 
-          emit(currentState.copyWith(
-            comments: updatedList,
-            message: "Коментар видалено",
+          emit(CommentActionSuccess(
+            success: response['success'], // ✅ из API
           ));
 
         } catch (e) {
+          /// rollback
           emit(CommentsLoaded(oldComments));
           emit(CommentsError(e.toString()));
         }
@@ -80,29 +92,29 @@ class CommentsBloc extends Bloc<CommentsEvent, CommentsState> {
     /// ==============================
     /// UPDATE
     /// ==============================
-on<UpdateComment>((event, emit) async {
-  try {
-    final result = await repository.updateComment(
-      event.commentId,
-      event.newBody,
-    );
+    on<UpdateComment>((event, emit) async {
+      try {
+        final response = await repository.updateComment(
+          event.commentId,
+          event.newBody,
+        );
 
-    final comments = await repository.getComments(parentId, type);
+        final warningKey = response['published'] == false
+            ? (response['moderation_status'] == 'rejected'
+                ? 'rejected'
+                : 'pending')
+            : null;
 
-    /// 🔥 логика от сервера (а не хардкод)
-    final isPublished = result['published'] == true;
+        emit(CommentActionSuccess(
+          success: response['success'],
+          warning: warningKey,
+        ));
 
-    emit(CommentsLoaded(
-      comments,
-      message: "Коментар оновлено",
-      warning: isPublished
-          ? null
-          : "Коментар відправлено на модерацію",
-    ));
+        add(const FetchComments());
 
-  } catch (e) {
-    emit(CommentsError(e.toString()));
-  }
-});
+      } catch (e) {
+        emit(CommentsError(e.toString()));
+      }
+    });
   }
 }

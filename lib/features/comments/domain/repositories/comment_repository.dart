@@ -3,24 +3,43 @@ import '../../data/models/comment_model.dart';
 
 class CommentRepository {
   final CommentRemoteDataSource remoteDataSource;
-  
-  CommentRepository({required this.remoteDataSource});
 
-  // Получение списка
-  Future<List<CommentModel>> getComments(int id, String type) => 
-    remoteDataSource.getComments(id, type);
+  CommentRepository({
+    required this.remoteDataSource,
+  });
 
-  // Создание
-  Future<CommentModel> addComment(int id, String type, String body) => 
-    remoteDataSource.createComment(id, type, body);
-
-  // Удаление (Оставили одну версию без дублей)
-  Future<void> deleteComment(int id) async {
-    await remoteDataSource.deleteComment(id);
+  /// ==============================
+  /// GET
+  /// ==============================
+  Future<List<CommentModel>> getComments(int parentId, String type) {
+    return remoteDataSource.getComments(parentId, type);
   }
 
-  // Обновление (Возвращаем Map для анализа статуса модерации в Блоке)
-  Future<Map<String, dynamic>> updateComment(int id, String body) async {
-    return await remoteDataSource.updateComment(id, body);
+  /// ==============================
+  /// CREATE
+  /// ==============================
+  Future<Map<String, dynamic>> addComment(
+      int parentId,
+      String type,
+      String body,
+      ) {
+    return remoteDataSource.createComment(parentId, type, body);
+  }
+
+  /// ==============================
+  /// DELETE
+  /// ==============================
+  Future<Map<String, dynamic>> deleteComment(int id) {
+    return remoteDataSource.deleteComment(id);
+  }
+
+  /// ==============================
+  /// UPDATE
+  /// ==============================
+  Future<Map<String, dynamic>> updateComment(
+      int id,
+      String body,
+      ) {
+    return remoteDataSource.updateComment(id, body);
   }
 }

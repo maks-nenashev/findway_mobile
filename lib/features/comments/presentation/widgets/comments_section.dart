@@ -14,11 +14,11 @@ class CommentsSection extends StatelessWidget {
   });
 
   /// =========================
-  /// ADD COMMENT
+  /// ADD COMMENT (НЕ ТРОГАЕМ UI)
   /// =========================
-  static void showAddCommentSheet(BuildContext context, Map<String, dynamic> tr) {
+  static void showAddCommentSheet(
+      BuildContext context, Map<String, dynamic> tr) {
     final controller = TextEditingController();
-    final bloc = context.read<CommentsBloc>();
 
     showModalBottomSheet(
       context: context,
@@ -27,58 +27,64 @@ class CommentsSection extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetContext) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
-          left: 20,
-          right: 20,
-          top: 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              tr['your_comment'] ?? "Your Comment",
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              style: const TextStyle(color: Colors.white),
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText: tr['place_writhe'] ?? "Напишіть щось...",
-                hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-                filled: true,
-                fillColor: Colors.black26,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+      builder: (sheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+            left: 20,
+            right: 20,
+            top: 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                tr['your_comment'] ?? "Your Comment",
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: tr['place_writhe'] ?? "Напишіть щось...",
+                  hintStyle:
+                      TextStyle(color: Colors.white.withOpacity(0.3)),
+                  filled: true,
+                  fillColor: Colors.black26,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                minimumSize: const Size(double.infinity, 50),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+                onPressed: () {
+                  final text = controller.text.trim();
+                  if (text.isNotEmpty) {
+                    context.read<CommentsBloc>().add(AddComment(text));
+                    Navigator.pop(sheetContext);
+                  }
+                },
+                child: Text(
+                  tr['submit_comment'] ?? "SUBMIT",
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold),
+                ),
               ),
-              onPressed: () {
-                final text = controller.text.trim();
-                if (text.isNotEmpty) {
-                  bloc.add(AddComment(text));
-                  Navigator.pop(sheetContext);
-                }
-              },
-              child: Text(
-                tr['submit_comment'] ?? "SUBMIT",
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -91,11 +97,12 @@ class CommentsSection extends StatelessWidget {
       listener: (context, state) {
         final messenger = ScaffoldMessenger.of(context);
 
-        if (state is CommentsLoaded) {
-          if (state.message != null) {
+        /// ✅ SUCCESS
+        if (state is CommentActionSuccess) {
+          if (state.success != null) {
             messenger.showSnackBar(
               SnackBar(
-                content: Text(state.message!),
+                content: Text(state.success!),
                 backgroundColor: Colors.green,
               ),
             );
@@ -109,8 +116,12 @@ class CommentsSection extends StatelessWidget {
               ),
             );
           }
+
+          /// 🔥 ОБНОВЛЕНИЕ
+          context.read<CommentsBloc>().add(const FetchComments());
         }
 
+        /// ✅ ERROR
         if (state is CommentsError) {
           messenger.showSnackBar(
             SnackBar(
@@ -120,26 +131,32 @@ class CommentsSection extends StatelessWidget {
           );
         }
       },
+
+      /// UI НЕ ТРОГАЕМ
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             tr['comments_title'] ?? "Comments",
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
+
           BlocBuilder<CommentsBloc, CommentsState>(
             builder: (context, state) {
               if (state is CommentsLoading) {
                 return const Center(
-                  child: CircularProgressIndicator(color: Colors.orange),
+                  child: CircularProgressIndicator(
+                      color: Colors.orange),
                 );
               }
 
               if (state is CommentsLoaded) {
                 if (state.comments.isEmpty) {
                   return const Center(
-                    child: Text("No comments yet", style: TextStyle(color: Colors.grey)),
+                    child: Text("No comments yet",
+                        style: TextStyle(color: Colors.grey)),
                   );
                 }
 
@@ -164,7 +181,7 @@ class CommentsSection extends StatelessWidget {
 }
 
 /// =========================
-/// COMMENT NODE
+/// COMMENT NODE (НЕ ЛОМАЕМ UI)
 /// =========================
 class _CommentNode extends StatelessWidget {
   final CommentModel comment;
@@ -175,8 +192,9 @@ class _CommentNode extends StatelessWidget {
     required this.tr,
   });
 
-  void _showEditCommentSheet(BuildContext context, CommentsBloc bloc) {
+  void _showEditCommentSheet(BuildContext context) {
     final controller = TextEditingController(text: comment.body);
+    final bloc = context.read<CommentsBloc>();
 
     showModalBottomSheet(
       context: context,
@@ -197,9 +215,11 @@ class _CommentNode extends StatelessWidget {
           children: [
             Text(
               tr['edit_comment'] ?? "Редагувати",
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
+
             TextField(
               controller: controller,
               autofocus: true,
@@ -214,7 +234,9 @@ class _CommentNode extends StatelessWidget {
                 ),
               ),
             ),
+
             const SizedBox(height: 16),
+
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent,
@@ -242,8 +264,6 @@ class _CommentNode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bloc = context.read<CommentsBloc>();
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -259,6 +279,7 @@ class _CommentNode extends StatelessWidget {
                 : null,
           ),
           const SizedBox(width: 12),
+
           Expanded(
             child: Container(
               padding: const EdgeInsets.all(12),
@@ -270,32 +291,42 @@ class _CommentNode extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        comment.username,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
-                      Text(
-                        comment.createdAt,
-                        style: const TextStyle(fontSize: 10, color: Colors.grey),
-                      ),
+                      Text(comment.username,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13)),
+                      Text(comment.createdAt,
+                          style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey)),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(comment.body),
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       if (comment.canEdit)
                         IconButton(
-                          icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.blueAccent),
-                          onPressed: () => _showEditCommentSheet(context, bloc),
+                          icon: const Icon(Icons.edit_outlined,
+                              size: 18,
+                              color: Colors.blueAccent),
+                          onPressed: () =>
+                              _showEditCommentSheet(context),
                         ),
                       if (comment.canDelete)
                         IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
-                          onPressed: () => bloc.add(DeleteComment(commentId: comment.id)),
+                          icon: const Icon(Icons.delete_outline,
+                              size: 18,
+                              color: Colors.redAccent),
+                          onPressed: () => context
+                              .read<CommentsBloc>()
+                              .add(DeleteComment(
+                                  commentId: comment.id)),
                         ),
                     ],
                   ),
