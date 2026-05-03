@@ -23,7 +23,7 @@ import 'features/comments/presentation/bloc/comments_bloc.dart';
 /// 👉 переключатель среды //////////////////////////////////////////////////////////////////////////////////////
 /// true  = реальный телефон
 /// false = Android эмулятор
-const bool useRealDevice = true;
+const bool useRealDevice = false;
 
 /// 👉 получаем baseUrl автоматически
 String getBaseUrl() {
