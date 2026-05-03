@@ -39,11 +39,13 @@ class CommentsBloc extends Bloc<CommentsEvent, CommentsState> {
           event.body,
         );
 
-      emit(CommentActionSuccess(
-           success: response['success'],
-           warning: response['warning'],
-     ));
+        // ✅ Ищем message от бэкенда. Fallback на success, если репо мапит странно.
+        emit(CommentActionSuccess(
+           success: (response['message'] ?? response['success'])?.toString(), 
+           warning: response['warning']?.toString(),
+        ));
 
+        // Перезагружаем комментарии (UI сбросится в Loading, но SnackBar уже вызван)
         add(const FetchComments());
 
       } catch (e) {
@@ -59,22 +61,25 @@ class CommentsBloc extends Bloc<CommentsEvent, CommentsState> {
 
       if (currentState is CommentsLoaded) {
         final oldComments = currentState.comments;
+        final updatedList = oldComments.where((c) => c.id != event.commentId).toList();
 
-        final updatedList =
-            oldComments.where((c) => c.id != event.commentId).toList();
-
+        // Оптимистичный UI: показываем список без удаленного элемента
         emit(currentState.copyWith(comments: updatedList));
 
         try {
-          final response =
-              await repository.deleteComment(event.commentId);
+          final response = await repository.deleteComment(event.commentId);
 
+          // Показываем SnackBar с текстом от бэкенда
           emit(CommentActionSuccess(
-            success: response['success'],
+            success: (response['message'] ?? response['success'])?.toString(),
           ));
 
+          // ⚠️ КРИТИЧНО: Возвращаем стейт с данными обратно! 
+          // Иначе список комментариев полностью исчезнет с экрана.
+          emit(CommentsLoaded(updatedList));
+
         } catch (e) {
-          emit(CommentsLoaded(oldComments));
+          emit(CommentsLoaded(oldComments)); // Откат при ошибке
           emit(CommentsError(e.toString()));
         }
       }
@@ -90,9 +95,9 @@ class CommentsBloc extends Bloc<CommentsEvent, CommentsState> {
           event.newBody,
         );
 
-      emit(CommentActionSuccess(
-          success: response['success'],
-          warning: response['warning'],
+        emit(CommentActionSuccess(
+          success: (response['message'] ?? response['success'])?.toString(),
+          warning: response['warning']?.toString(),
         ));
 
         add(const FetchComments());

@@ -119,7 +119,7 @@ class _PostCreatePageState extends State<PostCreatePage> {
         if (state is PostCreateSuccess) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(tr('create_success')),
+              content: Text(tr('post_create_success')),
               backgroundColor: Colors.green,
             ),
           );

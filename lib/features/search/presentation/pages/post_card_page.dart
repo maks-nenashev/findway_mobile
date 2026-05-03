@@ -23,7 +23,7 @@ class PostCardPage extends StatelessWidget {
         // В BlocListener (PostCardPage)
 if (state is PostDeleteSuccess) {
   // Мы явно берем переводы из пришедшего стейта
-  final msg = state.uiTranslations['destroy_success'] ?? "Deleted successfully!";
+  final msg = state.uiTranslations['post_destroy_success'] ?? "Deleted successfully!";
   
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
