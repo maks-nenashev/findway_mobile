@@ -135,7 +135,7 @@ class CommentsSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            tr['comments_title'] ?? "Comments",
+            tr['your_comment'] ?? "Your Comment",
             style: const TextStyle(
                 fontSize: 18, fontWeight: FontWeight.bold),
           ),
@@ -152,8 +152,8 @@ class CommentsSection extends StatelessWidget {
 
               if (state is CommentsLoaded) {
                 if (state.comments.isEmpty) {
-                  return const Center(
-                    child: Text("No comments yet",
+                  return Center(
+                    child: Text(tr['place_writhe'] ?? "No comments yet",
                         style: TextStyle(color: Colors.grey)),
                   );
                 }
