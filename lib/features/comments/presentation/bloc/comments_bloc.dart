@@ -39,17 +39,10 @@ class CommentsBloc extends Bloc<CommentsEvent, CommentsState> {
           event.body,
         );
 
-        /// 🔥 правильная логика модерации (ключ, не текст!)
-        final warningKey = response['published'] == false
-            ? (response['moderation_status'] == 'rejected'
-                ? 'rejected'
-                : 'pending')
-            : null;
-
-        emit(CommentActionSuccess(
-          success: response['success'],
-          warning: warningKey,
-        ));
+      emit(CommentActionSuccess(
+           success: response['success'],
+           warning: response['warning'],
+     ));
 
         add(const FetchComments());
 
@@ -67,7 +60,6 @@ class CommentsBloc extends Bloc<CommentsEvent, CommentsState> {
       if (currentState is CommentsLoaded) {
         final oldComments = currentState.comments;
 
-        /// ⚡ optimistic UI
         final updatedList =
             oldComments.where((c) => c.id != event.commentId).toList();
 
@@ -78,11 +70,10 @@ class CommentsBloc extends Bloc<CommentsEvent, CommentsState> {
               await repository.deleteComment(event.commentId);
 
           emit(CommentActionSuccess(
-            success: response['success'], // ✅ из API
+            success: response['success'],
           ));
 
         } catch (e) {
-          /// rollback
           emit(CommentsLoaded(oldComments));
           emit(CommentsError(e.toString()));
         }
@@ -99,15 +90,9 @@ class CommentsBloc extends Bloc<CommentsEvent, CommentsState> {
           event.newBody,
         );
 
-        final warningKey = response['published'] == false
-            ? (response['moderation_status'] == 'rejected'
-                ? 'rejected'
-                : 'pending')
-            : null;
-
-        emit(CommentActionSuccess(
+      emit(CommentActionSuccess(
           success: response['success'],
-          warning: warningKey,
+          warning: response['warning'],
         ));
 
         add(const FetchComments());

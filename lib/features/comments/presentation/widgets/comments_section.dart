@@ -117,7 +117,6 @@ class CommentsSection extends StatelessWidget {
             );
           }
 
-          /// 🔥 ОБНОВЛЕНИЕ
           context.read<CommentsBloc>().add(const FetchComments());
         }
 
@@ -130,9 +129,8 @@ class CommentsSection extends StatelessWidget {
             ),
           );
         }
-      },
+      }, // ✅ ВАЖНО: закрыли listener
 
-      /// UI НЕ ТРОГАЕМ
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
