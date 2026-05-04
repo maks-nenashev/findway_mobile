@@ -108,7 +108,7 @@ class _PostCreatePageState extends State<PostCreatePage> {
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<SearchBloc, SearchState>(
-      listener: (context, state) {
+    listener: (context, state) {
         if (state is FiltersLoaded) {
           setState(() {
             _translations = state.uiTranslations;
@@ -123,7 +123,11 @@ class _PostCreatePageState extends State<PostCreatePage> {
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pop(context, true);
+          
+          // =========================================================
+          // 👉 ИСПРАВЛЕНИЕ: Передаем ID нового поста на главную страницу
+          // =========================================================
+          Navigator.pop(context, state.postId); 
         }
 
         if (state is PostCreateError) {

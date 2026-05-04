@@ -100,17 +100,21 @@ class PostCardPage extends StatelessWidget {
                                   // 👉 ИНТЕГРАЦИЯ ПЕРЕХОДА НА РЕДАКТИРОВАНИЕ (ИСПРАВЛЕННАЯ)
                                   // =========================================================
 onEditTap: () async {
-  // 1. Захватываем Блок и текущие данные
-  final bloc = context.read<SearchBloc>();
+  final searchBloc = context.read<SearchBloc>();
+  
+  // Запоминаем текущие параметры ДО перехода, так как стейт изменится
+  final currentPostId = post.id;
+  final currentCategory = post.category ?? 'people';
+  final currentLocale = searchBloc.currentLocale;
 
   final result = await Navigator.push(
     context,
     MaterialPageRoute(
       builder: (context) => BlocProvider.value(
-        value: bloc,
+        value: searchBloc,
         child: PostEditPage(
-          postId: post.id,
-          initialCategory: post.category ?? 'people',
+          postId: currentPostId,
+          initialCategory: currentCategory,
           initialTitle: post.title,
           initialText: post.text,
           initialLocalId: null, 
@@ -124,14 +128,15 @@ onEditTap: () async {
     ),
   );
 
-  // 2. ЛОГИКА ОБНОВЛЕНИЯ (вместо закрытия страницы)
-  if (result == true && context.mounted) {
-    // 🎯 Отправляем ивент на загрузку свежих данных ЭТОГО поста
-    // Это переведет BLoC в состояние PostDetailsLoaded и обновит UI карточки
-    bloc.add(LoadPostDetails(
-      id: post.id,
-      category: post.category ?? 'people',
-      locale: bloc.currentLocale,
+  // ✅ ГАРАНТИРОВАННОЕ ВОССТАНОВЛЕНИЕ
+  // Неважно, result == true (сохранили) или result == false/null (нажали крестик).
+  // Экран редактирования сбил стейт на FiltersLoaded. 
+  // Нам нужно принудительно вернуть BLoC в состояние PostDetailsLoaded.
+  if (context.mounted) {
+    searchBloc.add(LoadPostDetails(
+      id: currentPostId,
+      category: currentCategory,
+      locale: currentLocale,
     ));
   }
 },

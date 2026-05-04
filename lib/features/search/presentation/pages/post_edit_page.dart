@@ -67,7 +67,7 @@ class _PostEditPageState extends State<PostEditPage> {
     'submit_article': 'Update',
   };
 
-  @override
+@override
   void initState() {
     super.initState();
     
@@ -81,11 +81,24 @@ class _PostEditPageState extends State<PostEditPage> {
     _existingImages = List.from(widget.existingImages);
 
     final bloc = context.read<SearchBloc>();
-    bloc.add(LoadFilters(
-      category: _category,
-      locale: bloc.currentLocale,
-    ));
-  }
+    final currentState = bloc.state;
+    
+    // ✅ ИСПРАВЛЕНИЕ: Берем готовые фильтры из стейта, не вызывая LoadFilters!
+    if (currentState is PostDetailsLoaded) {
+      _translations = currentState.uiTranslations;
+      _filters = currentState.filters;
+    } else if (currentState is FiltersLoaded) {
+      _translations = currentState.uiTranslations;
+      _filters = currentState.filters;
+    } else if (currentState is SearchSuccess) {
+      _translations = currentState.uiTranslations;
+      _filters = currentState.filters;
+    }
+  } // ✅ ЗДЕСЬ ДОЛЖНА БЫТЬ ЭТА ЗАКРЫВАЮЩАЯ СКОБКА!
+
+  // =========================================================
+  // 👉 МЕТОДЫ КЛАССА (они идут ПОСЛЕ initState)
+  // =========================================================
 
   String tr(String key) {
     return (_translations[key] ?? _fallback[key] ?? key).toString();
@@ -175,7 +188,10 @@ class _PostEditPageState extends State<PostEditPage> {
             elevation: 0,
             leading: IconButton(
               icon: const Icon(Icons.close, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+              // УБРАТЬ RestoreSearch() отсюда! Просто возвращаем false (отмена).
+              Navigator.pop(context, false); 
+              },
             ),
             title: Text(
               tr('title'),

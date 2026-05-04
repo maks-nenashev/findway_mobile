@@ -8,7 +8,10 @@ import '../bloc/search_state.dart';
 import '../widgets/filter_builder.dart';
 import '../widgets/articles_card.dart';
 import '../widgets/locale_selector.dart';
-import 'post_create_page.dart'; //  Импорт страницы создания
+
+// ✅ ИМПОРТЫ ДЛЯ МАРШРУТИЗАЦИИ СТРАНИЦ
+import 'post_create_page.dart'; 
+import 'post_card_page.dart'; 
 
 // === 1. МОДЕЛЬ ДАННЫХ КАТЕГОРИЙ ===
 class FindWayCategory {
@@ -27,7 +30,6 @@ class FindWayCategory {
   });
 }
 
-// ✅ ИСПРАВЛЕНО: Теперь это StatefulWidget, который сам помнит категорию
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
 
@@ -47,16 +49,17 @@ class _SearchPageState extends State<SearchPage> {
         bloc.add(const LoadFilters(category: '', locale: 'uk')); 
         return bloc;
       },
-      // ✅ ИСПРАВЛЕНО: Используем BlocConsumer для прослушивания событий
       child: BlocConsumer<SearchBloc, SearchState>(
-        // 👇 ВОТ ЭТА БРОНЯ 👇
         buildWhen: (previous, current) {
-          // Запрещаем перерисовку страницы поиска, когда грузятся детали поста!
-          return current is! PostDetailsLoading && current is! PostDetailsLoaded;
+          // ✅ ЖЕЛЕЗОБЕТОННАЯ БРОНЯ
+          return current is FiltersLoaded || 
+                 current is SearchSuccess || 
+                 current is ResultsLoading ||
+                 current is SearchLoading ||
+                 current is SearchInitial ||
+                 current is SearchError;
         },
-        // 👆 КОНЕЦ БРОНИ 👆
         listener: (context, state) {
-          // Как только фильтры загружены, UI намертво запоминает категорию
           if (state is FiltersLoaded) {
             setState(() {
               _localActiveCategory = state.currentCategory;
@@ -78,45 +81,70 @@ class _SearchPageState extends State<SearchPage> {
             backgroundColor: const Color(0xFFF0F4F8),
             appBar: _buildAppBar(translations, currentLocale, context),
             
-// ✅ CUSTOM BUTTON: Опускаем custom кнопку вниз через Transform.translate
-floatingActionButton: Transform.translate(
-  offset: const Offset(0, 32), // Поднимаем кнопку на 32 пикселя вверх
-  child: GestureDetector(
-    // ✅ Делаем функцию асинхронной (async)
-    onTap: () async { 
-      final String targetCategory = _localActiveCategory.isEmpty ? 'people' : _localActiveCategory;
+            // =========================================================
+            // 👉 CUSTOM BUTTON (Кнопка Плюс)
+            // =========================================================
+            floatingActionButton: Transform.translate(
+              offset: const Offset(0, 32),
+              child: GestureDetector(
+                onTap: () async { 
+                  final String targetCategory = _localActiveCategory.isEmpty ? 'people' : _localActiveCategory;
 
-      // ✅ Ждем результат закрытия страницы (await)
-      final bool? needRefresh = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => BlocProvider.value(
-            value: context.read<SearchBloc>(),
-            child: PostCreatePage(initialCategory: targetCategory),
-          ),
-        ),
-      );
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => BlocProvider.value(
+                        value: context.read<SearchBloc>(),
+                        child: PostCreatePage(initialCategory: targetCategory),
+                      ),
+                    ),
+                  );
 
-      // ✅ Если вернулось true (пост создан) — обновляем список Posts in index with new filters
-      if (needRefresh == true && mounted) {
-        context.read<SearchBloc>().add(LoadFilters(
-          category: targetCategory,
-          locale: context.read<SearchBloc>().currentLocale,
-        ));
-      }
-    },
-    child: _buildMultiColorPostButton(),
-  ),
-),
-floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+                  if (mounted) {
+                    final bloc = context.read<SearchBloc>();
+                    
+                    if (result is int) {
+                      // 1. Пост создан, загружаем его детали
+                      bloc.add(LoadPostDetails(
+                        id: result,
+                        category: targetCategory,
+                        locale: bloc.currentLocale,
+                      ));
 
+                      // 2. Открываем карточку (без const!)
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => BlocProvider.value(
+                            value: bloc,
+                            child: PostCardPage(),
+                          ),
+                        ),
+                      );
+
+                      // 3. После выхода обновляем ленту
+                      if (mounted) {
+                        bloc.add(LoadFilters(category: targetCategory, locale: bloc.currentLocale));
+                      }
+                    } else if (result == true) {
+                      bloc.add(LoadFilters(category: targetCategory, locale: bloc.currentLocale));
+                    }
+                  }
+                },
+                child: _buildMultiColorPostButton(),
+              ),
+            ),
+            floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
+            // =========================================================
+            // 👉 НИЖНЕЕ МЕНЮ
+            // =========================================================
             bottomNavigationBar: CustomBottomNavBar( 
               currentIndex: currentTabIndex,
               currentLocale: currentLocale,
               translations: translations,
-              onTap: (index) {
+              onTap: (index) { 
                 if (index == 1) {
-                  // Сброс на титульный лист
                   setState(() => _localActiveCategory = '');
                   context.read<SearchBloc>().add(const LoadFilters(category: '', locale: ''));
                 } else {
@@ -125,6 +153,9 @@ floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
               },
             ),
 
+            // =========================================================
+            // 👉 BODY
+            // =========================================================
             body: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               child: isTitlePage 
@@ -229,10 +260,10 @@ floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     }
   }
 
-  // ---  Button Customization -----------------------------------------------------------------------------------------
+  // --- Button Customization ---
   Widget _buildMultiColorPostButton() {
     return Transform.translate(
-      offset: const Offset(0, -04),// Поднимаем кнопку на 4 пикселя вверх для лучшего позиционирования
+      offset: const Offset(0, -04),
       child: Container(
         width: 72,
         height: 72,
@@ -273,7 +304,6 @@ floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 
-  
   PreferredSizeWidget _buildAppBar(Map<String, dynamic> translations, String currentLocale, BuildContext context) {
     return AppBar(
       backgroundColor: Colors.transparent,
@@ -442,11 +472,8 @@ floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     return {};
   }
 
- String _extractLocale(BuildContext context, SearchState state, Map<String, dynamic> translations) {
-    // ✅ ИСПРАВЛЕНО: Берем язык СТРОГО из базового стейта BLoC'а.
-    // Теперь интерфейс никогда не переключится на английский из-за ответа сервера.
+  String _extractLocale(BuildContext context, SearchState state, Map<String, dynamic> translations) {
     if (state.currentLocale.isNotEmpty) return state.currentLocale;
-    
     return translations['locale_code']?.toString() ?? 'uk';
   }
 
@@ -564,9 +591,7 @@ class CustomBottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      //margin: const EdgeInsets.fromLTRB(20, 0, 20, 30),
       margin: const EdgeInsets.fromLTRB(40, 0, 40, 20), 
-      //padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
       padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
       decoration: BoxDecoration(
         color: Colors.white, borderRadius: BorderRadius.circular(30),
@@ -578,7 +603,7 @@ class CustomBottomNavBar extends StatelessWidget {
         children: [
           LocaleSelector(currentLocale: currentLocale, isInNavBar: true),
           _navItem(1, Icons.search, translations['nav_search'] ?? 'Search'),
-          const SizedBox(width: 40), // Отступ для плавающей кнопки
+          const SizedBox(width: 40), 
           _navItem(3, Icons.notifications_none, translations['nav_notif'] ?? 'Notif'),
           _navItem(4, Icons.person_outline, translations['nav_profile'] ?? 'Profile'),
         ],
