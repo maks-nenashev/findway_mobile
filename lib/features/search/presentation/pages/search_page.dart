@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart'; // ✅ ДОБАВЛЕНО ДЛЯ ОТСЛЕЖИВАНИЯ НАПРАВЛЕНИЯ СКРОЛЛА
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../injection_container.dart';
 import '../bloc/search_bloc.dart';
@@ -9,7 +10,6 @@ import '../widgets/filter_builder.dart';
 import '../widgets/articles_card.dart';
 import '../widgets/locale_selector.dart';
 
-// ✅ ИМПОРТЫ ДЛЯ МАРШРУТИЗАЦИИ СТРАНИЦ
 import 'post_create_page.dart'; 
 import 'post_card_page.dart'; 
 
@@ -38,8 +38,38 @@ class SearchPage extends StatefulWidget {
 }
 
 class _SearchPageState extends State<SearchPage> {
-  // ✅ ЛОКАЛЬНАЯ ПАМЯТЬ: UI сам хранит категорию, чтобы не зависеть от BLoC
   String _localActiveCategory = '';
+
+  // =========================================================
+  // 👉 ЛОГИКА HIDE-ON-SCROLL (Анимация скрытия меню)
+  // =========================================================
+  late ScrollController _mainScrollController;
+  late ScrollController _titleScrollController;
+  bool _isMenuVisible = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Используем два контроллера, чтобы AnimatedSwitcher не падал при смене экранов
+    _mainScrollController = ScrollController()..addListener(() => _handleScroll(_mainScrollController));
+    _titleScrollController = ScrollController()..addListener(() => _handleScroll(_titleScrollController));
+  }
+
+  void _handleScroll(ScrollController controller) {
+    if (!controller.hasClients) return;
+    if (controller.position.userScrollDirection == ScrollDirection.reverse) {
+      if (_isMenuVisible) setState(() => _isMenuVisible = false);
+    } else if (controller.position.userScrollDirection == ScrollDirection.forward) {
+      if (!_isMenuVisible) setState(() => _isMenuVisible = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _mainScrollController.dispose();
+    _titleScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +81,6 @@ class _SearchPageState extends State<SearchPage> {
       },
       child: BlocConsumer<SearchBloc, SearchState>(
         buildWhen: (previous, current) {
-          // ✅ ЖЕЛЕЗОБЕТОННАЯ БРОНЯ
           return current is FiltersLoaded || 
                  current is SearchSuccess || 
                  current is ResultsLoading ||
@@ -79,78 +108,71 @@ class _SearchPageState extends State<SearchPage> {
           return Scaffold( 
             extendBody: true,
             backgroundColor: const Color(0xFFF0F4F8),
-            appBar: _buildAppBar(translations, currentLocale, context),
+            // ✅ Статичный appBar удален, теперь он внутри slivers!
             
             // =========================================================
-            // 👉 CUSTOM BUTTON (Кнопка Плюс)
+            // 👉 КНОПКА ПЛЮС (Скрывается при скролле)
             // =========================================================
-            floatingActionButton: Transform.translate(
-              offset: const Offset(0, 32),
-              child: GestureDetector(
-                onTap: () async { 
-                  final String targetCategory = _localActiveCategory.isEmpty ? 'people' : _localActiveCategory;
+            floatingActionButton: AnimatedSlide(
+              duration: const Duration(milliseconds: 300),
+              offset: _isMenuVisible ? Offset.zero : const Offset(0, 2.5), // Уезжает вниз
+              child: Transform.translate(
+                offset: const Offset(0, 32),
+                child: GestureDetector(
+                  onTap: () async { 
+                    final String targetCategory = _localActiveCategory.isEmpty ? 'people' : _localActiveCategory;
 
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => BlocProvider.value(
-                        value: context.read<SearchBloc>(),
-                        child: PostCreatePage(initialCategory: targetCategory),
-                      ),
-                    ),
-                  );
-
-                  if (mounted) {
-                    final bloc = context.read<SearchBloc>();
-                    
-                    if (result is int) {
-                      // 1. Пост создан, загружаем его детали
-                      bloc.add(LoadPostDetails(
-                        id: result,
-                        category: targetCategory,
-                        locale: bloc.currentLocale,
-                      ));
-
-                      // 2. Открываем карточку (без const!)
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => BlocProvider.value(
-                            value: bloc,
-                            child: PostCardPage(),
-                          ),
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => BlocProvider.value(
+                          value: context.read<SearchBloc>(),
+                          child: PostCreatePage(initialCategory: targetCategory),
                         ),
-                      );
+                      ),
+                    );
 
-                      // 3. После выхода обновляем ленту
-                      if (mounted) {
+                    if (mounted) {
+                      final bloc = context.read<SearchBloc>();
+                      if (result is int) {
+                        bloc.add(LoadPostDetails(id: result, category: targetCategory, locale: bloc.currentLocale));
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => BlocProvider.value(value: bloc, child: const PostCardPage()),
+                          ),
+                        );
+                        if (mounted) bloc.add(LoadFilters(category: targetCategory, locale: bloc.currentLocale));
+                      } else if (result == true) {
                         bloc.add(LoadFilters(category: targetCategory, locale: bloc.currentLocale));
                       }
-                    } else if (result == true) {
-                      bloc.add(LoadFilters(category: targetCategory, locale: bloc.currentLocale));
                     }
-                  }
-                },
-                child: _buildMultiColorPostButton(),
+                  },
+                  child: _buildMultiColorPostButton(),
+                ),
               ),
             ),
             floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
             // =========================================================
-            // 👉 НИЖНЕЕ МЕНЮ
+            // 👉 НИЖНЕЕ МЕНЮ (Скрывается при скролле)
             // =========================================================
-            bottomNavigationBar: CustomBottomNavBar( 
-              currentIndex: currentTabIndex,
-              currentLocale: currentLocale,
-              translations: translations,
-              onTap: (index) { 
-                if (index == 1) {
-                  setState(() => _localActiveCategory = '');
-                  context.read<SearchBloc>().add(const LoadFilters(category: '', locale: ''));
-                } else {
-                  context.read<SearchBloc>().add(ChangeTab(index));
-                }
-              },
+            bottomNavigationBar: AnimatedSlide(
+              duration: const Duration(milliseconds: 300),
+              offset: _isMenuVisible ? Offset.zero : const Offset(0, 2.0), // Уезжает вниз
+              child: CustomBottomNavBar( 
+                currentIndex: currentTabIndex,
+                currentLocale: currentLocale,
+                translations: translations,
+                onTap: (index) { 
+                  if (index == 1) {
+                    setState(() => _localActiveCategory = '');
+                    context.read<SearchBloc>().add(const LoadFilters(category: '', locale: ''));
+                  } else {
+                    context.read<SearchBloc>().add(ChangeTab(index));
+                  }
+                },
+              ),
             ),
 
             // =========================================================
@@ -164,7 +186,9 @@ class _SearchPageState extends State<SearchPage> {
                     key: const ValueKey('ModelLayout'),
                     children: [
                       CustomScrollView(
+                        controller: _mainScrollController, // ✅ ПОДКЛЮЧЕН КОНТРОЛЛЕР
                         slivers: [
+                          _buildSliverAppBar(), // ✅ ДИНАМИЧЕСКИЙ ЛОГОТИП
                           SliverToBoxAdapter(
                             child: _buildFilterPanel(
                               context, state, translations, currentLocale,
@@ -197,12 +221,32 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
+  // --- ДИНАМИЧЕСКИЙ APP BAR ---
+  Widget _buildSliverAppBar() {
+    return SliverAppBar(
+      backgroundColor: const Color(0xFFF0F4F8),
+      elevation: 0,
+      floating: true, // Скрывается при скролле вниз, появляется при малейшем скролле вверх
+      title: Padding(
+        padding: const EdgeInsets.only(left: 5.0), 
+        child: Image.asset(
+          'assets/images/logo1.png',
+          height: 65, 
+          fit: BoxFit.contain,
+          semanticLabel: 'FindWay Logo', 
+        ),
+      ),
+    );
+  }
+
   // --- ЛЕЙАУТ: ТИТУЛЬНЫЙ ЛИСТ ---
   Widget _buildTitleLayout(BuildContext context, Map<String, dynamic> trans) {
     final categories = _getLocalizedCategories(trans);
     return CustomScrollView(
+      controller: _titleScrollController, // ✅ ПОДКЛЮЧЕН ВТОРОЙ КОНТРОЛЛЕР
       slivers: [
-        const SliverToBoxAdapter(child: SizedBox(height: 40)),
+        _buildSliverAppBar(), // ✅ ДИНАМИЧЕСКИЙ ЛОГОТИП И ЗДЕСЬ
+        const SliverToBoxAdapter(child: SizedBox(height: 20)),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           sliver: SliverList(
@@ -299,22 +343,6 @@ class _SearchPageState extends State<SearchPage> {
               color: Color(0xFF002F34),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  PreferredSizeWidget _buildAppBar(Map<String, dynamic> translations, String currentLocale, BuildContext context) {
-    return AppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      title: Padding(
-        padding: const EdgeInsets.only(left: 5.0), 
-        child: Image.asset(
-          'assets/images/logo1.png',
-          height: 65, 
-          fit: BoxFit.contain,
-          semanticLabel: 'FindWay Logo', 
         ),
       ),
     );
