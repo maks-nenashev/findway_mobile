@@ -4,6 +4,9 @@ import 'package:path/path.dart' as p;
 import '../models/filter_model.dart';
 import '../models/post_detail_model.dart';
 
+// =============================================================================
+// 👉 КОНТРАКТ (ИНТЕРФЕЙС)
+// =============================================================================
 abstract class SearchRemoteDataSource {
   Future<Map<String, dynamic>> getFiltersData({
     required String category,
@@ -33,16 +36,30 @@ abstract class SearchRemoteDataSource {
     required List<String> imagePaths,
   });
 
-  // ✅ 1. Добавлено в контракт интерфейса
+  // ✅ Интегрировано: Метод обновления поста
+  Future<void> updatePost({
+    required int postId,
+    required String category,
+    required String title,
+    required String text,
+    required int localId,
+    required int choiceId,
+    int? catId,
+    required String locale,
+    required List<String> existingImages,
+    required List<String> newImagePaths,
+  });
+
   Future<void> deletePost(int postId, String category);
 }
 
+// =============================================================================
+// 👉 РЕАЛИЗАЦИЯ (ИМПЛЕМЕНТАЦИЯ)
+// =============================================================================
 class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
   final Dio client;
 
   SearchRemoteDataSourceImpl({required this.client});
-
-  // ... (getFiltersData, search, getPostDetails, createPost без изменений) ...
 
   @override
   Future<Map<String, dynamic>> getFiltersData({
@@ -178,22 +195,88 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     throw Exception("Invalid response format on createPost");
   }
 
-  // ✅ 2. ПРАВИЛЬНАЯ РЕАЛИЗАЦИЯ (Dio-style)
-@override
-Future<void> deletePost(int postId, String category) async {
-  // ✅ МЕНЯЕМ ПУТЬ: вместо /$category/$postId пишем /posts/$postId
-  final response = await client.delete(
-    '/api/v1/posts/$postId', 
-    queryParameters: {
-      'category': category, // Rails поймет категорию из этих параметров
-    },
-    options: Options(
-      headers: {'Accept': 'application/json'},
-    ),
-  );
+  // ===========================================================================
+  // ✅ Интегрировано: ЛОГИКА ОБНОВЛЕНИЯ ПОСТА
+  // ===========================================================================
+  @override
+  Future<void> updatePost({
+    required int postId,
+    required String category,
+    required String title,
+    required String text,
+    required int localId,
+    required int choiceId,
+    int? catId,
+    required String locale,
+    required List<String> existingImages,
+    required List<String> newImagePaths,
+  }) async {
+    final normalizedCategory = category.toLowerCase();
+    String? subCategoryKey;
+    switch (normalizedCategory) {
+      case 'people': subCategoryKey = 'live_id'; break;
+      case 'animals': subCategoryKey = 'cat_id'; break;
+      case 'things': subCategoryKey = 'phone_id'; break;
+    }
 
-  if (response.statusCode != 200 && response.statusCode != 204) {
-    throw Exception('Failed to delete post');
+    // Собираем базовые текстовые данные и ID
+    final Map<String, dynamic> data = {
+      'category': normalizedCategory,
+      'title': title,
+      'text': text,
+      'local_id': localId,
+      'choice_id': choiceId,
+      'locale': locale,
+    };
+
+    if (catId != null && subCategoryKey != null) {
+      data[subCategoryKey] = catId;
+    }
+
+    // Добавляем ссылки на старые картинки, чтобы бэкенд знал, какие не удалять.
+    // Dio FormData автоматически преобразует массивы, если добавить суффикс []
+    if (existingImages.isNotEmpty) {
+      data['existing_images[]'] = existingImages;
+    }
+
+    final formData = FormData.fromMap(data);
+
+    // Добавляем новые картинки в виде физических файлов (multipart)
+    for (final path in newImagePaths) {
+      formData.files.add(
+        MapEntry(
+          'new_images[]', // бэкенд получит новые файлы в массиве new_images
+          await MultipartFile.fromFile(path, filename: p.basename(path))
+        )
+      );
+    }
+
+    // Для обновления обычно используется метод PATCH
+    final response = await client.patch(
+      '/api/v1/posts/$postId',
+      data: formData,
+      options: Options(headers: {'Accept': 'application/json'}),
+    );
+
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception('Failed to update post');
+    }
   }
-}
+
+  @override
+  Future<void> deletePost(int postId, String category) async {
+    final response = await client.delete(
+      '/api/v1/posts/$postId', 
+      queryParameters: {
+        'category': category, 
+      },
+      options: Options(
+        headers: {'Accept': 'application/json'},
+      ),
+    );
+
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception('Failed to delete post');
+    }
+  }
 }

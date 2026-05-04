@@ -10,6 +10,8 @@ import '../../../../injection_container.dart';
 import '../widgets/post_button_panel.dart';
 import 'package:findway_mobile/features/comments/presentation/widgets/comments_section.dart';
 
+import 'post_edit_page.dart'; 
+
 class PostCardPage extends StatelessWidget {
   const PostCardPage({super.key});
 
@@ -20,19 +22,17 @@ class PostCardPage extends StatelessWidget {
       resizeToAvoidBottomInset: true,
       body: BlocListener<SearchBloc, SearchState>(
         listener: (context, state) {
-        // В BlocListener (PostCardPage)
-if (state is PostDeleteSuccess) {
-  // Мы явно берем переводы из пришедшего стейта
-  final msg = state.uiTranslations['post_destroy_success'] ?? "Deleted successfully!";
-  
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(msg), // ✅ НИКОГДА не используем const здесь
-      backgroundColor: Colors.orange,
-    ),
-  );
-  Navigator.pop(context, true);
-}
+          if (state is PostDeleteSuccess) {
+            final msg = state.uiTranslations['post_destroy_success'] ?? "Deleted successfully!";
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(msg),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            Navigator.pop(context, true);
+          }
 
           if (state is SearchError) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -95,12 +95,53 @@ if (state is PostDeleteSuccess) {
                                   tr: tr,
                                   onCommentTap: () =>
                                       CommentsSection.showAddCommentSheet(pageContext, tr),
-                                  onEditTap: () => debugPrint("Edit Post Click"),
+                                  
+                                  // =========================================================
+                                  // 👉 ИНТЕГРАЦИЯ ПЕРЕХОДА НА РЕДАКТИРОВАНИЕ (ИСПРАВЛЕННАЯ)
+                                  // =========================================================
+onEditTap: () async {
+  // 1. Захватываем Блок и текущие данные
+  final bloc = context.read<SearchBloc>();
+
+  final result = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => BlocProvider.value(
+        value: bloc,
+        child: PostEditPage(
+          postId: post.id,
+          initialCategory: post.category ?? 'people',
+          initialTitle: post.title,
+          initialText: post.text,
+          initialLocalId: null, 
+          initialChoiceId: null,
+          initialActionId: null,
+          existingImages: post.images != null 
+              ? List<String>.from(post.images) 
+              : [],
+        ),
+      ),
+    ),
+  );
+
+  // 2. ЛОГИКА ОБНОВЛЕНИЯ (вместо закрытия страницы)
+  if (result == true && context.mounted) {
+    // 🎯 Отправляем ивент на загрузку свежих данных ЭТОГО поста
+    // Это переведет BLoC в состояние PostDetailsLoaded и обновит UI карточки
+    bloc.add(LoadPostDetails(
+      id: post.id,
+      category: post.category ?? 'people',
+      locale: bloc.currentLocale,
+    ));
+  }
+},
+                                  // =========================================================
+
                                   onDeleteTap: () => _showDeleteConfirmation(
                                     context,
                                     post.id,
                                     post.category ?? 'people',
-                                    tr, // Передаем словарь в диалог
+                                    tr,
                                   ),
                                 ),
                                 const SizedBox(height: 32),
@@ -182,16 +223,14 @@ if (state is PostDeleteSuccess) {
     );
   }
 
-  // ✅ ИСПРАВЛЕННЫЙ МЕТОД УДАЛЕНИЯ С ПОДХВАТОМ ПЕРЕВОДОВ
   void _showDeleteConfirmation(
     BuildContext context,
     int postId,
     String category,
-    Map<String, dynamic> trData, // Получаем словарь переводов из билдера
+    Map<String, dynamic> trData, 
   ) {
     final searchBloc = context.read<SearchBloc>();
 
-    // Вспомогательная функция для ключей delete.title и т.д.
     String t(String key, String fallback) {
       final fullKey = 'delete.$key';
       return (trData[fullKey] ?? trData[key] ?? fallback).toString();
@@ -234,7 +273,6 @@ if (state is PostDeleteSuccess) {
   }
 }
 
-// Вспомогательный виджет галереи
 class _PostDetailsGallery extends StatefulWidget {
   final List<String> images;
   const _PostDetailsGallery({required this.images});

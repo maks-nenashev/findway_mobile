@@ -236,3 +236,21 @@ class PostDeleteSuccess extends SearchState {
   @override
   List<Object?> get props => [...super.props, uiTranslations];
 }
+
+//  ================= UPDATE =================
+
+class PostUpdateSuccess extends SearchState {
+  const PostUpdateSuccess();
+  
+  @override
+  List<Object> get props => [];
+}
+
+class PostUpdateError extends SearchState {
+  final String error;
+
+  const PostUpdateError(this.error);
+
+  @override
+  List<Object> get props => [error];
+}

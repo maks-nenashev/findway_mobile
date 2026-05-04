@@ -24,8 +24,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
     // ================= LOAD FILTERS =================
     on<LoadFilters>((event, emit) async {
-      final targetLocale =
-          event.locale.isNotEmpty ? event.locale : _currentLocale;
+      final targetLocale = event.locale.isNotEmpty ? event.locale : _currentLocale;
 
       _activeCategory = event.category;
       _selectedValues = {};
@@ -38,11 +37,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           locale: targetLocale,
         );
 
-        final incoming =
-            (data['translations'] ?? {}) as Map<String, dynamic>;
+        final incoming = (data['translations'] ?? {}) as Map<String, dynamic>;
 
-        _currentLocale =
-            incoming['locale_code']?.toString() ?? targetLocale;
+        _currentLocale = incoming['locale_code']?.toString() ?? targetLocale;
 
         // merge переводов
         _translationsCache = {
@@ -89,11 +86,31 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       _selectedValues[event.filterId] = event.value;
 
       if (state is FiltersLoaded) {
-        emit((state as FiltersLoaded)
-            .copyWith(selectedValues: _selectedValues));
+        emit((state as FiltersLoaded).copyWith(selectedValues: _selectedValues));
       } else if (state is SearchSuccess) {
-        emit((state as SearchSuccess)
-            .copyWith(selectedValues: _selectedValues));
+        emit((state as SearchSuccess).copyWith(selectedValues: _selectedValues));
+      }
+    });
+
+    // ================= UPDATE POST (👉 НОВОЕ) =================
+    on<UpdatePost>((event, emit) async {
+      try {
+        await repository.updatePost(
+          postId: event.postId,
+          category: event.category,
+          title: event.title,
+          text: event.text,
+          localId: event.localId,
+          choiceId: event.choiceId,
+          catId: event.catId,
+          locale: event.locale,
+          existingImages: event.existingImages,
+          newImagePaths: event.newImagePaths,
+        );
+
+        emit(const PostUpdateSuccess());
+      } catch (e) {
+        emit(PostUpdateError(e.toString()));
       }
     });
 
@@ -111,15 +128,12 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           uiTranslations: _translationsCache,
           filters: filt,
           selectedValues: _selectedValues,
-          results: (s is FiltersLoaded)
-              ? s.results
-              : (s as SearchSuccess).results,
+          results: (s is FiltersLoaded) ? s.results : (s as SearchSuccess).results,
         ));
 
         try {
           final results = await repository.search(
-            category:
-                _activeCategory.isNotEmpty ? _activeCategory : 'people',
+            category: _activeCategory.isNotEmpty ? _activeCategory : 'people',
             filters: _selectedValues,
             locale: _currentLocale,
           );
@@ -174,10 +188,8 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           locale: event.locale,
         );
 
-        final incoming =
-            (data['translations'] ?? {}) as Map<String, dynamic>;
+        final incoming = (data['translations'] ?? {}) as Map<String, dynamic>;
 
-        // merge переводов
         _translationsCache = {
           ..._translationsCache,
           ...incoming,
@@ -264,5 +276,6 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
         ));
       }
     });
-  }
-}
+
+  } // <-- КОНЕЦ КОНСТРУКТОРА SearchBloc
+} // <-- КОНЕЦ КЛАССА SearchBloc

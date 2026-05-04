@@ -57,23 +57,52 @@ class SearchRepositoryImpl implements SearchRepository {
     };
   }
   
-@override
-Future<Map<String, dynamic>> createPost({
-  required String category, required String title, required String text,
-  required int localId, required int choiceId, int? catId,
-  required String locale, required List<String> imagePaths,
-}) {
-  return remoteDataSource.createPost(
-    category: category, title: title, text: text,
-    localId: localId, choiceId: choiceId, catId: catId,
-    locale: locale, imagePaths: imagePaths,
-  );
-}
+  @override
+  Future<Map<String, dynamic>> createPost({
+    required String category, required String title, required String text,
+    required int localId, required int choiceId, int? catId,
+    required String locale, required List<String> imagePaths,
+  }) {
+    return remoteDataSource.createPost(
+      category: category, title: title, text: text,
+      localId: localId, choiceId: choiceId, catId: catId,
+      locale: locale, imagePaths: imagePaths,
+    );
+  }
 
+  // =================================================================
+  // 👉 ИНТЕГРИРОВАННЫЙ МЕТОД UPDATE POST
+  // =================================================================
+  @override
+  Future<void> updatePost({
+    required int postId,
+    required String category,
+    required String title,
+    required String text,
+    required int localId,
+    required int choiceId,
+    int? catId,
+    required String locale,
+    required List<String> existingImages,
+    required List<String> newImagePaths,
+  }) async {
+    // Пробрасываем вызов на слой данных (DataSource)
+    return await remoteDataSource.updatePost(
+      postId: postId,
+      category: category,
+      title: title,
+      text: text,
+      localId: localId,
+      choiceId: choiceId,
+      catId: catId,
+      locale: locale,
+      existingImages: existingImages,
+      newImagePaths: newImagePaths,
+    );
+  }
 
-@override
-Future<void> deletePost(int postId, String category) async {
-  return await remoteDataSource.deletePost(postId, category);
-}
-
+  @override
+  Future<void> deletePost(int postId, String category) async {
+    return await remoteDataSource.deletePost(postId, category);
+  }
 }
