@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/search_bloc.dart';
 import '../bloc/search_event.dart';
-import '../pages/search_details_page.dart';
+import '../pages/post_card_page.dart';
 
 class ArticleCard extends StatefulWidget {
   final dynamic post;
@@ -26,13 +26,7 @@ class _ArticleCardState extends State<ArticleCard> {
     _parseImages();
   }
 
-  @override
-  void didUpdateWidget(ArticleCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.post != widget.post) _parseImages();
-  }
-
-  void _parseImages() {
+void _parseImages() {
     final List<String> temp = [];
     final dynamic imagesData = widget.post['images_urls'] ?? widget.post['images'] ?? widget.post['photos'];
 
@@ -42,9 +36,23 @@ class _ArticleCardState extends State<ArticleCard> {
       temp.add(widget.post['image_url'].toString());
     }
 
-    // Заглушка: гарантирует, что массив никогда не будет пустым.
+    // ✅ ОБНОВЛЕННАЯ ЛОГИКА ЗАГЛУШЕК ДЛЯ КАРТОЧКИ
     if (temp.isEmpty) {
-      temp.add('assets/images/peop.png');
+      // Пытаемся достать категорию из данных поста
+      final String cat = (widget.post['category'] ?? '').toString().toLowerCase();
+      
+      switch (cat) {
+        case 'animals':
+          temp.add('assets/images/cat.png');
+          break;
+        case 'things':
+          temp.add('assets/images/things.png');
+          break;
+        case 'people':
+        default:
+          temp.add('assets/images/peop.png');
+          break;
+      }
     }
 
     setState(() => _images = temp);
@@ -157,19 +165,35 @@ class _ArticleCardState extends State<ArticleCard> {
     );
   }
 
-  void _navigateToDetails() async {
-    final bloc = context.read<SearchBloc>();
-    bloc.add(LoadPostDetails(
-      id: widget.post['id'],
-      category: widget.post['category'] ?? 'people',
-      locale: widget.currentLocale,
-    ));
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => BlocProvider.value(value: bloc, child: const SearchDetailsPage())),
-    );
-    if (context.mounted) bloc.add(RestoreSearch());
-  }
+void _navigateToDetails() async {
+  final bloc = context.read<SearchBloc>();
+  
+  // 1. Загружаем детали поста
+  bloc.add(LoadPostDetails(
+    id: widget.post['id'],
+    category: widget.post['category'] ?? 'people',
+    locale: widget.currentLocale,
+  ));
+
+  // 2. Переходим на страницу и ЖДЕМ результат (result)
+  final result = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => BlocProvider.value(
+        value: bloc, 
+        child: const PostCardPage(), // Если конструктор позволяет const — оставляй, если нет — удали const
+      ),
+    ),
+  );
+
+  // 3. ПРОВЕРКА: Если вернулся true (пост удален или создан), обновляем список
+ if (result == true && context.mounted) {
+  bloc.add(LoadFilters(
+    category: widget.post['category'] ?? 'people', 
+    locale: widget.currentLocale,
+  )); 
+}
+}
 
   Widget _buildStatusBadge(String label) {
     return Container(

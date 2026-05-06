@@ -86,3 +86,55 @@ class CreatePost extends SearchEvent {
   @override
   List<Object?> get props => [category, title, text, localId, choiceId, catId, locale, imagePaths];
 }
+
+// search_event.dart
+class DeletePost extends SearchEvent {
+  final int postId;
+  final String category;
+
+  const DeletePost({required this.postId, required this.category});
+
+  @override
+  List<Object?> get props => [postId, category];
+}
+
+// Новый ивент для обновления поста
+class UpdatePost extends SearchEvent {
+  final int postId;
+  final String category;
+  final String title;
+  final String text;
+  final int localId;
+  final int choiceId;
+  final int? catId;
+  final String locale;
+  final List<String> existingImages;
+  final List<String> newImagePaths;
+
+  const UpdatePost({
+    required this.postId,
+    required this.category,
+    required this.title,
+    required this.text,
+    required this.localId,
+    required this.choiceId,
+    this.catId,
+    required this.locale,
+    required this.existingImages,
+    required this.newImagePaths,
+  });
+
+  @override
+  List<Object?> get props => [
+        postId,
+        category,
+        title,
+        text,
+        localId,
+        choiceId,
+        catId,
+        locale,
+        existingImages,
+        newImagePaths,
+      ];
+}
