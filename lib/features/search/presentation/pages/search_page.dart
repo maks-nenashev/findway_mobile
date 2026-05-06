@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart'; // ✅ ДОБАВЛЕНО ДЛЯ ОТСЛЕЖИВАНИЯ НАПРАВЛЕНИЯ СКРОЛЛА
+import 'package:flutter/rendering.dart'; 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../injection_container.dart';
 import '../bloc/search_bloc.dart';
@@ -12,6 +12,12 @@ import '../widgets/locale_selector.dart';
 
 import 'post_create_page.dart'; 
 import 'post_card_page.dart'; 
+import 'package:findway_mobile/features/chat/presentation/pages/inbox_page.dart';
+import 'package:findway_mobile/features/chat/presentation/bloc/chat_bloc.dart';
+import 'package:findway_mobile/features/chat/presentation/bloc/chat_event.dart';
+import 'package:findway_mobile/features/profile/presentation/pages/profile_page.dart';
+import 'package:findway_mobile/features/profile/presentation/bloc/profile_bloc.dart';
+import 'package:findway_mobile/features/profile/presentation/bloc/profile_event.dart';
 
 // === 1. МОДЕЛЬ ДАННЫХ КАТЕГОРИЙ ===
 class FindWayCategory {
@@ -39,18 +45,14 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   String _localActiveCategory = '';
-
-  // =========================================================
-  // 👉 ЛОГИКА HIDE-ON-SCROLL (Анимация скрытия меню)
-  // =========================================================
   late ScrollController _mainScrollController;
   late ScrollController _titleScrollController;
   bool _isMenuVisible = true;
+  int _currentIndex = 1; // Дефолтный индекс для поиска
 
   @override
   void initState() {
     super.initState();
-    // Используем два контроллера, чтобы AnimatedSwitcher не падал при смене экранов
     _mainScrollController = ScrollController()..addListener(() => _handleScroll(_mainScrollController));
     _titleScrollController = ScrollController()..addListener(() => _handleScroll(_titleScrollController));
   }
@@ -108,20 +110,15 @@ class _SearchPageState extends State<SearchPage> {
           return Scaffold( 
             extendBody: true,
             backgroundColor: const Color(0xFFF0F4F8),
-            // ✅ Статичный appBar удален, теперь он внутри slivers!
             
-            // =========================================================
-            // 👉 КНОПКА ПЛЮС (Скрывается при скролле)
-            // =========================================================
             floatingActionButton: AnimatedSlide(
               duration: const Duration(milliseconds: 300),
-              offset: _isMenuVisible ? Offset.zero : const Offset(0, 2.5), // Уезжает вниз
+              offset: _isMenuVisible ? Offset.zero : const Offset(0, 2.5),
               child: Transform.translate(
                 offset: const Offset(0, 32),
                 child: GestureDetector(
                   onTap: () async { 
                     final String targetCategory = _localActiveCategory.isEmpty ? 'people' : _localActiveCategory;
-
                     final result = await Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -154,20 +151,29 @@ class _SearchPageState extends State<SearchPage> {
             ),
             floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
-            // =========================================================
-            // 👉 НИЖНЕЕ МЕНЮ (Скрывается при скролле)
-            // =========================================================
             bottomNavigationBar: AnimatedSlide(
               duration: const Duration(milliseconds: 300),
-              offset: _isMenuVisible ? Offset.zero : const Offset(0, 2.0), // Уезжает вниз
+              offset: _isMenuVisible ? Offset.zero : const Offset(0, 2.0),
               child: CustomBottomNavBar( 
                 currentIndex: currentTabIndex,
                 currentLocale: currentLocale,
                 translations: translations,
-                onTap: (index) { 
-                  if (index == 1) {
-                    setState(() => _localActiveCategory = '');
-                    context.read<SearchBloc>().add(const LoadFilters(category: '', locale: ''));
+                onTap: (index) {
+                  if (index == 0) {
+                    context.read<SearchBloc>().add(ChangeTab(0));
+                  } else if (index == 3) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => BlocProvider(
+                          create: (context) => sl<ChatBloc>()..add(FetchInbox(locale: currentLocale)),
+                          child: InboxPage(currentLocale: currentLocale),
+                        ),
+                      ),
+                    );
+                  } else if (index == 4) {
+                    // Используем чистый маршрут из main.dart
+                    Navigator.pushNamed(context, '/profile');
                   } else {
                     context.read<SearchBloc>().add(ChangeTab(index));
                   }
@@ -175,9 +181,6 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
 
-            // =========================================================
-            // 👉 BODY
-            // =========================================================
             body: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               child: isTitlePage 
@@ -186,9 +189,9 @@ class _SearchPageState extends State<SearchPage> {
                     key: const ValueKey('ModelLayout'),
                     children: [
                       CustomScrollView(
-                        controller: _mainScrollController, // ✅ ПОДКЛЮЧЕН КОНТРОЛЛЕР
+                        controller: _mainScrollController,
                         slivers: [
-                          _buildSliverAppBar(), // ✅ ДИНАМИЧЕСКИЙ ЛОГОТИП
+                          _buildSliverAppBar(),
                           SliverToBoxAdapter(
                             child: _buildFilterPanel(
                               context, state, translations, currentLocale,
@@ -221,31 +224,28 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  // --- ДИНАМИЧЕСКИЙ APP BAR ---
   Widget _buildSliverAppBar() {
     return SliverAppBar(
       backgroundColor: const Color(0xFFF0F4F8),
       elevation: 0,
-      floating: true, // Скрывается при скролле вниз, появляется при малейшем скролле вверх
+      floating: true,
       title: Padding(
         padding: const EdgeInsets.only(left: 5.0), 
         child: Image.asset(
           'assets/images/logo1.png',
           height: 65, 
           fit: BoxFit.contain,
-          semanticLabel: 'FindWay Logo', 
         ),
       ),
     );
   }
 
-  // --- ЛЕЙАУТ: ТИТУЛЬНЫЙ ЛИСТ ---
   Widget _buildTitleLayout(BuildContext context, Map<String, dynamic> trans) {
     final categories = _getLocalizedCategories(trans);
     return CustomScrollView(
-      controller: _titleScrollController, // ✅ ПОДКЛЮЧЕН ВТОРОЙ КОНТРОЛЛЕР
+      controller: _titleScrollController,
       slivers: [
-        _buildSliverAppBar(), // ✅ ДИНАМИЧЕСКИЙ ЛОГОТИП И ЗДЕСЬ
+        _buildSliverAppBar(),
         const SliverToBoxAdapter(child: SizedBox(height: 20)),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -304,44 +304,26 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
-  // --- Button Customization ---
   Widget _buildMultiColorPostButton() {
     return Transform.translate(
-      offset: const Offset(0, -04),
+      offset: const Offset(0, -4),
       child: Container(
         width: 72,
         height: 72,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-        ),
+        decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
         padding: const EdgeInsets.all(3),
         child: Container(
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
             gradient: SweepGradient(
-              colors: [
-                Color(0xFF23E5DB),
-                Color(0xFF002F34),
-                Color(0xFF6A11CB),
-                Color(0xFFFF5F6D),
-                Color(0xFFFFCE32),
-                Color(0xFF23E5DB),
-              ],
+              colors: [Color(0xFF23E5DB), Color(0xFF002F34), Color(0xFF6A11CB), Color(0xFFFF5F6D), Color(0xFFFFCE32), Color(0xFF23E5DB)],
               stops: [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
             ),
           ),
           child: Container(
             margin: const EdgeInsets.all(4),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.add,
-              size: 38,
-              color: Color(0xFF002F34),
-            ),
+            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+            child: const Icon(Icons.add, size: 38, color: Color(0xFF002F34)),
           ),
         ),
       ),
@@ -374,8 +356,7 @@ class _SearchPageState extends State<SearchPage> {
                   inputDecorationTheme: InputDecorationTheme(
                     filled: true, fillColor: Colors.white,
                     contentPadding: const EdgeInsets.only(left: 16, right: 16, top: 24, bottom: 10),
-                    floatingLabelStyle: const TextStyle(color: neonBlue, fontWeight: FontWeight.bold, fontSize: 16, height: 0.2),
-                    labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
+                    floatingLabelStyle: const TextStyle(color: neonBlue, fontWeight: FontWeight.bold, fontSize: 16),
                     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: darkSlate)),
                     focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: neonBlue, width: 2)),
                   ),
@@ -492,7 +473,6 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  // --- Экстракторы состояния ---
   Map<String, dynamic> _extractTranslations(SearchState state) {
     if (state is FiltersLoaded) return state.uiTranslations;
     if (state is SearchSuccess) return state.uiTranslations;
@@ -544,7 +524,6 @@ class CategoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String path = category.imagePath;
-
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       height: 250,
@@ -555,10 +534,7 @@ class CategoryCard extends StatelessWidget {
               ? NetworkImage(path) as ImageProvider
               : AssetImage(path) as ImageProvider,
           fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(
-            Colors.black.withOpacity(0.55),
-            BlendMode.darken,
-          ),
+          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.55), BlendMode.darken),
         ),
       ),
       child: ClipRRect(
@@ -574,29 +550,14 @@ class CategoryCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   Row(children: [
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: BoxDecoration(color: category.accentColor, shape: BoxShape.circle),
-                    ),
+                    Container(width: 7, height: 7, decoration: BoxDecoration(color: category.accentColor, shape: BoxShape.circle)),
                     const SizedBox(width: 8),
-                    Text(
-                      category.modelsInfo.toUpperCase(),
-                      style: const TextStyle(color: Colors.white70, fontSize: 9, fontFamily: 'Orbitron'),
-                    ),
+                    Text(category.modelsInfo.toUpperCase(), style: const TextStyle(color: Colors.white70, fontSize: 9, fontFamily: 'Orbitron')),
                   ]),
                   const SizedBox(height: 8),
-                  Text(
-                    category.title.toUpperCase(),
-                    style: TextStyle(color: category.accentColor, fontSize: 28, fontWeight: FontWeight.w900, fontFamily: 'Orbitron'),
-                  ),
+                  Text(category.title.toUpperCase(), style: TextStyle(color: category.accentColor, fontSize: 28, fontWeight: FontWeight.w900, fontFamily: 'Orbitron')),
                   const SizedBox(height: 8),
-                  Text(
-                    category.description,
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text(category.description, style: const TextStyle(color: Colors.white, fontSize: 13), maxLines: 3, overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),
@@ -632,7 +593,7 @@ class CustomBottomNavBar extends StatelessWidget {
           LocaleSelector(currentLocale: currentLocale, isInNavBar: true),
           _navItem(1, Icons.search, translations['nav_search'] ?? 'Search'),
           const SizedBox(width: 40), 
-          _navItem(3, Icons.notifications_none, translations['nav_notif'] ?? 'Notif'),
+          _navItem(3, Icons.mail_outline, translations['nav_messages'] ?? 'Chat'),
           _navItem(4, Icons.person_outline, translations['nav_profile'] ?? 'Profile'),
         ],
       ),
