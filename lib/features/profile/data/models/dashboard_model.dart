@@ -1,6 +1,4 @@
-// lib/features/profile/data/models/dashboard_model.dart
-
-// 1. ГЛАВНЫЙ КЛАСС (тот самый, который "не найден")
+// 1. ГЛАВНЫЙ КЛАСС
 class DashboardModel {
   final UserInfo user;
   final UserStats stats;
@@ -30,14 +28,23 @@ class DashboardModel {
   );
 }
 
-// 2. ИНФОРМАЦИЯ О ПОЛЬЗОВАТЕЛЕ
+// 2. ИНФОРМАЦИЯ О ПОЛЬЗОВАТЕЛЕ (ОБНОВЛЕНО)
 class UserInfo {
   final int id;
   final String username;
   final String email;
-  final String? avatar;
+  final String? avatarUrl; // Изменено под Dart-style
+  final String? role;      // Добавлено
+  final String? createdAt; // Добавлено
 
-  UserInfo({required this.id, required this.username, required this.email, this.avatar});
+  UserInfo({
+    required this.id, 
+    required this.username, 
+    required this.email, 
+    this.avatarUrl,
+    this.role,
+    this.createdAt,
+  });
 
   factory UserInfo.empty() => UserInfo(id: 0, username: 'Guest', email: '');
 
@@ -47,12 +54,14 @@ class UserInfo {
       id: json['id'] ?? 0,
       username: json['username'] ?? 'Unknown',
       email: json['email'] ?? '',
-      avatar: json['avatar'],
+      avatarUrl: json['avatar_url'], // 👈 Читаем правильный ключ от Rails
+      role: json['role'],            // 👈 Читаем роль (basic, admin и т.д.)
+      createdAt: json['created_at'], // 👈 Читаем дату регистрации
     );
   }
 }
 
-// 3. СТАТИСТИКА (исправлено именование)
+// 3. СТАТИСТИКА
 class UserStats {
   final int totalAds;
   final int unreadMessages;
@@ -64,13 +73,13 @@ class UserStats {
   factory UserStats.fromJson(Map<String, dynamic>? json) {
     if (json == null) return UserStats.empty();
     return UserStats(
-      totalAds: json['total_ads'] ?? 0,          // из snake_case (Rails)
-      unreadMessages: json['unread_messages'] ?? 0, // в camelCase (Dart)
+      totalAds: json['total_ads'] ?? 0,          
+      unreadMessages: json['unread_messages'] ?? 0, 
     );
   }
 }
 
-// 4. СЕКЦИИ ОБЪЯВЛЕНИЙ (People, Animals, Things)
+// 4. СЕКЦИИ ОБЪЯВЛЕНИЙ
 class AdsSection {
   final String category;
   final String title;
@@ -103,7 +112,7 @@ class AdItem {
     return AdItem(
       id: json['id'] ?? 0,
       title: json['title'] ?? '',
-      imageUrl: json['image_url'],
+      imageUrl: json['image_url'], // Тоже ждем image_url в будущем
     );
   }
 }

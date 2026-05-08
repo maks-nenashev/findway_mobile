@@ -37,7 +37,9 @@ class FindWayApp extends StatelessWidget {
           colorSchemeSeed: const Color(0xFF00F2FF),
           fontFamily: 'Orbitron',
         ),
-        initialRoute: '/login', 
+        //initialRoute: '/login', 
+        // Временно подменяем стартовое состояние
+       initialRoute: '/profile', // Вместо '/login' for Starting with Profile Page
         onGenerateRoute: (settings) {
           switch (settings.name) {
             case '/login':
