@@ -9,6 +9,9 @@ dependencies:
   flutter:
     sdk: flutter
   
+  file_selector: ^1.0.3
+  desktop_drop: ^0.4.4
+  image_picker: ^1.1.2
   # Icons (Исправлен отступ)
   bootstrap_icons: ^1.10.0
   
@@ -29,16 +32,32 @@ dependencies:
   flutter_bloc: ^8.1.0
   get_it: ^7.6.0
   
+  dio_cookie_manager: ^3.0.0
+  cookie_jar: ^4.0.8
   # Network & Data
   dio: ^5.4.0
+  path_provider: ^2.1.1  # Оставь только это вхождение
   drift: ^2.14.0
   sqlite3_flutter_libs: ^0.5.18
-  path_provider: ^2.1.1
   dartz: ^0.10.1
   equatable: ^2.0.8
+  shared_preferences: ^2.5.5
+  intl: ^0.20.2
+  cached_network_image: ^3.4.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   drift_dev: ^2.14.0
   build_runner: ^2.4.8 # Обновил до стабильного
+
+flutter:
+  # Этот флаг разрешает использование встроенных иконок Material
+  uses-material-design: true
+
+  # Регистрация ресурсов. Ключ 'assets' пишется ТОЛЬКО ОДИН РАЗ.
+  assets:
+    - assets/images/  # Этого достаточно, чтобы увидеть ВСЕ файлы в этой папке
+    - assets/images/peop.png
+    - assets/images/cat.png
+    - assets/images/things.png
