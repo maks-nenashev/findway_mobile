@@ -213,24 +213,25 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
- // 1. Обновленная секция (увеличена общая высота)
+  // --- ИСПРАВЛЕННЫЕ СЕКЦИИ ОБЪЯВЛЕНИЙ (Full Photo) ---
+
   Widget _buildSection(BuildContext context, dynamic section) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+          padding: const EdgeInsets.fromLTRB(20, 32, 20, 16),
           child: Row(
             children: [
-              Container(width: 4, height: 16, decoration: BoxDecoration(color: const Color(0xFF00F2FF), borderRadius: BorderRadius.circular(2))),
-              const SizedBox(width: 8),
+              Container(width: 4, height: 18, decoration: BoxDecoration(color: const Color(0xFF00F2FF), borderRadius: BorderRadius.circular(2))),
+              const SizedBox(width: 10),
               Text(section.title.toUpperCase(), 
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, fontFamily: 'Orbitron', color: Color(0xFF1E293B), letterSpacing: 1.0)),
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, fontFamily: 'Orbitron', color: Color(0xFF1E293B), letterSpacing: 1.2)),
             ],
           ),
         ),
         SizedBox(
-          height: 220, // 👉 Высота увеличена, чтобы дать "воздух" тексту
+          height: 170, // Высота для красивых пропорций карточки 16:9
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
@@ -246,20 +247,18 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  // 2. Полностью переработанная карточка объявления
   Widget _buildAdCard(BuildContext context, dynamic item, String category) {
     return Container(
-      width: 160, // 👉 Карточка стала шире
-      margin: const EdgeInsets.only(right: 16, bottom: 16), // Отступ для тени
+      width: 160, // Ширина карточки
+      margin: const EdgeInsets.only(right: 16, bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        // Белый фон убираем, так как картинка занимает всё место
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1), // Тонкая рамка для контраста
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1E293B).withOpacity(0.04), 
+            color: const Color(0xFF1E293B).withOpacity(0.1), // Тень чуть гуще
             blurRadius: 10, 
-            offset: const Offset(0, 4)
+            offset: const Offset(0, 5)
           )
         ],
       ),
@@ -268,69 +267,72 @@ class ProfilePage extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () {
+            // ТЕПЕРЬ НАВИГАЦИЯ НЕ БУДЕТ ВЫБРАСЫВАТЬ (после ЭТАПА 1)
             Navigator.pushNamed(context, '/post_details', arguments: {
               'id': item.id,
               'category': category,
             });
           },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // 👈 ВОТ КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Архитектура Stack
+          child: Stack(
             children: [
-              // --- 🖼 КАРТИНКА (Зафиксирована высота) ---
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                child: SizedBox(
-                  height: 110,
-                  width: double.infinity,
+              // 1. Слой картинки (занимает ВСЁ место)
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
                   child: (item.imageUrl != null && item.imageUrl.toString().isNotEmpty)
                     ? CachedNetworkImage(
                         imageUrl: item.imageUrl,
                         fit: BoxFit.cover,
-                        placeholder: (context, url) => _buildPlaceholder(),
+                        placeholder: (context, url) => Container(color: Colors.grey[200], child: const Center(child: CircularProgressIndicator(strokeWidth: 2))),
                         errorWidget: (context, url, error) => _buildPlaceholder(),
                       )
                     : _buildPlaceholder(),
                 ),
               ),
-              // --- 📝 ТЕКСТ (Занимает оставшееся место) ---
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Заголовок (Expanded выталкивает кнопку вниз)
-                      Expanded(
-                        child: Text(
-                          item.title, 
-                          maxLines: 2, 
-                          overflow: TextOverflow.ellipsis, 
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, height: 1.2, color: Color(0xFF1E293B))
-                        ),
-                      ),
-                      // Кнопка-индикатор в самом низу
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const SizedBox(), // Пустое место слева (позже сюда добавим дату)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              children: [
-                                const Text("ДЕТАЛІ", style: TextStyle(fontSize: 9, color: Color(0xFF64748B), fontWeight: FontWeight.bold, fontFamily: 'Orbitron')),
-                                const SizedBox(width: 4),
-                                Icon(Icons.arrow_forward_ios, size: 8, color: const Color(0xFF64748B)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      )
-                    ],
+              // 2. Слой градиента (для читаемости текста на любом фото)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withOpacity(0.05),
+                        Colors.black.withOpacity(0.8), // Темный низ
+                      ],
+                      stops: const [0.0, 0.5, 1.0],
+                    ),
                   ),
+                ),
+              ),
+              // 3. Слой текста (наложен поверх градиента)
+              Positioned(
+                bottom: 12,
+                left: 12,
+                right: 12,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title, 
+                      maxLines: 2, 
+                      overflow: TextOverflow.ellipsis, 
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, height: 1.2, color: Colors.white), // Текст белый
+                    ),
+                    const SizedBox(height: 4),
+                    // Визуальный индикатор (белый/циан)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        const Text("ДЕТАЛІ", style: TextStyle(fontSize: 9, color: Color(0xFF00F2FF), fontWeight: FontWeight.w600, fontFamily: 'Orbitron')),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.arrow_forward_ios, size: 8, color: Color(0xFF00F2FF)),
+                      ],
+                    )
+                  ],
                 ),
               ),
             ],
@@ -340,11 +342,12 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
+  // Эстетичная заглушка (тоже градиентная)
   Widget _buildPlaceholder() {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFF1F5F9), Color(0xFFE2E8F0)],
+          colors: [Color(0xFF334155), Color(0xFF1E293B)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -353,9 +356,9 @@ class ProfilePage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.photo_camera_back_outlined, color: Colors.blueGrey.withOpacity(0.3), size: 36),
+            Icon(Icons.photo_camera_back_outlined, color: Colors.white.withOpacity(0.2), size: 36),
             const SizedBox(height: 6),
-            Text("NO PHOTO", style: TextStyle(fontSize: 9, color: Colors.blueGrey.withOpacity(0.5), fontWeight: FontWeight.bold, fontFamily: 'Orbitron', letterSpacing: 1.0)),
+            Text("NO PHOTO", style: TextStyle(fontSize: 9, color: Colors.white.withOpacity(0.3), fontWeight: FontWeight.bold, fontFamily: 'Orbitron', letterSpacing: 1.0)),
           ],
         ),
       ),
