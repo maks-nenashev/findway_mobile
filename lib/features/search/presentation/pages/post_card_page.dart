@@ -120,6 +120,16 @@ class PostCardPage extends StatelessWidget {
                                   onCommentTap: () => CommentsSection.showAddCommentSheet(pageContext, tr),
                                   onEditTap: () => _onEditTapped(context, post, context.read<SearchBloc>()),
                                   onDeleteTap: () => _showDeleteConfirmation(context, post.id, post.category ?? 'people', tr),
+                                  onMessageTap: () {
+                                  final searchBloc = context.read<SearchBloc>(); // Получаем доступ к текущей локали
+  
+                                   Navigator.pushNamed(context, '/chat', arguments: {
+                                   'recipientId': post.author.id,
+                                   'username': post.author.username,
+                                   'avatarUrl': post.author.avatarUrl,
+                                   'currentLocale': searchBloc.currentLocale, // Передаем локаль для API
+                                  });
+                     },
                                 ),
                                 const SizedBox(height: 32),
                               ], // ВОТ ЭТИ СКОБКИ БЫЛИ ПОТЕРЯНЫ

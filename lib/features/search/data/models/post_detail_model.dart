@@ -59,20 +59,26 @@ class PostDetailModel extends Equatable {
 }
 
 class AuthorModel extends Equatable {
+  final int id; // 👈 ДОБАВИЛИ ID
   final String username;
   final String? avatarUrl;
 
-  const AuthorModel({required this.username, this.avatarUrl});
+  const AuthorModel({
+    required this.id, 
+    required this.username, 
+    this.avatarUrl
+  });
 
   factory AuthorModel.fromJson(Map<String, dynamic> json) {
     return AuthorModel(
+      id: json['id'] as int? ?? 0, // 👈 ПАРСИМ ID
       username: json['username'] ?? 'Unknown',
       avatarUrl: json['avatar_url'],
     );
   }
 
   @override
-  List<Object?> get props => [username, avatarUrl];
+  List<Object?> get props => [id, username, avatarUrl];
 }
 
 class CommentModel extends Equatable {

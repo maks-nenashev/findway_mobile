@@ -2,22 +2,26 @@ import 'package:flutter/material.dart';
 
 class PostButtonPanel extends StatelessWidget {
   final Map<String, dynamic> tr;
+  
+  // 👉 ДОБАВИЛИ НОВЫЙ КОЛЛБЭК ДЛЯ ЧАТА
+  final VoidCallback onMessageTap; 
+  
   final VoidCallback onCommentTap;
   final VoidCallback onEditTap;
   final VoidCallback onDeleteTap;
   
-  // 👉 НОВЫЕ ПАРАМЕТРЫ ПРАВ ДОСТУПА
   final bool showEdit;
   final bool showDelete;
 
   const PostButtonPanel({
     super.key,
     required this.tr,
+    required this.onMessageTap, // 👈 ТРЕБУЕМ ПРИ ИНИЦИАЛИЗАЦИИ
     required this.onCommentTap,
     required this.onEditTap,
     required this.onDeleteTap,
-    this.showEdit = false,   // По умолчанию скрыты для безопасности
-    this.showDelete = false, // По умолчанию скрыты для безопасности
+    this.showEdit = false,
+    this.showDelete = false,
   });
 
   @override
@@ -35,24 +39,22 @@ class PostButtonPanel extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           
-          // Email (пока заглушка)
-          _actionButton(Icons.alternate_email, Colors.cyan, () => debugPrint("Email Click")),
+          // =========================================================
+          // 👉 ЧАТ (Заменили хардкод на наш коллбэк)
+          // =========================================================
+          _actionButton(Icons.alternate_email, Colors.cyan, onMessageTap),
           const SizedBox(width: 12),
           
           // Комментарии
           _actionButton(Icons.chat_bubble_outline, Colors.orange, onCommentTap),
           
-          // =========================================================
-          // 👉 РЕДАКТИРОВАНИЕ (Отрисуется ТОЛЬКО если showEdit == true)
-          // =========================================================
+          // Редактирование
           if (showEdit) ...[
             const SizedBox(width: 12),
             _actionButton(Icons.edit_outlined, Colors.blueAccent, onEditTap),
           ],
           
-          // =========================================================
-          // 👉 УДАЛЕНИЕ (Отрисуется ТОЛЬКО если showDelete == true)
-          // =========================================================
+          // Удаление
           if (showDelete) ...[
             const SizedBox(width: 12),
             _actionButton(Icons.delete_outline, Colors.redAccent, onDeleteTap),
