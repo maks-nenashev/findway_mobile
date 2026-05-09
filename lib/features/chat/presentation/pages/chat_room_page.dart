@@ -94,9 +94,8 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     );
   }
 
-  @override
+ @override
   Widget build(BuildContext context) {
-    const Color neonCyan = Color(0xFF00F2FF);
     const Color darkSlate = Color(0xFF1E293B);
 
     return Scaffold(
@@ -105,14 +104,12 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         backgroundColor: Colors.white,
         elevation: 1,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: darkSlate),
+          icon: const Icon(Icons.arrow_back_ios, color: darkSlate, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        // 👉 ДОБАВЛЕНА КНОПКА В ACTIONS
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_sweep_outlined, color: Colors.redAccent),
-            tooltip: 'Clear History',
             onPressed: _showDeleteDialog,
           ),
           const SizedBox(width: 8),
@@ -122,8 +119,14 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
             CircleAvatar(
               radius: 18,
               backgroundColor: Colors.grey[200],
-              backgroundImage: widget.avatarUrl != null ? NetworkImage(widget.avatarUrl!) : null,
-              child: widget.avatarUrl == null ? const Icon(Icons.person, size: 20, color: Colors.grey) : null,
+              // 👉 Если аватар в постах работает, значит там передается полный URL.
+              // Здесь мы просто отображаем то, что пришло.
+              backgroundImage: (widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty) 
+                  ? NetworkImage(widget.avatarUrl!) 
+                  : null,
+              child: (widget.avatarUrl == null || widget.avatarUrl!.isEmpty) 
+                  ? const Icon(Icons.person, size: 20, color: Colors.grey) 
+                  : null,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -146,19 +149,11 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
           Expanded(
             child: BlocBuilder<ChatBloc, ChatState>(
               builder: (context, state) {
-                if (state is ChatLoading) {
-                  return const Center(child: CircularProgressIndicator(color: neonCyan));
-                }
-                if (state is ChatError) {
-                  return Center(child: Text('Error: ${state.message}'));
-                }
+                if (state is ChatLoading) return const Center(child: CircularProgressIndicator());
+                if (state is ChatError) return Center(child: Text(state.message));
                 if (state is ChatLoaded) {
                   final messages = state.messages.reversed.toList();
-                  if (messages.isEmpty) {
-                    return const Center(child: Text('No messages yet. Say hello!'));
-                  }
                   return ListView.builder(
-                    controller: _scrollController,
                     reverse: true,
                     padding: const EdgeInsets.all(16),
                     itemCount: messages.length,
@@ -173,7 +168,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
               },
             ),
           ),
-          _buildInputArea(neonCyan, darkSlate),
+          _buildInputArea(const Color(0xFF00F2FF), darkSlate),
         ],
       ),
     );
