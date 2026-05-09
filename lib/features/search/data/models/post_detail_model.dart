@@ -4,23 +4,27 @@ class PostDetailModel extends Equatable {
   final int id;
   final String title;
   final String text;
-  final String? category; // ✅ Поле для динамического роутинга
+  final String? category; // Поле для динамического роутинга
   final String createdAt;
   final String local;
   final List<String> images;
   final AuthorModel author;
   final List<CommentModel> comments;
+  
+  // 👉 НОВОЕ ПОЛЕ ДЛЯ ПРАВ ДОСТУПА (UI Policy)
+  final PermissionsModel permissions; 
 
   const PostDetailModel({
     required this.id,
     required this.title,
     required this.text,
-    this.category, // ✅ Добавлено в конструктор
+    this.category,
     required this.createdAt,
     required this.local,
     required this.images,
     required this.author,
     required this.comments,
+    required this.permissions, // Добавлено в конструктор
   });
 
   factory PostDetailModel.fromJson(Map<String, dynamic> json) {
@@ -28,7 +32,6 @@ class PostDetailModel extends Equatable {
       id: json['id'] as int,
       title: json['title'] ?? '',
       text: json['text'] ?? '',
-      // ✅ Маппинг категории (Rails может присылать разные ключи)
       category: json['category'] ?? json['type'] ?? json['commentable_type'],
       createdAt: json['created_at_formatted'] ?? json['created_at'] ?? '',
       local: json['local'] ?? '',
@@ -37,28 +40,45 @@ class PostDetailModel extends Equatable {
       comments: (json['comments'] as List? ?? [])
           .map((c) => CommentModel.fromJson(c))
           .toList(),
+      // 👉 БЕЗОПАСНЫЙ ПАРСИНГ ПРАВ (Если сервер ничего не прислал - права закрыты)
+      permissions: PermissionsModel.fromJson(json['permissions'] ?? {}),
     );
   }
 
   @override
-  List<Object?> get props => [id, title, text, category, images, author, comments];
+  List<Object?> get props => [
+        id,
+        title,
+        text,
+        category,
+        images,
+        author,
+        comments,
+        permissions, // Добавлено в props для сравнения состояний BLoC
+      ];
 }
 
 class AuthorModel extends Equatable {
+  final int id; // 👈 ДОБАВИЛИ ID
   final String username;
   final String? avatarUrl;
 
-  const AuthorModel({required this.username, this.avatarUrl});
+  const AuthorModel({
+    required this.id, 
+    required this.username, 
+    this.avatarUrl
+  });
 
   factory AuthorModel.fromJson(Map<String, dynamic> json) {
     return AuthorModel(
+      id: json['id'] as int? ?? 0, // 👈 ПАРСИМ ID
       username: json['username'] ?? 'Unknown',
-      avatarUrl: json['avatar_url'], // В Rails обычно avatar_url
+      avatarUrl: json['avatar_url'],
     );
   }
 
   @override
-  List<Object?> get props => [username, avatarUrl];
+  List<Object?> get props => [id, username, avatarUrl];
 }
 
 class CommentModel extends Equatable {
@@ -67,7 +87,7 @@ class CommentModel extends Equatable {
   final String? avatarUrl;
   final String body;
   final String createdAt;
-  final bool canDelete; // Для отображения иконки удаления
+  final bool canDelete; //
 
   const CommentModel({
     required this.id,
@@ -79,7 +99,6 @@ class CommentModel extends Equatable {
   });
 
   factory CommentModel.fromJson(Map<String, dynamic> json) {
-    // Безопасный доступ к вложенному объекту юзера
     final userData = json['user'] as Map<String, dynamic>?;
 
     return CommentModel(
@@ -88,11 +107,33 @@ class CommentModel extends Equatable {
       avatarUrl: userData?['avatar_url'],
       body: json['body'] ?? '',
       createdAt: json['created_at_formatted'] ?? json['created_at'] ?? '',
-      // Проверка прав из JSON (Rails Pundit/Permissions)
       canDelete: json['permissions']?['can_delete'] ?? false,
     );
   }
 
   @override
   List<Object?> get props => [id, username, body, createdAt, canDelete];
+}
+
+// =========================================================
+// 👉 НОВАЯ МОДЕЛЬ ДЛЯ ПРАВ ДОСТУПА ПОСТА
+// =========================================================
+class PermissionsModel extends Equatable {
+  final bool canEdit;
+  final bool canDelete;
+
+  const PermissionsModel({
+    required this.canEdit,
+    required this.canDelete,
+  });
+
+  factory PermissionsModel.fromJson(Map<String, dynamic> json) {
+    return PermissionsModel(
+      canEdit: json['can_edit'] ?? false,
+      canDelete: json['can_delete'] ?? false,
+    );
+  }
+
+  @override
+  List<Object?> get props => [canEdit, canDelete];
 }

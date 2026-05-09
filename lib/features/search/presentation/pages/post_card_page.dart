@@ -15,6 +15,28 @@ import 'post_edit_page.dart';
 class PostCardPage extends StatelessWidget {
   const PostCardPage({super.key});
 
+  void _onEditTapped(BuildContext context, dynamic post, SearchBloc searchBloc) async {
+    final result = await Navigator.pushNamed(context, '/post_edit', arguments: {
+      'bloc': searchBloc,
+      'postId': post.id,
+      'initialCategory': post.category ?? 'people',
+      'initialTitle': post.title ?? '',
+      'initialText': post.text ?? '',
+      'initialLocalId': null, 
+      'initialChoiceId': null,
+      'initialActionId': null,
+      'existingImages': List<String>.from(post.images ?? []),
+    });
+
+    if (context.mounted) {
+      searchBloc.add(LoadPostDetails(
+        id: post.id,
+        category: post.category ?? 'people',
+        locale: searchBloc.currentLocale,
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -93,64 +115,24 @@ class PostCardPage extends StatelessWidget {
                                 
                                 PostButtonPanel(
                                   tr: tr,
-                                  onCommentTap: () =>
-                                      CommentsSection.showAddCommentSheet(pageContext, tr),
-                                  
-                                  // =========================================================
-                                  // 👉 ИНТЕГРАЦИЯ ПЕРЕХОДА НА РЕДАКТИРОВАНИЕ (ИСПРАВЛЕННАЯ)
-                                  // =========================================================
-onEditTap: () async {
-  final searchBloc = context.read<SearchBloc>();
+                                  showEdit: post.permissions.canEdit,
+                                  showDelete: post.permissions.canDelete,
+                                  onCommentTap: () => CommentsSection.showAddCommentSheet(pageContext, tr),
+                                  onEditTap: () => _onEditTapped(context, post, context.read<SearchBloc>()),
+                                  onDeleteTap: () => _showDeleteConfirmation(context, post.id, post.category ?? 'people', tr),
+                                  onMessageTap: () {
+                                  final searchBloc = context.read<SearchBloc>(); // Получаем доступ к текущей локали
   
-  // Запоминаем текущие параметры ДО перехода, так как стейт изменится
-  final currentPostId = post.id;
-  final currentCategory = post.category ?? 'people';
-  final currentLocale = searchBloc.currentLocale;
-
-  final result = await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => BlocProvider.value(
-        value: searchBloc,
-        child: PostEditPage(
-          postId: currentPostId,
-          initialCategory: currentCategory,
-          initialTitle: post.title,
-          initialText: post.text,
-          initialLocalId: null, 
-          initialChoiceId: null,
-          initialActionId: null,
-          existingImages: post.images != null 
-              ? List<String>.from(post.images) 
-              : [],
-        ),
-      ),
-    ),
-  );
-
-  // ✅ ГАРАНТИРОВАННОЕ ВОССТАНОВЛЕНИЕ
-  // Неважно, result == true (сохранили) или result == false/null (нажали крестик).
-  // Экран редактирования сбил стейт на FiltersLoaded. 
-  // Нам нужно принудительно вернуть BLoC в состояние PostDetailsLoaded.
-  if (context.mounted) {
-    searchBloc.add(LoadPostDetails(
-      id: currentPostId,
-      category: currentCategory,
-      locale: currentLocale,
-    ));
-  }
-},
-                                  // =========================================================
-
-                                  onDeleteTap: () => _showDeleteConfirmation(
-                                    context,
-                                    post.id,
-                                    post.category ?? 'people',
-                                    tr,
-                                  ),
+                                   Navigator.pushNamed(context, '/chat', arguments: {
+                                   'recipientId': post.author.id,
+                                   'username': post.author.username,
+                                   'avatarUrl': post.author.avatarUrl,
+                                   'currentLocale': searchBloc.currentLocale, // Передаем локаль для API
+                                  });
+                     },
                                 ),
                                 const SizedBox(height: 32),
-                              ],
+                              ], // ВОТ ЭТИ СКОБКИ БЫЛИ ПОТЕРЯНЫ
                             ),
                           ),
                         ),
