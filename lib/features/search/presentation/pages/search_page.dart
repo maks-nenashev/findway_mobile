@@ -18,6 +18,7 @@ import 'package:findway_mobile/features/chat/presentation/bloc/chat_event.dart';
 import 'package:findway_mobile/features/profile/presentation/pages/profile_page.dart';
 import 'package:findway_mobile/features/profile/presentation/bloc/profile_bloc.dart';
 import 'package:findway_mobile/features/profile/presentation/bloc/profile_event.dart';
+import 'package:findway_mobile/features/chat/presentation/bloc/notification_bloc.dart';
 
 // === 1. МОДЕЛЬ ДАННЫХ КАТЕГОРИЙ ===
 class FindWayCategory {
@@ -154,29 +155,33 @@ class _SearchPageState extends State<SearchPage> {
             bottomNavigationBar: AnimatedSlide(
               duration: const Duration(milliseconds: 300),
               offset: _isMenuVisible ? Offset.zero : const Offset(0, 2.0),
-              child: CustomBottomNavBar( 
-                currentIndex: currentTabIndex,
-                currentLocale: currentLocale,
-                translations: translations,
-                onTap: (index) {
-                  if (index == 0) {
-                    context.read<SearchBloc>().add(ChangeTab(0));
-                  } else if (index == 3) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => BlocProvider(
-                          create: (context) => sl<ChatBloc>()..add(FetchInbox(locale: currentLocale)),
-                          child: InboxPage(currentLocale: currentLocale),
-                        ),
-                      ),
-                    );
-                  } else if (index == 4) {
-                    // Используем чистый маршрут из main.dart
-                    Navigator.pushNamed(context, '/profile');
-                  } else {
-                    context.read<SearchBloc>().add(ChangeTab(index));
-                  }
+              child: BlocBuilder<NotificationBloc, int>(
+                builder: (context, unreadCount) {
+                  return CustomBottomNavBar(
+                    currentIndex: currentTabIndex,
+                    currentLocale: currentLocale,
+                    translations: translations,
+                    unreadCount: unreadCount, // 👉 Передаем счетчик
+                    onTap: (index) {
+                      if (index == 0) {
+                        context.read<SearchBloc>().add(ChangeTab(0));
+                      } else if (index == 3) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => BlocProvider(
+                              create: (context) => sl<ChatBloc>()..add(FetchInbox(locale: currentLocale)),
+                              child: InboxPage(currentLocale: currentLocale),
+                            ),
+                          ),
+                        );
+                      } else if (index == 4) {
+                        Navigator.pushNamed(context, '/profile');
+                      } else {
+                        context.read<SearchBloc>().add(ChangeTab(index));
+                      }
+                    },
+                  );
                 },
               ),
             ),
@@ -574,8 +579,17 @@ class CustomBottomNavBar extends StatelessWidget {
   final String currentLocale; 
   final Function(int) onTap;
   final Map<String, dynamic> translations;
+  // 👉 ДОБАВЛЕНО: Глобальный счетчик непрочитанных
+  final int unreadCount; 
 
-  const CustomBottomNavBar({required this.currentIndex, required this.currentLocale, required this.onTap, required this.translations, super.key});
+  const CustomBottomNavBar({
+    required this.currentIndex, 
+    required this.currentLocale, 
+    required this.onTap, 
+    required this.translations,
+    this.unreadCount = 0, // 👉 По умолчанию 0
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -583,7 +597,8 @@ class CustomBottomNavBar extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(40, 0, 40, 20), 
       padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(30),
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(30),
         border: Border.all(color: const Color(0xFF1E293B), width: 2),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20)],
       ),
@@ -593,23 +608,45 @@ class CustomBottomNavBar extends StatelessWidget {
           LocaleSelector(currentLocale: currentLocale, isInNavBar: true),
           _navItem(1, Icons.search, translations['nav_search'] ?? 'Search'),
           const SizedBox(width: 40), 
-          _navItem(3, Icons.mail_outline, translations['nav_messages'] ?? 'Chat'),
+          // 👉 ПЕРЕДАЕМ unreadCount ТОЛЬКО ДЛЯ ЧАТА (INDEX 3)
+          _navItem(3, Icons.mail_outline, translations['nav_messages'] ?? 'Chat', badgeCount: unreadCount),
           _navItem(4, Icons.person_outline, translations['nav_profile'] ?? 'Profile'),
         ],
       ),
     );
   }
   
-  Widget _navItem(int index, IconData icon, String label) {
+  // 👉 ОБНОВЛЕННЫЙ МЕТОД: Добавлен необязательный параметр badgeCount
+  Widget _navItem(int index, IconData icon, String label, {int badgeCount = 0}) {
     final bool isActive = currentIndex == index;
+    final Color activeColor = const Color(0xFFD81B60);
+    final Color inactiveColor = const Color(0xFF1E293B);
+
     return GestureDetector(
       onTap: () => onTap(index),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B), size: 24),
+          // ПРОВЕРКА: Если есть непрочитанные, оборачиваем в Badge
+          Badge(
+            label: Text('$badgeCount', style: const TextStyle(color: Colors.white, fontSize: 10)),
+            isLabelVisible: badgeCount > 0, // Скрываем, если 0
+            backgroundColor: Colors.red,
+            child: Icon(
+              icon, 
+              color: isActive ? activeColor : inactiveColor, 
+              size: 24
+            ),
+          ),
           const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: isActive ? const Color(0xFFD81B60) : const Color(0xFF1E293B), fontSize: 10, fontFamily: 'Orbitron')),
+          Text(
+            label, 
+            style: TextStyle(
+              color: isActive ? activeColor : inactiveColor, 
+              fontSize: 10, 
+              fontFamily: 'Orbitron'
+            )
+          ),
         ],
       ),
     );

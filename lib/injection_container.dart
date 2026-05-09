@@ -22,6 +22,7 @@ import 'features/comments/presentation/bloc/comments_bloc.dart';
 // Chat
 import 'features/chat/data/repositories/chat_repository.dart';
 import 'features/chat/presentation/bloc/chat_bloc.dart';
+import 'features/chat/presentation/bloc/notification_bloc.dart'; // 👉 ДОБАВЛЕНО
 
 // Profile
 import 'features/profile/data/repositories/profile_repository.dart';
@@ -44,12 +45,9 @@ Future<void> init() async {
   // =========================================================
   // 🍪 2. СИСТЕМА СЕССИЙ И СЕТЬ (NETWORK)
   // =========================================================
-  
-  // Получаем путь для хранения куки (Persistence)
   final appDocDir = await getApplicationDocumentsDirectory();
   final String appDocPath = appDocDir.path;
 
-  // Регистрируем ПЕРСИСТЕНТНЫЙ CookieJar
   final persistCookieJar = PersistCookieJar(
     ignoreExpires: false,
     storage: FileStorage("$appDocPath/.cookies/"),
@@ -69,15 +67,13 @@ Future<void> init() async {
       ),
     );
 
-    // Добавляем менеджер куки, использующий наш PersistCookieJar
     dio.interceptors.add(CookieManager(sl<CookieJar>()));
     
-    // Логирование для отладки сессий в консоли
     dio.interceptors.add(LogInterceptor(
       requestHeader: true, 
       requestBody: true, 
       responseBody: true,
-      responseHeader: true, // Важно видеть Set-Cookie от Rails
+      responseHeader: true,
     ));
     
     return dio;
@@ -105,9 +101,14 @@ Future<void> init() async {
   sl.registerLazySingleton<CommentRemoteDataSource>(() => CommentRemoteDataSourceImpl(client: sl()));
   
   // =========================================================
-  // ✉️ 5. CHAT
+  // ✉️ 5. CHAT & NOTIFICATIONS
   // =========================================================
   sl.registerFactory(() => ChatBloc(repository: sl()));
+  
+  // 👉 РЕГИСТРАЦИЯ NOTIFICATION BLOC
+  // Используем LazySingleton, чтобы таймер опроса был один на всё приложение
+  sl.registerLazySingleton(() => NotificationBloc(repository: sl()));
+  
   sl.registerLazySingleton<ChatRepository>(() => ChatRepository(client: sl()));
   
   // =========================================================
@@ -124,13 +125,11 @@ Future<void> init() async {
 }
 
 // --- HELPER FUNCTIONS ---
-
 const bool useRealDevice = false;
 
 String getBaseUrl() {
   if (kIsWeb) return "http://localhost:3000";
   if (Platform.isAndroid) {
-    // 10.0.2.2 — стандартный алиас localhost для эмулятора Android
     return useRealDevice ? "http://192.168.1.106:3000" : "http://10.0.2.2:3000";
   }
   return "http://127.0.0.1:3000";

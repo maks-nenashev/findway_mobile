@@ -36,4 +36,25 @@ class ChatRepository {
       return response.data['conversations'] ?? [];
     } catch (e) { throw Exception('Failed to load inbox: $e'); }
   }
+
+  // 👉 НОВЫЙ МЕТОД ДЛЯ ПОЛУЧЕНИЯ ОБЩЕГО КОЛ-ВА НЕПРОЧИТАННЫХ СООБЩЕНИЙ
+// Добавь этот метод ВНУТРЬ класса ChatRepository
+  Future<int> getTotalUnreadCount() async {
+    try {
+      final response = await client.get('/api/v1/messages/unread_total');
+      
+      if (response.data != null && response.data is Map) {
+        // Защита: переводим в строку, потом парсим в число. 
+        // Это спасет, если Rails пришлет число как строку.
+        final rawValue = response.data['unread_total'];
+        final int count = int.tryParse(rawValue.toString()) ?? 0;
+        
+        return count;
+      }
+      return 0;
+    } catch (e) {
+      // Если сервер упал или 404, возвращаем 0, чтобы UI не дергался
+      return 0;
+    }
+  }
 }

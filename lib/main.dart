@@ -8,7 +8,7 @@ import 'package:findway_mobile/features/auth/presentation/pages/login_page.dart'
 import 'package:findway_mobile/features/profile/presentation/pages/profile_page.dart';
 import 'package:findway_mobile/features/search/presentation/pages/post_card_page.dart';
 import 'package:findway_mobile/features/search/presentation/pages/post_edit_page.dart';
-import 'package:findway_mobile/features/chat/presentation/pages/chat_room_page.dart'; // 👉 Добавлено
+import 'package:findway_mobile/features/chat/presentation/pages/chat_room_page.dart';
 
 // --- БЛОКИ И СОБЫТИЯ ---
 import 'package:findway_mobile/features/auth/presentation/bloc/auth_bloc.dart';
@@ -16,7 +16,8 @@ import 'package:findway_mobile/features/profile/presentation/bloc/profile_bloc.d
 import 'package:findway_mobile/features/profile/presentation/bloc/profile_event.dart';
 import 'package:findway_mobile/features/search/presentation/bloc/search_bloc.dart';
 import 'package:findway_mobile/features/search/presentation/bloc/search_event.dart';
-import 'package:findway_mobile/features/chat/presentation/bloc/chat_bloc.dart'; // 👉 Добавлено
+import 'package:findway_mobile/features/chat/presentation/bloc/chat_bloc.dart';
+import 'package:findway_mobile/features/chat/presentation/bloc/notification_bloc.dart'; // 👉 Добавлен импорт уведомлений
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,9 +35,13 @@ class FindWayApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        // Глобальные блоки (доступны везде)
+        // --- ГЛОБАЛЬНЫЕ БЛОКИ (Живут всё время работы приложения) ---
         BlocProvider<AuthBloc>(
           create: (context) => di.sl<AuthBloc>(),
+        ),
+        // 👉 ДОБАВЛЕНО: Глобальный счетчик уведомлений
+        BlocProvider<NotificationBloc>(
+          create: (context) => di.sl<NotificationBloc>(),
         ),
       ],
       child: MaterialApp(
@@ -45,10 +50,10 @@ class FindWayApp extends StatelessWidget {
         theme: ThemeData(
           useMaterial3: true,
           colorSchemeSeed: const Color(0xFF00F2FF),
-          fontFamily: 'Orbitron', // Твой фирменный стиль
+          fontFamily: 'Orbitron',
         ),
         
-        // Точка входа (Меняй на '/' или '/login' при релизе)
+          // Точка входа (Меняй на '/' или '/login' при релизе)
         initialRoute: '/profile', 
 
         onGenerateRoute: (settings) {
