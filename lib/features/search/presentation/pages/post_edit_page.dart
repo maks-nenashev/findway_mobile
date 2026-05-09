@@ -83,16 +83,29 @@ class _PostEditPageState extends State<PostEditPage> {
     final bloc = context.read<SearchBloc>();
     final currentState = bloc.state;
     
-    // ✅ ИСПРАВЛЕНИЕ: Берем готовые фильтры из стейта, не вызывая LoadFilters!
-    if (currentState is PostDetailsLoaded) {
+    bool hasFilters = false;
+
+    // 1. Проверяем, есть ли УЖЕ скачанные фильтры в текущем стейте (если пришли из Поиска)
+    if (currentState is PostDetailsLoaded && currentState.filters.isNotEmpty) {
       _translations = currentState.uiTranslations;
       _filters = currentState.filters;
-    } else if (currentState is FiltersLoaded) {
+      hasFilters = true;
+    } else if (currentState is FiltersLoaded && currentState.filters.isNotEmpty) {
       _translations = currentState.uiTranslations;
       _filters = currentState.filters;
-    } else if (currentState is SearchSuccess) {
+      hasFilters = true;
+    } else if (currentState is SearchSuccess && currentState.filters.isNotEmpty) {
       _translations = currentState.uiTranslations;
       _filters = currentState.filters;
+      hasFilters = true;
+    }
+
+    // 2. 👉 ИСПРАВЛЕНИЕ: Если фильтров НЕТ (мы пришли из Кабинета), запрашиваем их у сервера!
+    if (!hasFilters) {
+      bloc.add(LoadFilters(
+        category: _category,
+        locale: bloc.currentLocale, 
+      ));
     }
   } // ✅ ЗДЕСЬ ДОЛЖНА БЫТЬ ЭТА ЗАКРЫВАЮЩАЯ СКОБКА!
 

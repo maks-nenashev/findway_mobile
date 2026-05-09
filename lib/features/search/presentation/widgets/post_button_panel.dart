@@ -5,6 +5,10 @@ class PostButtonPanel extends StatelessWidget {
   final VoidCallback onCommentTap;
   final VoidCallback onEditTap;
   final VoidCallback onDeleteTap;
+  
+  // 👉 НОВЫЕ ПАРАМЕТРЫ ПРАВ ДОСТУПА
+  final bool showEdit;
+  final bool showDelete;
 
   const PostButtonPanel({
     super.key,
@@ -12,6 +16,8 @@ class PostButtonPanel extends StatelessWidget {
     required this.onCommentTap,
     required this.onEditTap,
     required this.onDeleteTap,
+    this.showEdit = false,   // По умолчанию скрыты для безопасности
+    this.showDelete = false, // По умолчанию скрыты для безопасности
   });
 
   @override
@@ -35,14 +41,22 @@ class PostButtonPanel extends StatelessWidget {
           
           // Комментарии
           _actionButton(Icons.chat_bubble_outline, Colors.orange, onCommentTap),
-          const SizedBox(width: 12),
           
-          // Редактирование
-          _actionButton(Icons.edit_outlined, Colors.blueAccent, onEditTap),
-          const SizedBox(width: 12),
+          // =========================================================
+          // 👉 РЕДАКТИРОВАНИЕ (Отрисуется ТОЛЬКО если showEdit == true)
+          // =========================================================
+          if (showEdit) ...[
+            const SizedBox(width: 12),
+            _actionButton(Icons.edit_outlined, Colors.blueAccent, onEditTap),
+          ],
           
-          // Удаление
-          _actionButton(Icons.delete_outline, Colors.redAccent, onDeleteTap),
+          // =========================================================
+          // 👉 УДАЛЕНИЕ (Отрисуется ТОЛЬКО если showDelete == true)
+          // =========================================================
+          if (showDelete) ...[
+            const SizedBox(width: 12),
+            _actionButton(Icons.delete_outline, Colors.redAccent, onDeleteTap),
+          ],
         ],
       ),
     );

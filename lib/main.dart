@@ -15,6 +15,7 @@ import 'package:findway_mobile/features/profile/presentation/bloc/profile_event.
 import 'package:findway_mobile/features/search/presentation/bloc/search_bloc.dart';
 import 'package:findway_mobile/features/search/presentation/bloc/search_event.dart';
 import 'package:findway_mobile/features/search/presentation/pages/post_card_page.dart';
+import 'package:findway_mobile/features/search/presentation/pages/post_edit_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +64,24 @@ class FindWayApp extends StatelessWidget {
                   )),
                   // 👉 ОТКРЫВАЕМ ТВОЙ ГОТОВЫЙ ЭКРАН
                   child: const PostCardPage(), 
+                ),
+              );
+            case '/post_edit':
+              final args = settings.arguments as Map<String, dynamic>;
+              return MaterialPageRoute(
+                builder: (_) => BlocProvider.value(
+                  // 👉 КЛЮЧЕВОЙ МОМЕНТ: Передаем ЖИВОЙ Блок из предыдущего экрана
+                  value: args['bloc'] as SearchBloc, 
+                  child: PostEditPage(
+                    postId: args['postId'],
+                    initialCategory: args['initialCategory'],
+                    initialTitle: args['initialTitle'],
+                    initialText: args['initialText'],
+                    initialLocalId: args['initialLocalId'],
+                    initialChoiceId: args['initialChoiceId'],
+                    initialActionId: args['initialActionId'],
+                    existingImages: args['existingImages'] as List<String>? ?? [],
+                  ),
                 ),
               );
             case '/':
