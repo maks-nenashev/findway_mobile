@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart'; // Для форматирования времени
+import 'package:intl/intl.dart';
 import '../bloc/chat_bloc.dart';
 import '../bloc/chat_event.dart';
 import '../bloc/chat_state.dart';
 import '../../data/models/message_model.dart';
-import '../../../../injection_container.dart';
 
 class ChatRoomPage extends StatefulWidget {
   final int recipientId;
@@ -32,7 +31,10 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   @override
   void initState() {
     super.initState();
-    // Инициируем загрузку истории сообщений при входе
+    _loadMessages();
+  }
+
+  void _loadMessages() {
     context.read<ChatBloc>().add(FetchMessages(
       recipientId: widget.recipientId,
       locale: widget.currentLocale,
@@ -59,6 +61,39 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     _messageController.clear();
   }
 
+  // 👉 МЕТОД ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ
+  void _showDeleteDialog() {
+    showDialog(
+      context: context,
+      builder: (confirmContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("Delete Chat?", style: TextStyle(color: Colors.white)),
+        content: const Text(
+          "This will permanently erase all messages for both sides.",
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(confirmContext),
+            child: const Text("CANCEL", style: TextStyle(color: Colors.white60)),
+          ),
+          TextButton(
+            onPressed: () {
+              // 1. Отправляем событие удаления
+              context.read<ChatBloc>().add(DeleteChat(recipientId: widget.recipientId));
+              // 2. Закрываем диалог
+              Navigator.pop(confirmContext);
+              // 3. Выходим из комнаты обратно в Inbox/Search
+              Navigator.pop(context);
+            },
+            child: const Text("DELETE", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color neonCyan = Color(0xFF00F2FF);
@@ -73,23 +108,32 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
           icon: const Icon(Icons.arrow_back_ios, color: darkSlate),
           onPressed: () => Navigator.pop(context),
         ),
+        // 👉 ДОБАВЛЕНА КНОПКА В ACTIONS
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep_outlined, color: Colors.redAccent),
+            tooltip: 'Clear History',
+            onPressed: _showDeleteDialog,
+          ),
+          const SizedBox(width: 8),
+        ],
         title: Row(
           children: [
             CircleAvatar(
-              radius: 20,
+              radius: 18,
               backgroundColor: Colors.grey[200],
               backgroundImage: widget.avatarUrl != null ? NetworkImage(widget.avatarUrl!) : null,
-              child: widget.avatarUrl == null ? const Icon(Icons.person, color: Colors.grey) : null,
+              child: widget.avatarUrl == null ? const Icon(Icons.person, size: 20, color: Colors.grey) : null,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 widget.recipientName.toUpperCase(),
                 style: const TextStyle(
                   color: darkSlate,
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  fontFamily: 'Orbitron', // Твой фирменный шрифт
+                  fontFamily: 'Orbitron',
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -99,54 +143,42 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
       ),
       body: Column(
         children: [
-          // 1. СПИСОК СООБЩЕНИЙ
           Expanded(
             child: BlocBuilder<ChatBloc, ChatState>(
               builder: (context, state) {
                 if (state is ChatLoading) {
                   return const Center(child: CircularProgressIndicator(color: neonCyan));
                 }
-
                 if (state is ChatError) {
                   return Center(child: Text('Error: ${state.message}'));
                 }
-
                 if (state is ChatLoaded) {
-                  final messages = state.messages.reversed.toList(); // Для reverse ListView
-
+                  final messages = state.messages.reversed.toList();
                   if (messages.isEmpty) {
                     return const Center(child: Text('No messages yet. Say hello!'));
                   }
-
                   return ListView.builder(
                     controller: _scrollController,
-                    reverse: true, // Новые сообщения внизу
+                    reverse: true,
                     padding: const EdgeInsets.all(16),
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
                       final msg = messages[index];
-                      // Определяем, я отправитель или нет (ID берем из системы)
-                      // Для простоты: если senderId == recipientId, значит это входящее
                       final bool isMe = msg.senderId != widget.recipientId;
-
                       return _buildMessageBubble(msg, isMe);
                     },
                   );
                 }
-
                 return const SizedBox();
               },
             ),
           ),
-
-          // 2. ПОЛЕ ВВОДА
           _buildInputArea(neonCyan, darkSlate),
         ],
       ),
     );
   }
 
-  // Виджет пузырька сообщения
   Widget _buildMessageBubble(MessageModel msg, bool isMe) {
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -162,11 +194,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
             bottomRight: Radius.circular(isMe ? 0 : 16),
           ),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 5,
-              offset: const Offset(0, 2),
-            ),
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2)),
           ],
           border: !isMe ? Border.all(color: Colors.black.withOpacity(0.05)) : null,
         ),
@@ -174,10 +202,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         child: Column(
           crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            Text(
-              msg.body,
-              style: const TextStyle(color: Color(0xFF1E293B), fontSize: 15),
-            ),
+            Text(msg.body, style: const TextStyle(color: Color(0xFF1E293B), fontSize: 15)),
             const SizedBox(height: 4),
             Text(
               DateFormat('HH:mm').format(msg.createdAt),
@@ -189,10 +214,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     );
   }
 
-  // Поле ввода сообщения
   Widget _buildInputArea(Color accentColor, Color textColor) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24), // Доп. отступ снизу
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -225,10 +249,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
             child: Container(
               width: 48,
               height: 48,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1E293B),
-                shape: BoxShape.circle,
-              ),
+              decoration: const BoxDecoration(color: Color(0xFF1E293B), shape: BoxShape.circle),
               child: const Icon(Icons.send_rounded, color: Colors.white, size: 22),
             ),
           ),

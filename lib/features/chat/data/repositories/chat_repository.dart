@@ -3,64 +3,37 @@ import '../models/message_model.dart';
 
 class ChatRepository {
   final Dio client;
-
   ChatRepository({required this.client});
 
-  // =========================================================
-  // 👉 1. ПОЛУЧИТЬ ИСТОРИЮ ЧАТА (Метод show)
-  // =========================================================
   Future<List<MessageModel>> getConversation(int recipientId, String locale) async {
     try {
-      // Согласно твоему контроллеру: GET /api/v1/messages/:id
-      final response = await client.get(
-        '/api/v1/messages/$recipientId', 
-        queryParameters: {'locale': locale},
-      );
-      
-      // Твой контроллер возвращает { recipient: ..., messages: [...] }
-      final List<dynamic> messagesData = response.data['messages'] ?? [];
-      return messagesData.map((m) => MessageModel.fromJson(m)).toList();
-    } catch (e) {
-      throw Exception('Failed to load conversation: $e');
-    }
+      final response = await client.get('/api/v1/messages/$recipientId', queryParameters: {'locale': locale});
+      final List<dynamic> data = response.data['messages'] ?? [];
+      return data.map((m) => MessageModel.fromJson(m)).toList();
+    } catch (e) { throw Exception('Failed to load conversation: $e'); }
   }
 
-  // =========================================================
-  // 👉 2. ОТПРАВИТЬ СООБЩЕНИЕ (Метод create)
-  // =========================================================
   Future<MessageModel> sendMessage(int recipientId, String body, String locale) async {
     try {
-      final response = await client.post(
-        '/api/v1/messages',
-        data: {
-          'message': {
-            'recipient_id': recipientId,
-            'body': body,
-          },
-          'locale': locale
-        },
-      );
-
-      // Контроллер возвращает созданный объект @message
+      final response = await client.post('/api/v1/messages', data: {
+        'message': {'recipient_id': recipientId, 'body': body},
+        'locale': locale
+      });
       return MessageModel.fromJson(response.data);
-    } catch (e) {
-      throw Exception('Failed to send message: $e');
-    }
+    } catch (e) { throw Exception('Failed to send message: $e'); }
   }
-  
-  // =========================================================
-  // 👉 3. ПОЛУЧИТЬ СПИСОК ДИАЛОГОВ (Метод index)
-  // =========================================================
+
+  Future<void> deleteConversation(int recipientId) async {
+    try {
+      await client.delete('/api/v1/messages/purge', queryParameters: {'recipient_id': recipientId});
+    } catch (e) { throw Exception('Failed to delete conversation: $e'); }
+  }
+
+  // 👉 ВОЗВРАЩАЕМ ИНБОКС ДЛЯ КОМПИЛЯЦИИ
   Future<List<dynamic>> getInbox(String locale) async {
     try {
-      final response = await client.get(
-        '/api/v1/messages', 
-        queryParameters: {'locale': locale},
-      );
-      // Твой контроллер возвращает { conversations: [...] }
+      final response = await client.get('/api/v1/messages', queryParameters: {'locale': locale});
       return response.data['conversations'] ?? [];
-    } catch (e) {
-      throw Exception('Failed to load inbox: $e');
-    }
+    } catch (e) { throw Exception('Failed to load inbox: $e'); }
   }
 }

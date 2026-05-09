@@ -1,63 +1,51 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../data/repositories/chat_repository.dart';
+import '../../data/models/message_model.dart'; // КРИТИЧЕСКИЙ ИМПОРТ
 import 'chat_event.dart';
 import 'chat_state.dart';
-import '../../data/repositories/chat_repository.dart';
-import 'package:findway_mobile/features/chat/data/models/message_model.dart';
 
 class ChatBloc extends Bloc<ChatEvent, ChatState> {
   final ChatRepository repository;
 
   ChatBloc({required this.repository}) : super(ChatInitial()) {
-    
-    // ОБРАБОТКА: Загрузка истории
-    on<FetchMessages>((event, emit) async {
-      emit(ChatLoading());
+    on<FetchMessages>(_onFetchMessages);
+    on<SendMessage>(_onSendMessage);
+    on<DeleteChat>(_onDeleteChat);
+    on<FetchInbox>(_onFetchInbox); // РЕГИСТРАЦИЯ
+  }
+
+  Future<void> _onFetchMessages(FetchMessages event, Emitter<ChatState> emit) async {
+    emit(ChatLoading());
+    try {
+      final messages = await repository.getConversation(event.recipientId, event.locale);
+      emit(ChatLoaded(messages: messages));
+    } catch (e) { emit(ChatError(e.toString())); }
+  }
+
+  Future<void> _onSendMessage(SendMessage event, Emitter<ChatState> emit) async {
+    if (state is ChatLoaded) {
+      final currentState = state as ChatLoaded;
       try {
-        final messages = await repository.getConversation(event.recipientId, event.locale);
-        emit(ChatLoaded(messages: messages));
-      } catch (e) {
-        emit(ChatError(e.toString()));
-      }
-    });
+        final newMessage = await repository.sendMessage(event.recipientId, event.body, event.locale);
+        final updated = List<MessageModel>.from(currentState.messages)..add(newMessage);
+        emit(ChatLoaded(messages: updated));
+      } catch (e) { emit(ChatError(e.toString())); }
+    }
+  }
 
-    // ОБРАБОТКА: Отправка сообщения
-    on<SendMessage>((event, emit) async {
-      final currentState = state;
-      
-      // Если у нас уже есть загруженные сообщения
-      if (currentState is ChatLoaded) {
-        // 1. Показываем индикатор отправки (Optimistic UI)
-        emit(currentState.copyWith(isSending: true));
+  Future<void> _onDeleteChat(DeleteChat event, Emitter<ChatState> emit) async {
+    try {
+      await repository.deleteConversation(event.recipientId);
+      emit(const ChatLoaded(messages: []));
+    } catch (e) { emit(ChatError(e.toString())); }
+  }
 
-        try {
-          // 2. Шлем запрос в Rails
-          final newMessage = await repository.sendMessage(
-            event.recipientId, 
-            event.body, 
-            event.locale
-          );
-
-          // 3. Добавляем полученное сообщение из Rails в текущий список
-          final updatedMessages = List<MessageModel>.from(currentState.messages)
-            ..add(newMessage);
-          
-          emit(ChatLoaded(messages: updatedMessages, isSending: false));
-        } catch (e) {
-          // В случае ошибки возвращаем старый список и выключаем индикатор
-          emit(ChatError(e.toString()));
-        }
-      }
-    });
-     // ОБРАБОТКА: Загрузка списка диалогов (Inbox)
-     on<FetchInbox>((event, emit) async {
-      emit(ChatLoading());
-      try {
-        final conversations = await repository.getInbox(event.locale);
-        emit(InboxLoaded(conversations));
-      } catch (e) {
-        emit(ChatError(e.toString()));
-      }
-    });
-  
+  // 👉 ОБРАБОТЧИК ДЛЯ ИНБОКСА
+  Future<void> _onFetchInbox(FetchInbox event, Emitter<ChatState> emit) async {
+    emit(ChatLoading());
+    try {
+      final conversations = await repository.getInbox(event.locale);
+      emit(InboxLoaded(conversations));
+    } catch (e) { emit(ChatError(e.toString())); }
   }
 }
