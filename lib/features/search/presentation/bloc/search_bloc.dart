@@ -72,16 +72,21 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     });
 
     // ================= UPDATE FILTER =================
-    on<UpdateFilterValue>((event, emit) {
-      _selectedValues = Map<String, dynamic>.from(_selectedValues);
-      _selectedValues[event.filterId] = event.value;
+on<UpdateFilterValue>((event, emit) {
+  _selectedValues = Map<String, dynamic>.from(_selectedValues);
+  _selectedValues[event.filterId] = event.value;
 
-      if (state is FiltersLoaded) {
-        emit((state as FiltersLoaded).copyWith(selectedValues: _selectedValues));
-      } else if (state is SearchSuccess) {
-        emit((state as SearchSuccess).copyWith(selectedValues: _selectedValues));
-      }
-    });
+  if (state is FiltersLoaded) {
+    emit((state as FiltersLoaded).copyWith(selectedValues: _selectedValues));
+  } else if (state is SearchSuccess) {
+    emit((state as SearchSuccess).copyWith(selectedValues: _selectedValues));
+  }
+
+  // 👉 Если изменён параметр сортировки или фильтра, сразу перезапускаем поиск на бэкенде
+  if (event.filterId == 'sort' || event.filterId == 'sort_by' || event.filterId == 'order') {
+    add(const PerformSearch());
+  }
+});
 
     // ================= UPDATE POST =================
     on<UpdatePost>((event, emit) async {
@@ -137,13 +142,26 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     });
 
     // ================= TAB =================
-    on<ChangeTab>((event, emit) {
-      if (state is FiltersLoaded) {
-        emit((state as FiltersLoaded).copyWith(tabIndex: event.index));
-      } else if (state is SearchSuccess) {
-        emit((state as SearchSuccess).copyWith(tabIndex: event.index));
-      }
-    });
+on<ChangeTab>((event, emit) {
+  // Связываем индекс вкладки с ID выбора в базе (например: 1 — looking_for, 2 — found)
+  final choiceId = event.index == 0 ? 1 : 2; 
+  _selectedValues['q[choice_id_eq]'] = choiceId;
+
+  if (state is FiltersLoaded) {
+    emit((state as FiltersLoaded).copyWith(
+      tabIndex: event.index,
+      selectedValues: _selectedValues,
+    ));
+  } else if (state is SearchSuccess) {
+    emit((state as SearchSuccess).copyWith(
+      tabIndex: event.index,
+      selectedValues: _selectedValues,
+    ));
+  }
+
+  // Перезапускаем запрос с обновленным q[choice_id_eq]
+  add(const PerformSearch());
+});
 
     // ================= LOAD POST DETAILS =================
     on<LoadPostDetails>((event, emit) async {

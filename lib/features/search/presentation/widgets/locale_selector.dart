@@ -10,7 +10,7 @@ class LocaleSelector extends StatelessWidget {
   const LocaleSelector({required this.currentLocale, this.isInNavBar = false, super.key});
 
   static const Map<String, List<String>> _groupedLocales = {
-    "Europe": ["en", "uk", "pl", "nl", "be", "de", "fr", "it", "es", "pt", "cs", "sk", "ro"],
+    "Europe": ["en", "uk", "pl", "nl", "be", "de", "fr", "it", "es", "pt", "cz", "sk", "ro"],
     "North America": ["ca", "us", "mx"],
   };
 
@@ -18,7 +18,7 @@ class LocaleSelector extends StatelessWidget {
     "uk": "Ukraine (UA)", "en": "United Kingdom (EN)", "pl": "Poland (PL)",
     "nl": "Netherlands (NL)", "be": "Belgium", "de": "Germany (DE)",
     "fr": "France (FR)", "it": "Italy (IT)", "es": "Spain (ES)",
-    "pt": "Portugal (PT)", "cs": "Czech Republic (CZ)", "sk": "Slovakia (SK)",
+    "pt": "Portugal (PT)", "cz": "Czech Republic (CZ)", "sk": "Slovakia (SK)",
     "ro": "Romania (RO)", "ca": "Canada (CA)", "us": "USA (US)",
     "mx": "Mexico (MX)", "be_nl": "Flanders – NL", "be_fr": "Wallonia – FR",
     "be_de": "Eupen – DE"
