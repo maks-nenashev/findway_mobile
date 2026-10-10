@@ -7,6 +7,9 @@ import 'package:cookie_jar/cookie_jar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 
+// --- CORE NETWORK IMPORTS ---
+import 'core/network/auth_interceptor.dart';
+
 // --- FEATURE IMPORTS ---
 // Search
 import 'features/search/domain/repositories/search_repository.dart';
@@ -22,7 +25,7 @@ import 'features/comments/presentation/bloc/comments_bloc.dart';
 // Chat
 import 'features/chat/data/repositories/chat_repository.dart';
 import 'features/chat/presentation/bloc/chat_bloc.dart';
-import 'features/chat/presentation/bloc/notification_bloc.dart'; // 👉 ДОБАВЛЕНО
+import 'features/chat/presentation/bloc/notification_bloc.dart';
 
 // Profile
 import 'features/profile/data/repositories/profile_repository.dart';
@@ -64,11 +67,20 @@ Future<void> init() async {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
+        // 👉 КЛЮЧЕВОЙ ФИКС: Перехват 401/403/404 статусов без выброса DioException
+        validateStatus: (status) => status != null && status < 500,
       ),
     );
 
     dio.interceptors.add(CookieManager(sl<CookieJar>()));
     
+    // 👉 ДОБАВЛЕН AUTH INTERCEPTOR ДЛЯ СБРОСА СЕССИИ ПРИ 401
+    dio.interceptors.add(AuthInterceptor(
+      onUnauthenticated: () {
+        // Триггер разлогина при необходимости
+      },
+    ));
+
     dio.interceptors.add(LogInterceptor(
       requestHeader: true, 
       requestBody: true, 
@@ -104,11 +116,7 @@ Future<void> init() async {
   // ✉️ 5. CHAT & NOTIFICATIONS
   // =========================================================
   sl.registerFactory(() => ChatBloc(repository: sl()));
-  
-  // 👉 РЕГИСТРАЦИЯ NOTIFICATION BLOC
-  // Используем LazySingleton, чтобы таймер опроса был один на всё приложение
   sl.registerLazySingleton(() => NotificationBloc(repository: sl()));
-  
   sl.registerLazySingleton<ChatRepository>(() => ChatRepository(client: sl()));
   
   // =========================================================

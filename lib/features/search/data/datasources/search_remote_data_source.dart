@@ -117,21 +117,40 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     throw Exception("Unexpected API response format");
   }
 
-  @override
-  Future<List<dynamic>> search({
-    required String category,
-    required Map<String, dynamic> filters,
-    required String locale,
-  }) async {
-    final queryParameters = {'category': category, 'locale': locale, ...filters};
-    final response = await client.get('/api/v1/search', queryParameters: queryParameters);
-    final rawData = response.data;
-    if (rawData is Map<String, dynamic> && rawData.containsKey('results')) {
-      return rawData['results'] as List<dynamic>;
+// lib/features/search/data/datasources/search_remote_data_source.dart
+
+@override
+Future<List<dynamic>> search({
+  required String category,
+  required Map<String, dynamic> filters,
+  required String locale,
+}) async {
+  final Map<String, dynamic> queryParameters = {
+    'category': category,
+    'locale': locale,
+    ...filters,
+  };
+
+  // Если сортировка передается одной строкой (например, "created_at_desc"),
+  // а Rails ждет sort_by и order — разворачиваем:
+  if (queryParameters.containsKey('sort') && queryParameters['sort'] is String) {
+    final sortVal = queryParameters['sort'] as String;
+    if (sortVal.contains('_')) {
+      final parts = sortVal.split('_');
+      queryParameters['sort_by'] = parts.sublist(0, parts.length - 1).join('_');
+      queryParameters['order'] = parts.last;
     }
-    if (rawData is List) return rawData;
-    return [];
   }
+
+  final response = await client.get('/api/v1/search', queryParameters: queryParameters);
+  final rawData = response.data;
+  
+  if (rawData is Map<String, dynamic> && rawData.containsKey('results')) {
+    return rawData['results'] as List<dynamic>;
+  }
+  if (rawData is List) return rawData;
+  return [];
+}
 
   @override
   Future<Map<String, dynamic>> getPostDetails({

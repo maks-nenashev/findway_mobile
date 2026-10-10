@@ -406,15 +406,30 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
+Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       sliver: SliverGrid(
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, mainAxisSpacing: 16, crossAxisSpacing: 16, childAspectRatio: 0.75,
+          crossAxisCount: 2,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childAspectRatio: 0.75,
         ),
         delegate: SliverChildBuilderDelegate(
-          (context, index) => ArticleCard(post: results[index], currentLocale: currentLocale),
+          (context, index) {
+            final post = results[index];
+            final int id = post['id'] ?? index;
+            final String imageUrl = post['image_url'] ?? '';
+
+            return ArticleCard(
+              // 👉 КРИТИЧЕСКИЙ ФИКС: Уникальный ValueKey уничтожает старый State 
+              // и принудительно пересоздает карточку с правильным фото при смене ID/URL
+              key: ValueKey('article_${id}_$imageUrl'),
+              post: post,
+              currentLocale: currentLocale,
+            );
+          },
           childCount: results.length,
         ),
       ),

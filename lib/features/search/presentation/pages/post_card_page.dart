@@ -10,13 +10,11 @@ import '../../../../injection_container.dart';
 import '../widgets/post_button_panel.dart';
 import 'package:findway_mobile/features/comments/presentation/widgets/comments_section.dart';
 
-import 'post_edit_page.dart'; 
-
 class PostCardPage extends StatelessWidget {
   const PostCardPage({super.key});
 
   void _onEditTapped(BuildContext context, dynamic post, SearchBloc searchBloc) async {
-    final result = await Navigator.pushNamed(context, '/post_edit', arguments: {
+    await Navigator.pushNamed(context, '/post_edit', arguments: {
       'bloc': searchBloc,
       'postId': post.id,
       'initialCategory': post.category ?? 'people',
@@ -112,7 +110,6 @@ class PostCardPage extends StatelessWidget {
                                 const SizedBox(height: 16),
                                 _buildLocationRow(post),
                                 const SizedBox(height: 24),
-                                
                                 PostButtonPanel(
                                   tr: tr,
                                   showEdit: post.permissions.canEdit,
@@ -121,18 +118,17 @@ class PostCardPage extends StatelessWidget {
                                   onEditTap: () => _onEditTapped(context, post, context.read<SearchBloc>()),
                                   onDeleteTap: () => _showDeleteConfirmation(context, post.id, post.category ?? 'people', tr),
                                   onMessageTap: () {
-                                  final searchBloc = context.read<SearchBloc>(); // Получаем доступ к текущей локали
-  
-                                   Navigator.pushNamed(context, '/chat', arguments: {
-                                   'recipientId': post.author.id,
-                                   'username': post.author.username,
-                                   'avatarUrl': post.author.avatarUrl,
-                                   'currentLocale': searchBloc.currentLocale, // Передаем локаль для API
-                                  });
-                     },
+                                    final searchBloc = context.read<SearchBloc>();
+                                    Navigator.pushNamed(context, '/chat', arguments: {
+                                      'recipientId': post.author.id,
+                                      'username': post.author.username,
+                                      'avatarUrl': post.author.avatarUrl,
+                                      'currentLocale': searchBloc.currentLocale,
+                                    });
+                                  },
                                 ),
                                 const SizedBox(height: 32),
-                              ], // ВОТ ЭТИ СКОБКИ БЫЛИ ПОТЕРЯНЫ
+                              ],
                             ),
                           ),
                         ),
@@ -201,11 +197,17 @@ class PostCardPage extends StatelessWidget {
   }
 
   Widget _buildLocationRow(dynamic post) {
+    if (post.local == null || post.local.toString().isEmpty) {
+      return const SizedBox.shrink();
+    }
     return Row(
       children: [
         const Icon(Icons.location_on, color: Colors.blueAccent, size: 18),
         const SizedBox(width: 4),
-        Text(post.local, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+        Text(
+          post.local, 
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent),
+        ),
       ],
     );
   }
@@ -263,6 +265,7 @@ class PostCardPage extends StatelessWidget {
 class _PostDetailsGallery extends StatefulWidget {
   final List<String> images;
   const _PostDetailsGallery({required this.images});
+
   @override
   State<_PostDetailsGallery> createState() => _PostDetailsGalleryState();
 }
@@ -270,14 +273,26 @@ class _PostDetailsGallery extends StatefulWidget {
 class _PostDetailsGalleryState extends State<_PostDetailsGallery> {
   late PageController _pageController;
   int _currentPage = 0;
+
   @override
-  void initState() { super.initState(); _pageController = PageController(); }
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
   @override
-  void dispose() { _pageController.dispose(); super.dispose(); }
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.images.isEmpty) {
-      return Container(color: Colors.grey[200], child: const Icon(Icons.image_not_supported, size: 50));
+      return Container(
+        color: Colors.grey[200],
+        child: const Icon(Icons.image_not_supported, size: 50),
+      );
     }
     return Stack(
       fit: StackFit.expand,
@@ -286,20 +301,33 @@ class _PostDetailsGalleryState extends State<_PostDetailsGallery> {
           controller: _pageController,
           itemCount: widget.images.length,
           onPageChanged: (page) => setState(() => _currentPage = page),
-          itemBuilder: (context, index) => Image.network(widget.images[index], fit: BoxFit.cover),
+          itemBuilder: (context, index) => Image.network(
+            widget.images[index], 
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              color: Colors.grey[800],
+              child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
+            ),
+          ),
         ),
         Positioned(
-          bottom: 20, left: 0, right: 0,
+          bottom: 20,
+          left: 0,
+          right: 0,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(widget.images.length, (index) => Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              height: 4, width: index == _currentPage ? 16 : 4,
-              decoration: BoxDecoration(
-                color: index == _currentPage ? const Color(0xFF00F2FF) : Colors.white54,
-                borderRadius: BorderRadius.circular(2),
+            children: List.generate(
+              widget.images.length,
+              (index) => Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 4,
+                width: index == _currentPage ? 16 : 4,
+                decoration: BoxDecoration(
+                  color: index == _currentPage ? const Color(0xFF00F2FF) : Colors.white54,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            )),
+            ),
           ),
         ),
       ],
