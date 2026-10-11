@@ -12,9 +12,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   Map<String, dynamic> _selectedValues = {};
   Map<String, dynamic> _translationsCache = {};
 
-  // =================================================================
-  // ✅ БРОНЯ (CACHE): Храним ленту тут, чтобы транзитные стейты ее не стерли
-  // =================================================================
+  // ===========================================================================
+  // 🛡 КЭШ (БРОНЯ): Сохраняем результаты и фильтры между переходами по экранам
+  // ===========================================================================
   List<dynamic> _cachedResults = [];
   List<FilterModel> _cachedFilters = [];
 
@@ -28,7 +28,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   })  : _currentLocale = initialLocale,
         super(SearchInitial(currentLocale: initialLocale)) {
 
-    // ================= LOAD FILTERS =================
+    // =========================================================================
+    // LOAD FILTERS (Загрузка фильтров и переводов категории)
+    // =========================================================================
     on<LoadFilters>((event, emit) async {
       final targetLocale = event.locale.isNotEmpty ? event.locale : _currentLocale;
       _activeCategory = event.category;
@@ -45,7 +47,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
 
         final results = await repository.search(category: _activeCategory, filters: const {}, locale: _currentLocale);
 
-        // ✅ Записываем в броню
+        // Обновление кэша
         _cachedFilters = data['filters'];
         _cachedResults = results;
 
@@ -62,7 +64,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       }
     });
 
-    // ================= CHANGE LOCALE =================
+    // =========================================================================
+    // CHANGE LOCALE (Смена языка)
+    // =========================================================================
     on<ChangeLocale>((event, emit) {
       _currentLocale = event.locale;
       add(LoadFilters(
@@ -71,24 +75,28 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       ));
     });
 
-    // ================= UPDATE FILTER =================
-on<UpdateFilterValue>((event, emit) {
-  _selectedValues = Map<String, dynamic>.from(_selectedValues);
-  _selectedValues[event.filterId] = event.value;
+    // =========================================================================
+    // UPDATE FILTER VALUE (Изменение отдельных значений фильтра)
+    // =========================================================================
+    on<UpdateFilterValue>((event, emit) {
+      _selectedValues = Map<String, dynamic>.from(_selectedValues);
+      _selectedValues[event.filterId] = event.value;
 
-  if (state is FiltersLoaded) {
-    emit((state as FiltersLoaded).copyWith(selectedValues: _selectedValues));
-  } else if (state is SearchSuccess) {
-    emit((state as SearchSuccess).copyWith(selectedValues: _selectedValues));
-  }
+      if (state is FiltersLoaded) {
+        emit((state as FiltersLoaded).copyWith(selectedValues: _selectedValues));
+      } else if (state is SearchSuccess) {
+        emit((state as SearchSuccess).copyWith(selectedValues: _selectedValues));
+      }
 
-  // 👉 Если изменён параметр сортировки или фильтра, сразу перезапускаем поиск на бэкенде
-  if (event.filterId == 'sort' || event.filterId == 'sort_by' || event.filterId == 'order') {
-    add(const PerformSearch());
-  }
-});
+      // Если изменён параметр сортировки, сразу перезапускаем поиск на бэкенде
+      if (event.filterId == 'sort' || event.filterId == 'sort_by' || event.filterId == 'order') {
+        add(const PerformSearch());
+      }
+    });
 
-    // ================= UPDATE POST =================
+    // =========================================================================
+    // UPDATE POST (Редактирование с учетом геолокации и animal_metadata)
+    // =========================================================================
     on<UpdatePost>((event, emit) async {
       try {
         await repository.updatePost(
@@ -99,6 +107,10 @@ on<UpdateFilterValue>((event, emit) {
           localId: event.localId,
           choiceId: event.choiceId,
           catId: event.catId,
+          latitude: event.latitude,     // 👉 Проброс широты
+          longitude: event.longitude,   // 👉 Проброс долготы
+          address: event.address,       // 👉 Проброс адреса
+          animalMetadata: event.animalMetadata, // 👉 Проброс идентификаторов животных
           locale: event.locale,
           existingImages: event.existingImages,
           newImagePaths: event.newImagePaths,
@@ -109,7 +121,9 @@ on<UpdateFilterValue>((event, emit) {
       }
     });
 
-    // ================= SEARCH =================
+    // =========================================================================
+    // PERFORM SEARCH (Запуск поиска)
+    // =========================================================================
     on<PerformSearch>((event, emit) async {
       emit(ResultsLoading(
         currentLocale: _currentLocale,
@@ -126,7 +140,6 @@ on<UpdateFilterValue>((event, emit) {
           locale: _currentLocale,
         );
         
-        // ✅ Обновляем броню
         _cachedResults = results;
 
         emit(SearchSuccess(
@@ -141,29 +154,31 @@ on<UpdateFilterValue>((event, emit) {
       }
     });
 
-    // ================= TAB =================
-on<ChangeTab>((event, emit) {
-  // Связываем индекс вкладки с ID выбора в базе (например: 1 — looking_for, 2 — found)
-  final choiceId = event.index == 0 ? 1 : 2; 
-  _selectedValues['q[choice_id_eq]'] = choiceId;
+    // =========================================================================
+    // CHANGE TAB (Переключение вкладок "Пошук" / "Знайдено")
+    // =========================================================================
+    on<ChangeTab>((event, emit) {
+      final choiceId = event.index == 0 ? 1 : 2; 
+      _selectedValues['q[choice_id_eq]'] = choiceId;
 
-  if (state is FiltersLoaded) {
-    emit((state as FiltersLoaded).copyWith(
-      tabIndex: event.index,
-      selectedValues: _selectedValues,
-    ));
-  } else if (state is SearchSuccess) {
-    emit((state as SearchSuccess).copyWith(
-      tabIndex: event.index,
-      selectedValues: _selectedValues,
-    ));
-  }
+      if (state is FiltersLoaded) {
+        emit((state as FiltersLoaded).copyWith(
+          tabIndex: event.index,
+          selectedValues: _selectedValues,
+        ));
+      } else if (state is SearchSuccess) {
+        emit((state as SearchSuccess).copyWith(
+          tabIndex: event.index,
+          selectedValues: _selectedValues,
+        ));
+      }
 
-  // Перезапускаем запрос с обновленным q[choice_id_eq]
-  add(const PerformSearch());
-});
+      add(const PerformSearch());
+    });
 
-    // ================= LOAD POST DETAILS =================
+    // =========================================================================
+    // LOAD POST DETAILS (Детальный просмотр)
+    // =========================================================================
     on<LoadPostDetails>((event, emit) async {
       emit(PostDetailsLoading(
         currentLocale: event.locale,
@@ -172,7 +187,9 @@ on<ChangeTab>((event, emit) {
 
       try {
         final data = await repository.getPostDetails(
-          id: event.id, category: event.category, locale: event.locale,
+          id: event.id, 
+          category: event.category, 
+          locale: event.locale,
         );
 
         final incoming = (data['translations'] ?? {}) as Map<String, dynamic>;
@@ -182,7 +199,6 @@ on<ChangeTab>((event, emit) {
           currentLocale: event.locale,
           post: data['record'],
           uiTranslations: _translationsCache,
-          // ✅ Теперь лента НИКОГДА не потеряется, мы берем ее из кэша!
           searchResults: _cachedResults, 
           filters: _cachedFilters,
         ));
@@ -191,9 +207,10 @@ on<ChangeTab>((event, emit) {
       }
     });
 
-    // ================= RESTORE =================
+    // =========================================================================
+    // RESTORE SEARCH (Восстановление состояния поиска из кэша)
+    // =========================================================================
     on<RestoreSearch>((event, emit) {
-      // ✅ Жесткое восстановление из кэша
       emit(SearchSuccess(
         _cachedResults,
         currentLocale: _currentLocale,
@@ -203,26 +220,42 @@ on<ChangeTab>((event, emit) {
       ));
     });
 
-    // ================= CREATE POST =================
+    // =========================================================================
+    // CREATE POST (Создание поста с координатами и метаданными)
+    // =========================================================================
     on<CreatePost>((event, emit) async {
       try {
         final result = await repository.createPost(
-          category: event.category, title: event.title, text: event.text,
-          localId: event.localId, choiceId: event.choiceId, catId: event.catId,
-          locale: event.locale, imagePaths: event.imagePaths,
+          category: event.category,
+          title: event.title,
+          text: event.text,
+          localId: event.localId,
+          choiceId: event.choiceId,
+          catId: event.catId,
+          latitude: event.latitude,     // 👉 Проброс широты
+          longitude: event.longitude,   // 👉 Проброс долготы
+          address: event.address,       // 👉 Проброс адреса
+          animalMetadata: event.animalMetadata, // 👉 Проброс идентификаторов животных
+          locale: event.locale,
+          imagePaths: event.imagePaths,
         );
 
         if (result['success'] == true) {
           emit(PostCreateSuccess(postId: result['id'], currentLocale: _currentLocale));
         } else {
-          emit(PostCreateError(error: (result['errors'] as List).join(', '), currentLocale: _currentLocale));
+          emit(PostCreateError(
+            error: (result['errors'] as List?)?.join(', ') ?? 'Creation failed', 
+            currentLocale: _currentLocale,
+          ));
         }
       } catch (e) {
         emit(PostCreateError(error: e.toString(), currentLocale: _currentLocale));
       }
     });
 
-    // ================= DELETE =================
+    // =========================================================================
+    // DELETE POST (Удаление поста)
+    // =========================================================================
     on<DeletePost>((event, emit) async {
       try {
         await repository.deletePost(event.postId, event.category);

@@ -32,11 +32,17 @@ abstract class SearchRemoteDataSource {
     required int localId,
     required int choiceId,
     int? catId,
+    
+    // 👉 Геолокация и идентификаторы животных
+    double? latitude,
+    double? longitude,
+    String? address,
+    Map<String, dynamic>? animalMetadata,
+    
     required String locale,
     required List<String> imagePaths,
   });
 
-  // ✅ Интегрировано: Метод обновления поста
   Future<void> updatePost({
     required int postId,
     required String category,
@@ -45,6 +51,13 @@ abstract class SearchRemoteDataSource {
     required int localId,
     required int choiceId,
     int? catId,
+    
+    // 👉 Геолокация и идентификаторы животных
+    double? latitude,
+    double? longitude,
+    String? address,
+    Map<String, dynamic>? animalMetadata,
+    
     required String locale,
     required List<String> existingImages,
     required List<String> newImagePaths,
@@ -117,40 +130,36 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     throw Exception("Unexpected API response format");
   }
 
-// lib/features/search/data/datasources/search_remote_data_source.dart
+  @override
+  Future<List<dynamic>> search({
+    required String category,
+    required Map<String, dynamic> filters,
+    required String locale,
+  }) async {
+    final Map<String, dynamic> queryParameters = {
+      'category': category,
+      'locale': locale,
+      ...filters,
+    };
 
-@override
-Future<List<dynamic>> search({
-  required String category,
-  required Map<String, dynamic> filters,
-  required String locale,
-}) async {
-  final Map<String, dynamic> queryParameters = {
-    'category': category,
-    'locale': locale,
-    ...filters,
-  };
-
-  // Если сортировка передается одной строкой (например, "created_at_desc"),
-  // а Rails ждет sort_by и order — разворачиваем:
-  if (queryParameters.containsKey('sort') && queryParameters['sort'] is String) {
-    final sortVal = queryParameters['sort'] as String;
-    if (sortVal.contains('_')) {
-      final parts = sortVal.split('_');
-      queryParameters['sort_by'] = parts.sublist(0, parts.length - 1).join('_');
-      queryParameters['order'] = parts.last;
+    if (queryParameters.containsKey('sort') && queryParameters['sort'] is String) {
+      final sortVal = queryParameters['sort'] as String;
+      if (sortVal.contains('_')) {
+        final parts = sortVal.split('_');
+        queryParameters['sort_by'] = parts.sublist(0, parts.length - 1).join('_');
+        queryParameters['order'] = parts.last;
+      }
     }
-  }
 
-  final response = await client.get('/api/v1/search', queryParameters: queryParameters);
-  final rawData = response.data;
-  
-  if (rawData is Map<String, dynamic> && rawData.containsKey('results')) {
-    return rawData['results'] as List<dynamic>;
+    final response = await client.get('/api/v1/search', queryParameters: queryParameters);
+    final rawData = response.data;
+    
+    if (rawData is Map<String, dynamic> && rawData.containsKey('results')) {
+      return rawData['results'] as List<dynamic>;
+    }
+    if (rawData is List) return rawData;
+    return [];
   }
-  if (rawData is List) return rawData;
-  return [];
-}
 
   @override
   Future<Map<String, dynamic>> getPostDetails({
@@ -179,6 +188,10 @@ Future<List<dynamic>> search({
     required int localId,
     required int choiceId,
     int? catId,
+    double? latitude,
+    double? longitude,
+    String? address,
+    Map<String, dynamic>? animalMetadata,
     required String locale,
     required List<String> imagePaths,
   }) async {
@@ -203,6 +216,14 @@ Future<List<dynamic>> search({
       data[subCategoryKey] = catId;
     }
 
+    // Добавление координат и подметаданных в payload
+    if (latitude != null) data['latitude'] = latitude;
+    if (longitude != null) data['longitude'] = longitude;
+    if (address != null && address.isNotEmpty) data['address'] = address;
+    if (animalMetadata != null && animalMetadata.isNotEmpty) {
+      data['animal_metadata'] = animalMetadata;
+    }
+
     final formData = FormData.fromMap(data);
     for (final path in imagePaths) {
       formData.files.add(MapEntry('images[]', await MultipartFile.fromFile(path, filename: p.basename(path))));
@@ -214,9 +235,6 @@ Future<List<dynamic>> search({
     throw Exception("Invalid response format on createPost");
   }
 
-  // ===========================================================================
-  // ✅ Интегрировано: ЛОГИКА ОБНОВЛЕНИЯ ПОСТА
-  // ===========================================================================
   @override
   Future<void> updatePost({
     required int postId,
@@ -226,6 +244,10 @@ Future<List<dynamic>> search({
     required int localId,
     required int choiceId,
     int? catId,
+    double? latitude,
+    double? longitude,
+    String? address,
+    Map<String, dynamic>? animalMetadata,
     required String locale,
     required List<String> existingImages,
     required List<String> newImagePaths,
@@ -238,7 +260,6 @@ Future<List<dynamic>> search({
       case 'things': subCategoryKey = 'phone_id'; break;
     }
 
-    // Собираем базовые текстовые данные и ID
     final Map<String, dynamic> data = {
       'category': normalizedCategory,
       'title': title,
@@ -252,25 +273,29 @@ Future<List<dynamic>> search({
       data[subCategoryKey] = catId;
     }
 
-    // Добавляем ссылки на старые картинки, чтобы бэкенд знал, какие не удалять.
-    // Dio FormData автоматически преобразует массивы, если добавить суффикс []
+    // Добавление координат и подметаданных в payload
+    if (latitude != null) data['latitude'] = latitude;
+    if (longitude != null) data['longitude'] = longitude;
+    if (address != null && address.isNotEmpty) data['address'] = address;
+    if (animalMetadata != null && animalMetadata.isNotEmpty) {
+      data['animal_metadata'] = animalMetadata;
+    }
+
     if (existingImages.isNotEmpty) {
       data['existing_images[]'] = existingImages;
     }
 
     final formData = FormData.fromMap(data);
 
-    // Добавляем новые картинки в виде физических файлов (multipart)
     for (final path in newImagePaths) {
       formData.files.add(
         MapEntry(
-          'new_images[]', // бэкенд получит новые файлы в массиве new_images
+          'new_images[]',
           await MultipartFile.fromFile(path, filename: p.basename(path))
         )
       );
     }
 
-    // Для обновления обычно используется метод PATCH
     final response = await client.patch(
       '/api/v1/posts/$postId',
       data: formData,

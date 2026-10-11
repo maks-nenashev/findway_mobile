@@ -1,26 +1,33 @@
-import '../../data/models/filter_model.dart';
+// =============================================================================
+// FILE: lib/features/search/domain/repositories/search_repository.dart
+// LAYER: Domain Layer (Contract / Interface)
+// RESPONSIBILITY: Чистый контракт интерфейса репозитория поиска и CUD-операций.
+// =============================================================================
 
 abstract class SearchRepository {
+  /// Получение метаданных фильтров и переводов для заданной категории
   Future<Map<String, dynamic>> getFiltersData({
     required String category, 
     required String locale,
   });
   
+  /// Выполнение поиска с фильтрацией
   Future<List<dynamic>> search({
     required String category, 
     required Map<String, dynamic> filters, 
     required String locale,
   });
   
+  /// Загрузка детальной карточки объявления
   Future<Map<String, dynamic>> getPostDetails({
     required int id, 
     required String category, 
     required String locale,
   });
 
-  // =================================================================
-  // ✅ ВОССТАНОВЛЕННЫЙ МЕТОД (Чтобы не падал BLoC при создании)
-  // =================================================================
+  // =========================================================================
+  // СОЗДАНИЕ ПОСТА
+  // =========================================================================
   Future<Map<String, dynamic>> createPost({
     required String category,
     required String title,
@@ -28,13 +35,17 @@ abstract class SearchRepository {
     required int localId,
     required int choiceId,
     int? catId,
+    double? latitude,
+    double? longitude,
+    String? address,
+    Map<String, dynamic>? animalMetadata,
     required String locale,
     required List<String> imagePaths,
   });
 
-  // =================================================================
-  // ✅ НОВЫЙ МЕТОД (Для обновления)
-  // =================================================================
+  // =========================================================================
+  // ОБНОВЛЕНИЕ ПОСТА
+  // =========================================================================
   Future<void> updatePost({
     required int postId,
     required String category,
@@ -43,11 +54,17 @@ abstract class SearchRepository {
     required int localId,
     required int choiceId,
     int? catId,
+    double? latitude,
+    double? longitude,
+    String? address,
+    Map<String, dynamic>? animalMetadata,
     required String locale,
     required List<String> existingImages,
     required List<String> newImagePaths,
   });
 
-  // Метод для удаления поста
+  // =========================================================================
+  // УДАЛЕНИЕ ПОСТА
+  // =========================================================================
   Future<void> deletePost(int postId, String category); 
 }

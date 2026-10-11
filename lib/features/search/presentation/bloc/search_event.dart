@@ -57,6 +57,7 @@ class LoadPostDetails extends SearchEvent {
 class ChangeTab extends SearchEvent {
   final int index;
   const ChangeTab(this.index);
+  
   @override
   List<Object> get props => [index];
 }
@@ -66,7 +67,9 @@ class RestoreSearch extends SearchEvent {
   List<Object> get props => [];
 }
 
-// Новый ивент для создания поста
+// =============================================================================
+// СОБЫТИЕ СОЗДАНИЯ ПОСТА (CreatePost)
+// =============================================================================
 class CreatePost extends SearchEvent {
   final String category;
   final String title;
@@ -74,20 +77,51 @@ class CreatePost extends SearchEvent {
   final int localId;
   final int choiceId;
   final int? catId;
+
+  // 👉 Геолокационные данные и подпараметры животных
+  final double? latitude;
+  final double? longitude;
+  final String? address;
+  final Map<String, dynamic>? animalMetadata;
+
   final String locale;
   final List<String> imagePaths;
 
   const CreatePost({
-    required this.category, required this.title, required this.text,
-    required this.localId, required this.choiceId, this.catId,
-    required this.locale, required this.imagePaths,
+    required this.category,
+    required this.title,
+    required this.text,
+    required this.localId,
+    required this.choiceId,
+    this.catId,
+    this.latitude,
+    this.longitude,
+    this.address,
+    this.animalMetadata,
+    required this.locale,
+    required this.imagePaths,
   });
 
   @override
-  List<Object?> get props => [category, title, text, localId, choiceId, catId, locale, imagePaths];
+  List<Object?> get props => [
+        category,
+        title,
+        text,
+        localId,
+        choiceId,
+        catId,
+        latitude,
+        longitude,
+        address,
+        animalMetadata,
+        locale,
+        imagePaths,
+      ];
 }
 
-// search_event.dart
+// =============================================================================
+// СОБЫТИЕ УДАЛЕНИЯ ПОСТА (DeletePost)
+// =============================================================================
 class DeletePost extends SearchEvent {
   final int postId;
   final String category;
@@ -98,7 +132,9 @@ class DeletePost extends SearchEvent {
   List<Object?> get props => [postId, category];
 }
 
-// Новый ивент для обновления поста
+// =============================================================================
+// СОБЫТИЕ ОБНОВЛЕНИЯ ПОСТА (UpdatePost)
+// =============================================================================
 class UpdatePost extends SearchEvent {
   final int postId;
   final String category;
@@ -107,6 +143,13 @@ class UpdatePost extends SearchEvent {
   final int localId;
   final int choiceId;
   final int? catId;
+
+  // 👉 Геолокационные данные и подпараметры животных
+  final double? latitude;
+  final double? longitude;
+  final String? address;
+  final Map<String, dynamic>? animalMetadata;
+
   final String locale;
   final List<String> existingImages;
   final List<String> newImagePaths;
@@ -119,6 +162,10 @@ class UpdatePost extends SearchEvent {
     required this.localId,
     required this.choiceId,
     this.catId,
+    this.latitude,
+    this.longitude,
+    this.address,
+    this.animalMetadata,
     required this.locale,
     required this.existingImages,
     required this.newImagePaths,
@@ -133,6 +180,10 @@ class UpdatePost extends SearchEvent {
         localId,
         choiceId,
         catId,
+        latitude,
+        longitude,
+        address,
+        animalMetadata,
         locale,
         existingImages,
         newImagePaths,
