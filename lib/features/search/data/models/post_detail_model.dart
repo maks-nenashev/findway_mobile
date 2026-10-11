@@ -1,18 +1,29 @@
 import 'package:equatable/equatable.dart';
 
+// =============================================================================
+// 1. КОРНЕВАЯ МОДЕЛЬ ДЕТАЛЬНОГО ПРОСМОТРА (PostDetailModel)
+// =============================================================================
 class PostDetailModel extends Equatable {
   final int id;
   final String title;
   final String text;
-  final String? category; // Поле для динамического роутинга
+  final String? category; // 'people', 'animals', 'things'
   final String createdAt;
   final String local;
+  
+  // 👉 Геолокация и адрес (Необходимы для ShowMapWidget)
+  final String address;
+  final double? lat;
+  final double? lng;
+  
+  // 👉 Специфика животных (JSONB: chip_number, passport_number, insurance_policy_id)
+  final Map<String, dynamic> animalMetadata;
+  
+  // 👉 Вложенные сущности и медиа
   final List<String> images;
   final AuthorModel author;
   final List<CommentModel> comments;
-  
-  // 👉 НОВОЕ ПОЛЕ ДЛЯ ПРАВ ДОСТУПА (UI Policy)
-  final PermissionsModel permissions; 
+  final PermissionsModel permissions;
 
   const PostDetailModel({
     required this.id,
@@ -21,27 +32,52 @@ class PostDetailModel extends Equatable {
     this.category,
     required this.createdAt,
     required this.local,
+    this.address = '',
+    this.lat,
+    this.lng,
+    this.animalMetadata = const {},
     required this.images,
     required this.author,
     required this.comments,
-    required this.permissions, // Добавлено в конструктор
+    required this.permissions,
   });
 
+  // ---------------------------------------------------------------------------
+  // Фабрика парсинга JSON
+  // ---------------------------------------------------------------------------
   factory PostDetailModel.fromJson(Map<String, dynamic> json) {
+    // 1. Парсинг широты (lat / latitude)
+    final double? parsedLat = json['lat'] != null
+        ? double.tryParse(json['lat'].toString())
+        : (json['latitude'] != null ? double.tryParse(json['latitude'].toString()) : null);
+
+    // 2. Парсинг долготы (lng / longitude)
+    final double? parsedLng = json['lng'] != null
+        ? double.tryParse(json['lng'].toString())
+        : (json['longitude'] != null ? double.tryParse(json['longitude'].toString()) : null);
+
+    // 3. Извлечение JSONB-поля animal_metadata
+    final Map<String, dynamic> parsedAnimalMeta = json['animal_metadata'] is Map
+        ? Map<String, dynamic>.from(json['animal_metadata'])
+        : {};
+
     return PostDetailModel(
-      id: json['id'] as int,
-      title: json['title'] ?? '',
-      text: json['text'] ?? '',
-      category: json['category'] ?? json['type'] ?? json['commentable_type'],
-      createdAt: json['created_at_formatted'] ?? json['created_at'] ?? '',
-      local: json['local'] ?? '',
+      id: json['id'] as int? ?? 0,
+      title: json['title']?.toString() ?? '',
+      text: json['text']?.toString() ?? '',
+      category: json['category']?.toString() ?? json['type']?.toString() ?? json['commentable_type']?.toString(),
+      createdAt: json['created_at_formatted']?.toString() ?? json['created_at']?.toString() ?? '',
+      local: json['local']?.toString() ?? '',
+      address: json['address']?.toString() ?? '',
+      lat: parsedLat,
+      lng: parsedLng,
+      animalMetadata: parsedAnimalMeta,
       images: List<String>.from(json['images'] ?? []),
-      author: AuthorModel.fromJson(json['author'] ?? {}),
+      author: AuthorModel.fromJson(json['author'] is Map ? json['author'] : {}),
       comments: (json['comments'] as List? ?? [])
-          .map((c) => CommentModel.fromJson(c))
+          .map((c) => CommentModel.fromJson(c is Map ? Map<String, dynamic>.from(c) : {}))
           .toList(),
-      // 👉 БЕЗОПАСНЫЙ ПАРСИНГ ПРАВ (Если сервер ничего не прислал - права закрыты)
-      permissions: PermissionsModel.fromJson(json['permissions'] ?? {}),
+      permissions: PermissionsModel.fromJson(json['permissions'] is Map ? json['permissions'] : {}),
     );
   }
 
@@ -51,29 +87,38 @@ class PostDetailModel extends Equatable {
         title,
         text,
         category,
+        createdAt,
+        local,
+        address,
+        lat,
+        lng,
+        animalMetadata,
         images,
         author,
         comments,
-        permissions, // Добавлено в props для сравнения состояний BLoC
+        permissions,
       ];
 }
 
+// =============================================================================
+// 2. МОДЕЛЬ АВТОРА ОБЪЯВЛЕНИЯ (AuthorModel)
+// =============================================================================
 class AuthorModel extends Equatable {
-  final int id; // 👈 ДОБАВИЛИ ID
+  final int id;
   final String username;
   final String? avatarUrl;
 
   const AuthorModel({
-    required this.id, 
-    required this.username, 
-    this.avatarUrl
+    required this.id,
+    required this.username,
+    this.avatarUrl,
   });
 
   factory AuthorModel.fromJson(Map<String, dynamic> json) {
     return AuthorModel(
-      id: json['id'] as int? ?? 0, // 👈 ПАРСИМ ID
-      username: json['username'] ?? 'Unknown',
-      avatarUrl: json['avatar_url'],
+      id: json['id'] as int? ?? 0,
+      username: json['username']?.toString() ?? 'Guest',
+      avatarUrl: json['avatar_url']?.toString(),
     );
   }
 
@@ -81,13 +126,16 @@ class AuthorModel extends Equatable {
   List<Object?> get props => [id, username, avatarUrl];
 }
 
+// =============================================================================
+// 3. МОДЕЛЬ КОММЕНТАРИЯ (CommentModel)
+// =============================================================================
 class CommentModel extends Equatable {
   final int id;
   final String username;
   final String? avatarUrl;
   final String body;
   final String createdAt;
-  final bool canDelete; //
+  final bool canDelete;
 
   const CommentModel({
     required this.id,
@@ -99,25 +147,37 @@ class CommentModel extends Equatable {
   });
 
   factory CommentModel.fromJson(Map<String, dynamic> json) {
-    final userData = json['user'] as Map<String, dynamic>?;
+    final userData = json['user'] is Map ? json['user'] as Map<String, dynamic> : null;
+    final authorData = json['author'] is Map ? json['author'] as Map<String, dynamic> : null;
+
+    final String extractedUsername = userData?['username']?.toString() ??
+        authorData?['username']?.toString() ??
+        'User #${json['user_id'] ?? 0}';
+
+    final String? extractedAvatar = userData?['avatar_url']?.toString() ??
+        authorData?['avatar_url']?.toString();
+
+    final bool permissionDelete = json['permissions'] is Map
+        ? (json['permissions']['can_delete'] == true)
+        : (json['can_delete'] == true);
 
     return CommentModel(
-      id: json['id'] as int,
-      username: userData?['username'] ?? 'User #${json['user_id']}',
-      avatarUrl: userData?['avatar_url'],
-      body: json['body'] ?? '',
-      createdAt: json['created_at_formatted'] ?? json['created_at'] ?? '',
-      canDelete: json['permissions']?['can_delete'] ?? false,
+      id: json['id'] as int? ?? 0,
+      username: extractedUsername,
+      avatarUrl: extractedAvatar,
+      body: json['body']?.toString() ?? '',
+      createdAt: json['created_at_formatted']?.toString() ?? json['created_at']?.toString() ?? '',
+      canDelete: permissionDelete,
     );
   }
 
   @override
-  List<Object?> get props => [id, username, body, createdAt, canDelete];
+  List<Object?> get props => [id, username, avatarUrl, body, createdAt, canDelete];
 }
 
-// =========================================================
-// 👉 НОВАЯ МОДЕЛЬ ДЛЯ ПРАВ ДОСТУПА ПОСТА
-// =========================================================
+// =============================================================================
+// 4. МОДЕЛЬ ПРАВ ДОСТУПА К ПОСТУ (PermissionsModel)
+// =============================================================================
 class PermissionsModel extends Equatable {
   final bool canEdit;
   final bool canDelete;
@@ -129,8 +189,8 @@ class PermissionsModel extends Equatable {
 
   factory PermissionsModel.fromJson(Map<String, dynamic> json) {
     return PermissionsModel(
-      canEdit: json['can_edit'] ?? false,
-      canDelete: json['can_delete'] ?? false,
+      canEdit: json['can_edit'] == true,
+      canDelete: json['can_delete'] == true,
     );
   }
 
