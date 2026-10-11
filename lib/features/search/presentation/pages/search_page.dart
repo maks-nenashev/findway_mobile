@@ -1,7 +1,12 @@
+// =============================================================================
+// FILE: lib/features/search/presentation/pages/search_page.dart
+// =============================================================================
+
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'; 
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../../../injection_container.dart';
 import '../bloc/search_bloc.dart';
 import '../bloc/search_event.dart';
@@ -9,6 +14,7 @@ import '../bloc/search_state.dart';
 import '../widgets/filter_builder.dart';
 import '../widgets/articles_card.dart';
 import '../widgets/locale_selector.dart';
+import '../widgets/map/index_map_widget.dart';
 
 import 'post_create_page.dart'; 
 import 'post_card_page.dart'; 
@@ -20,7 +26,9 @@ import 'package:findway_mobile/features/profile/presentation/bloc/profile_bloc.d
 import 'package:findway_mobile/features/profile/presentation/bloc/profile_event.dart';
 import 'package:findway_mobile/features/chat/presentation/bloc/notification_bloc.dart';
 
-// === 1. МОДЕЛЬ ДАННЫХ КАТЕГОРИЙ ===
+// =============================================================================
+// 1. МОДЕЛЬ КАТЕГОРИИ (FindWayCategory)
+// =============================================================================
 class FindWayCategory {
   final String title;
   final String description;
@@ -37,6 +45,9 @@ class FindWayCategory {
   });
 }
 
+// =============================================================================
+// 2. ОСНОВНОЙ ВИДЖЕТ СТРАНИЦЫ (SearchPage)
+// =============================================================================
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
 
@@ -45,11 +56,25 @@ class SearchPage extends StatefulWidget {
 }
 
 class _SearchPageState extends State<SearchPage> {
+  // --- Состояние скролла и навигации ---
   String _localActiveCategory = '';
   late ScrollController _mainScrollController;
   late ScrollController _titleScrollController;
   bool _isMenuVisible = true;
-  int _currentIndex = 1; // Дефолтный индекс для поиска
+
+  // --- Состояние выдвижных панелей фильтрации ---
+  bool _isAdvancedIdOpen = false;
+  bool _isGeoPanelOpen = false;
+
+  // --- Состояние PostGIS Геолокации ---
+  double _radiusKm = 5.0;
+  double? _searchLat;
+  double? _searchLng;
+
+  // --- Контроллеры полей идентификаторов животных ---
+  final TextEditingController _chipController = TextEditingController();
+  final TextEditingController _passportController = TextEditingController();
+  final TextEditingController _insuranceController = TextEditingController();
 
   @override
   void initState() {
@@ -71,15 +96,23 @@ class _SearchPageState extends State<SearchPage> {
   void dispose() {
     _mainScrollController.dispose();
     _titleScrollController.dispose();
+    _chipController.dispose();
+    _passportController.dispose();
+    _insuranceController.dispose();
     super.dispose();
   }
 
+  // ---------------------------------------------------------------------------
+  // BUILD METHOD (Главный контейнер)
+  // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) {
         final bloc = sl<SearchBloc>();
-        bloc.add(const LoadFilters(category: '', locale: 'uk')); 
+        // 👉 Исправление хардкода: запрашиваем фильтры с активной локалью BLoC
+        final String initialLocale = bloc.currentLocale.isNotEmpty ? bloc.currentLocale : 'uk';
+        bloc.add(LoadFilters(category: '', locale: initialLocale)); 
         return bloc;
       },
       child: BlocConsumer<SearchBloc, SearchState>(
@@ -112,6 +145,7 @@ class _SearchPageState extends State<SearchPage> {
             extendBody: true,
             backgroundColor: const Color(0xFFF0F4F8),
             
+            // --- Плавающая кнопка создания поста ---
             floatingActionButton: AnimatedSlide(
               duration: const Duration(milliseconds: 300),
               offset: _isMenuVisible ? Offset.zero : const Offset(0, 2.5),
@@ -152,6 +186,7 @@ class _SearchPageState extends State<SearchPage> {
             ),
             floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
+            // --- Нижняя навигационная панель ---
             bottomNavigationBar: AnimatedSlide(
               duration: const Duration(milliseconds: 300),
               offset: _isMenuVisible ? Offset.zero : const Offset(0, 2.0),
@@ -161,7 +196,7 @@ class _SearchPageState extends State<SearchPage> {
                     currentIndex: currentTabIndex,
                     currentLocale: currentLocale,
                     translations: translations,
-                    unreadCount: unreadCount, // 👉 Передаем счетчик
+                    unreadCount: unreadCount,
                     onTap: (index) {
                       if (index == 0) {
                         context.read<SearchBloc>().add(ChangeTab(0));
@@ -186,6 +221,7 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
 
+            // --- Основной скролл приложения ---
             body: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               child: isTitlePage 
@@ -197,12 +233,38 @@ class _SearchPageState extends State<SearchPage> {
                         controller: _mainScrollController,
                         slivers: [
                           _buildSliverAppBar(),
+                          
+                          // 1. Панель поиска и фильтров
                           SliverToBoxAdapter(
                             child: _buildFilterPanel(
                               context, state, translations, currentLocale,
                               filters, selectedFilterValues, _localActiveCategory,
                             ),
                           ),
+
+                          // 2. Выплывающая карта (Локализованный паршел shared/map_index)
+                          if (searchResults.isNotEmpty)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                child: IndexMapWidget(
+                                  results: searchResults,
+                                  translations: translations,
+                                  onMarkerTap: (id, category) {
+                                    final bloc = context.read<SearchBloc>();
+                                    bloc.add(LoadPostDetails(id: id, category: category, locale: currentLocale));
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => BlocProvider.value(value: bloc, child: const PostCardPage()),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+
+                          // 3. Сетка результатов с фиксированным ValueKey
                           if (searchResults.isNotEmpty)
                             _buildResultsGrid(searchResults, currentLocale)
                           else if (state is! SearchLoading && state is! ResultsLoading)
@@ -219,7 +281,11 @@ class _SearchPageState extends State<SearchPage> {
                         ],
                       ),
                       if (state is SearchLoading)
-                        const Positioned.fill(child: Center(child: CircularProgressIndicator(color: Color(0xFF00F2FF)))),
+                        const Positioned.fill(
+                          child: Center(
+                            child: CircularProgressIndicator(color: Color(0xFF00F2FF)),
+                          ),
+                        ),
                     ],
                   ),
             ),
@@ -228,6 +294,10 @@ class _SearchPageState extends State<SearchPage> {
       ),
     );
   }
+
+  // ===========================================================================
+  // 3. UI БЛОКИ И ПАНЕЛИ УПРАВЛЕНИЯ
+  // ===========================================================================
 
   Widget _buildSliverAppBar() {
     return SliverAppBar(
@@ -273,7 +343,7 @@ class _SearchPageState extends State<SearchPage> {
       ],
     );
   }
-  
+
   List<FindWayCategory> _getLocalizedCategories(Map<String, dynamic> trans) {
     return [
       FindWayCategory(
@@ -321,7 +391,14 @@ class _SearchPageState extends State<SearchPage> {
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
             gradient: SweepGradient(
-              colors: [Color(0xFF23E5DB), Color(0xFF002F34), Color(0xFF6A11CB), Color(0xFFFF5F6D), Color(0xFFFFCE32), Color(0xFF23E5DB)],
+              colors: [
+                Color(0xFF23E5DB),
+                Color(0xFF002F34),
+                Color(0xFF6A11CB),
+                Color(0xFFFF5F6D),
+                Color(0xFFFFCE32),
+                Color(0xFF23E5DB)
+              ],
               stops: [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
             ),
           ),
@@ -335,16 +412,26 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  Widget _buildFilterPanel(BuildContext context, SearchState state, Map<String, dynamic> translations, String currentLocale, dynamic filters, Map<String, dynamic> selectedFilterValues, String activeCategory) {
+  Widget _buildFilterPanel(
+    BuildContext context, 
+    SearchState state, 
+    Map<String, dynamic> translations, 
+    String currentLocale, 
+    dynamic filters, 
+    Map<String, dynamic> selectedFilterValues, 
+    String activeCategory
+  ) {
     const Color darkSlate = Color(0xFF1E293B);
     const Color neonBlue = Color(0xFF00F2FF);
+    final bool isAnimalCategory = activeCategory == 'animals';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
       child: Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: darkSlate, borderRadius: BorderRadius.circular(24),
+          color: darkSlate, 
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(color: darkSlate, width: 2),
         ),
         child: Column(
@@ -352,14 +439,53 @@ class _SearchPageState extends State<SearchPage> {
           children: [
             _buildCategoryButtons(context, activeCategory, translations, currentLocale),
             const SizedBox(height: 24),
+
             _buildSearchField(context, translations),
             const SizedBox(height: 16),
+
+            Row(
+              children: [
+                if (isAnimalCategory) ...[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => setState(() => _isAdvancedIdOpen = !_isAdvancedIdOpen),
+                      icon: const Icon(Icons.security, size: 16),
+                      label: const Text('ID', style: TextStyle(fontFamily: 'Orbitron', fontSize: 11)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF00F2FF),
+                        side: const BorderSide(color: Color(0xFF00F2FF)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => setState(() => _isGeoPanelOpen = !_isGeoPanelOpen),
+                    icon: const Icon(Icons.my_location, size: 16),
+                    label: const Text('Geo', style: TextStyle(fontFamily: 'Orbitron', fontSize: 11)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFFF8A00),
+                      side: const BorderSide(color: Color(0xFFFF8A00)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            if (isAnimalCategory && _isAdvancedIdOpen) _buildAdvancedIdPanel(context, translations),
+
+            if (_isGeoPanelOpen) _buildGeoPanel(context, translations),
+
+            const SizedBox(height: 16),
+
             if (filters != null) ...[
               Theme(
                 data: Theme.of(context).copyWith(
                   canvasColor: Colors.white,
                   inputDecorationTheme: InputDecorationTheme(
-                    filled: true, fillColor: Colors.white,
+                    filled: true, 
+                    fillColor: Colors.white,
                     contentPadding: const EdgeInsets.only(left: 16, right: 16, top: 24, bottom: 10),
                     floatingLabelStyle: const TextStyle(color: neonBlue, fontWeight: FontWeight.bold, fontSize: 16),
                     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: darkSlate)),
@@ -376,9 +502,213 @@ class _SearchPageState extends State<SearchPage> {
               const SizedBox(height: 16),
               _buildApplyFiltersButton(context, translations),
             ],
+
             if (state is SearchSuccess) _buildResetFiltersButton(context, currentLocale, activeCategory, translations),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAdvancedIdPanel(BuildContext context, Map<String, dynamic> trans) {
+    const Color darkBg = Color(0xFF0F172A);
+    const Color borderCyan = Color(0xFF00F2FF);
+
+    final String titleText = trans['animal_identifiers'] ?? trans['senses.index.animal_identifiers'] ?? 'ІДЕНТИФІКАТОРИ ТВАРИНИ';
+    final String chipHint = trans['chip_number'] ?? 'Microchip ID (e.g. 98512...)';
+    final String passportHint = trans['passport_number'] ?? 'Passport / Reg №';
+    final String insuranceHint = trans['insurance_policy'] ?? 'Insurance Policy №';
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: darkBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderCyan.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            titleText.toUpperCase(),
+            style: const TextStyle(color: borderCyan, fontFamily: 'Orbitron', fontSize: 10, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          _idTextField(_chipController, chipHint, 'q[animal_metadata_chip_number]'),
+          const SizedBox(height: 8),
+          _idTextField(_passportController, passportHint, 'q[animal_metadata_passport_number]'),
+          const SizedBox(height: 8),
+          _idTextField(_insuranceController, insuranceHint, 'q[animal_metadata_insurance_policy_id]'),
+        ],
+      ),
+    );
+  }
+
+  Widget _idTextField(TextEditingController controller, String hint, String filterKey) {
+    return TextField(
+      controller: controller,
+      style: const TextStyle(color: Colors.white, fontSize: 12),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
+        filled: true,
+        fillColor: Colors.black.withOpacity(0.3),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white24)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF00F2FF))),
+      ),
+      onChanged: (val) {
+        context.read<SearchBloc>().add(UpdateFilterValue(filterId: filterKey, value: val));
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // БЛОК F: Панель PostGIS радиусного поиска (Чтение из shared.map_picker)
+  // ---------------------------------------------------------------------------
+  Widget _buildGeoPanel(BuildContext context, Map<String, dynamic> trans) {
+    const Color darkBg = Color(0xFF0F172A);
+    const Color orangeAccent = Color(0xFFFF8A00);
+
+    final String titleText = trans['radius_search'] ?? 
+                              trans['map_picker.radius_search'] ?? 
+                              trans['shared.map_picker.radius_search'] ?? 
+                              trans['filters.radius_search'] ?? 
+                              'Пошук у радіусі (PostGIS)';
+
+    final String radiusLabelText = trans['radius_label'] ?? 
+                                   trans['map_picker.radius_label'] ?? 
+                                   trans['shared.map_picker.radius_label'] ?? 
+                                   trans['filters.radius_label'] ?? 
+                                   'Радіус покриття';
+
+    final String kmUnit = trans['km'] ?? 
+                          trans['map_picker.km'] ?? 
+                          trans['shared.map_picker.km'] ?? 
+                          trans['filters.km'] ?? 
+                          'км';
+
+    final String btnText = trans['detect_my_location'] ?? 
+                           trans['map_picker.detect_my_location'] ?? 
+                           trans['shared.map_picker.detect_my_location'] ?? 
+                           trans['filters.detect_my_location'] ?? 
+                           'Визначити мою геолокацію';
+
+    final String centerPrefix = trans['search_center'] ?? 
+                                 trans['map_picker.search_center'] ?? 
+                                 trans['shared.map_picker.search_center'] ?? 
+                                 trans['filters.search_center'] ?? 
+                                 'Центр';
+
+    final String noCenterText = trans['no_search_center'] ?? 
+                                trans['map_picker.no_search_center'] ?? 
+                                trans['shared.map_picker.no_search_center'] ?? 
+                                trans['filters.no_search_center'] ?? 
+                                'Центр не вибрано';
+
+    final String geoStatusText = (_searchLat != null && _searchLng != null)
+        ? '$centerPrefix: ${_searchLat!.toStringAsFixed(3)}, ${_searchLng!.toStringAsFixed(3)}'
+        : noCenterText;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: darkBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: orangeAccent.withOpacity(0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            titleText.toUpperCase(),
+            style: const TextStyle(color: orangeAccent, fontFamily: 'Orbitron', fontSize: 10, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                radiusLabelText,
+                style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+              ),
+              Text(
+                '${_radiusKm.round()} $kmUnit',
+                style: const TextStyle(color: orangeAccent, fontFamily: 'Orbitron', fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+
+          Row(
+            children: [
+              IconButton(
+                onPressed: () {
+                  if (_radiusKm > 1) {
+                    setState(() => _radiusKm--);
+                    context.read<SearchBloc>().add(UpdateFilterValue(filterId: 'radius_km', value: _radiusKm.round()));
+                  }
+                },
+                icon: const Icon(Icons.remove_circle_outline, color: orangeAccent, size: 20),
+              ),
+              Expanded(
+                child: Slider(
+                  value: _radiusKm,
+                  min: 1,
+                  max: 200,
+                  divisions: 199,
+                  activeColor: orangeAccent,
+                  inactiveColor: Colors.white12,
+                  onChanged: (val) {
+                    setState(() => _radiusKm = val);
+                    context.read<SearchBloc>().add(UpdateFilterValue(filterId: 'radius_km', value: _radiusKm.round()));
+                  },
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  if (_radiusKm < 200) {
+                    setState(() => _radiusKm++);
+                    context.read<SearchBloc>().add(UpdateFilterValue(filterId: 'radius_km', value: _radiusKm.round()));
+                  }
+                },
+                icon: const Icon(Icons.add_circle_outline, color: orangeAccent, size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _searchLat = 50.0412;
+                  _searchLng = 21.9991;
+                });
+                final bloc = context.read<SearchBloc>();
+                bloc.add(const UpdateFilterValue(filterId: 'search_lat', value: 50.0412));
+                bloc.add(const UpdateFilterValue(filterId: 'search_lng', value: 21.9991));
+                bloc.add(UpdateFilterValue(filterId: 'radius_km', value: _radiusKm.round()));
+                bloc.add(const PerformSearch());
+              },
+              icon: const Icon(Icons.my_location, size: 16),
+              label: Text(btnText.toUpperCase(), style: const TextStyle(fontFamily: 'Orbitron', fontSize: 10)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: orangeAccent,
+                side: const BorderSide(color: orangeAccent),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            geoStatusText,
+            style: const TextStyle(color: Colors.white54, fontSize: 10, fontFamily: 'Monospace'),
+          ),
+        ],
       ),
     );
   }
@@ -406,7 +736,7 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
+  Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       sliver: SliverGrid(
@@ -423,8 +753,6 @@ Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
             final String imageUrl = post['image_url'] ?? '';
 
             return ArticleCard(
-              // 👉 КРИТИЧЕСКИЙ ФИКС: Уникальный ValueKey уничтожает старый State 
-              // и принудительно пересоздает карточку с правильным фото при смене ID/URL
               key: ValueKey('article_${id}_$imageUrl'),
               post: post,
               currentLocale: currentLocale,
@@ -452,7 +780,10 @@ Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
     return Expanded(
       child: GestureDetector(
         onTap: () {
-          setState(() => _localActiveCategory = cat);
+          setState(() {
+            _localActiveCategory = cat;
+            _isAdvancedIdOpen = false;
+          });
           context.read<SearchBloc>().add(LoadFilters(category: cat, locale: locale));
         },
         child: Container(
@@ -462,7 +793,17 @@ Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFF1E293B), width: 2),
           ),
-          child: Center(child: Text(label, style: TextStyle(color: isActive ? Colors.white : const Color(0xFF1E293B), fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Orbitron'))),
+          child: Center(
+            child: Text(
+              label, 
+              style: TextStyle(
+                color: isActive ? Colors.white : const Color(0xFF1E293B), 
+                fontWeight: FontWeight.bold, 
+                fontSize: 13, 
+                fontFamily: 'Orbitron'
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -486,9 +827,21 @@ Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
 
   Widget _buildResetFiltersButton(BuildContext context, String currentLocale, String activeCategory, Map<String, dynamic> translations) {
     return TextButton.icon(
-      onPressed: () => context.read<SearchBloc>().add(LoadFilters(category: activeCategory, locale: currentLocale)),
+      onPressed: () {
+        _chipController.clear();
+        _passportController.clear();
+        _insuranceController.clear();
+        setState(() {
+          _searchLat = null;
+          _searchLng = null;
+          _radiusKm = 5.0;
+          _isAdvancedIdOpen = false;
+          _isGeoPanelOpen = false;
+        });
+        context.read<SearchBloc>().add(LoadFilters(category: activeCategory, locale: currentLocale));
+      },
       icon: const Icon(Icons.refresh, size: 16),
-      label: Text(translations['last'] ?? "Скинути фильтри"),
+      label: Text(translations['last'] ?? translations['reset_filters'] ?? "Скинути фильтри"),
       style: TextButton.styleFrom(foregroundColor: const Color(0xFF00F2FF)),
     );
   }
@@ -497,6 +850,7 @@ Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
     if (state is FiltersLoaded) return state.uiTranslations;
     if (state is SearchSuccess) return state.uiTranslations;
     if (state is ResultsLoading) return state.uiTranslations;
+    if (state is SearchLoading) return state.uiTranslations;
     return {};
   }
 
@@ -534,7 +888,6 @@ Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
   }
 }
 
-// === ВИДЖЕТ КАРТОЧКИ КАТЕГОРИИ ===
 class CategoryCard extends StatelessWidget {
   final FindWayCategory category;
   final VoidCallback onTap;
@@ -588,13 +941,11 @@ class CategoryCard extends StatelessWidget {
   }
 }
 
-// === НИЖНЯЯ НАВИГАЦИЯ ===
 class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
   final String currentLocale; 
   final Function(int) onTap;
   final Map<String, dynamic> translations;
-  // 👉 ДОБАВЛЕНО: Глобальный счетчик непрочитанных
   final int unreadCount; 
 
   const CustomBottomNavBar({
@@ -602,7 +953,7 @@ class CustomBottomNavBar extends StatelessWidget {
     required this.currentLocale, 
     required this.onTap, 
     required this.translations,
-    this.unreadCount = 0, // 👉 По умолчанию 0
+    this.unreadCount = 0,
     super.key,
   });
 
@@ -623,7 +974,6 @@ class CustomBottomNavBar extends StatelessWidget {
           LocaleSelector(currentLocale: currentLocale, isInNavBar: true),
           _navItem(1, Icons.search, translations['nav_search'] ?? 'Search'),
           const SizedBox(width: 40), 
-          // 👉 ПЕРЕДАЕМ unreadCount ТОЛЬКО ДЛЯ ЧАТА (INDEX 3)
           _navItem(3, Icons.mail_outline, translations['nav_messages'] ?? 'Chat', badgeCount: unreadCount),
           _navItem(4, Icons.person_outline, translations['nav_profile'] ?? 'Profile'),
         ],
@@ -631,7 +981,6 @@ class CustomBottomNavBar extends StatelessWidget {
     );
   }
   
-  // 👉 ОБНОВЛЕННЫЙ МЕТОД: Добавлен необязательный параметр badgeCount
   Widget _navItem(int index, IconData icon, String label, {int badgeCount = 0}) {
     final bool isActive = currentIndex == index;
     final Color activeColor = const Color(0xFFD81B60);
@@ -642,10 +991,9 @@ class CustomBottomNavBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ПРОВЕРКА: Если есть непрочитанные, оборачиваем в Badge
           Badge(
             label: Text('$badgeCount', style: const TextStyle(color: Colors.white, fontSize: 10)),
-            isLabelVisible: badgeCount > 0, // Скрываем, если 0
+            isLabelVisible: badgeCount > 0,
             backgroundColor: Colors.red,
             child: Icon(
               icon, 

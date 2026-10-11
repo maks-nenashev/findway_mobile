@@ -8,7 +8,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
+
   file_selector: ^1.0.3
   desktop_drop: ^0.4.4
   image_picker: ^1.1.2
@@ -44,6 +46,7 @@ dependencies:
   shared_preferences: ^2.5.5
   intl: ^0.20.2
   cached_network_image: ^3.4.1
+  geolocator: ^14.1.1
 
 dev_dependencies:
   flutter_test:
