@@ -43,7 +43,7 @@ class _IndexMapWidgetState extends State<IndexMapWidget> {
     }
 
     // lib/features/search/presentation/widgets/map/index_map_widget.dart
-    print("ДОСТУПНЫЕ КЛЮЧИ КАРТЫ: ${widget.translations?.keys.where((k) => k.contains('map')).toList()}");
+    debugPrint("ДОСТУПНЫЕ КЛЮЧИ КАРТЫ: ${widget.translations?.keys.where((k) => k.contains('map')).toList()}");
     final String toggleMapLabel = widget.translations?['toggle_map'] ?? 
                               widget.translations?['map_index.toggle_map'] ?? 
                               'Interactive map Articles';
@@ -87,9 +87,9 @@ class _IndexMapWidgetState extends State<IndexMapWidget> {
           margin: EdgeInsets.only(top: _isExpanded ? 12 : 0),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF00F2FF).withOpacity(0.4), width: 1.5),
+            border: Border.all(color: const Color(0xFF00F2FF).withValues(alpha: 0.4), width: 1.5),
             boxShadow: _isExpanded
-                ? [BoxShadow(color: const Color(0xFF00F2FF).withOpacity(0.15), blurRadius: 12)]
+                ? [BoxShadow(color: const Color(0xFF00F2FF).withValues(alpha: 0.15), blurRadius: 12)]
                 : [],
           ),
           child: ClipRRect(

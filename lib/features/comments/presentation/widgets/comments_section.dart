@@ -52,7 +52,7 @@ class CommentsSection extends StatelessWidget {
                 decoration: InputDecoration(
                   hintText: tr['place_writhe'] ?? "Напишіть щось...",
                   hintStyle:
-                      TextStyle(color: Colors.white.withOpacity(0.3)),
+                      TextStyle(color: Colors.white.withValues(alpha: 0.3)),
                   filled: true,
                   fillColor: Colors.black26,
                   border: OutlineInputBorder(

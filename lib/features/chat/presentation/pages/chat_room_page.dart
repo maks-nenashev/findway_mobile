@@ -189,9 +189,9 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
             bottomRight: Radius.circular(isMe ? 0 : 16),
           ),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 5, offset: const Offset(0, 2)),
           ],
-          border: !isMe ? Border.all(color: Colors.black.withOpacity(0.05)) : null,
+          border: !isMe ? Border.all(color: Colors.black.withValues(alpha: 0.05)) : null,
         ),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         child: Column(
@@ -201,7 +201,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
             const SizedBox(height: 4),
             Text(
               DateFormat('HH:mm').format(msg.createdAt),
-              style: TextStyle(color: Colors.black.withOpacity(0.4), fontSize: 10),
+              style: TextStyle(color: Colors.black.withValues(alpha: 0.4), fontSize: 10),
             ),
           ],
         ),
@@ -215,7 +215,7 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5)),
         ],
       ),
       child: Row(

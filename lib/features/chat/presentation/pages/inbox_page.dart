@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/chat_bloc.dart';
-import '../bloc/chat_event.dart';
 import '../bloc/chat_state.dart';
 
 class InboxPage extends StatelessWidget {

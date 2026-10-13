@@ -1,3 +1,10 @@
+// =============================================================================
+// FILE: lib/features/search/presentation/widgets/articles_card.dart
+// LAYER: Presentation Layer (Widget)
+// RESPONSIBILITY: Renders interactive post card with image carousel, status badges,
+//                 and detail navigation.
+// =============================================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/search_bloc.dart';
@@ -7,8 +14,14 @@ import '../pages/post_card_page.dart';
 class ArticleCard extends StatefulWidget {
   final dynamic post;
   final String currentLocale;
+  final VoidCallback? onTap; // 👉 Добавлен опциональный обработчик клика
 
-  const ArticleCard({required this.post, required this.currentLocale, Key? key}) : super(key: key);
+  const ArticleCard({
+    required this.post, 
+    required this.currentLocale, 
+    this.onTap,
+    super.key,
+  });
 
   @override
   State<ArticleCard> createState() => _ArticleCardState();
@@ -26,7 +39,7 @@ class _ArticleCardState extends State<ArticleCard> {
     _parseImages();
   }
 
-void _parseImages() {
+  void _parseImages() {
     final List<String> temp = [];
     final dynamic imagesData = widget.post['images_urls'] ?? widget.post['images'] ?? widget.post['photos'];
 
@@ -36,9 +49,7 @@ void _parseImages() {
       temp.add(widget.post['image_url'].toString());
     }
 
-    // ✅ ОБНОВЛЕННАЯ ЛОГИКА ЗАГЛУШЕК ДЛЯ КАРТОЧКИ
     if (temp.isEmpty) {
-      // Пытаемся достать категорию из данных поста
       final String cat = (widget.post['category'] ?? '').toString().toLowerCase();
       
       switch (cat) {
@@ -71,13 +82,13 @@ void _parseImages() {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 5))],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: Stack(
           children: [
-            // 1. ПЕРЕЛИСТЫВАНИЕ (Нижний слой)
+            // 1. ИЗОБРАЖЕНИЯ / ПЕРЕЛИСТЫВАНИЕ
             Positioned.fill(
               child: PageView.builder(
                 controller: _pageController,
@@ -85,8 +96,6 @@ void _parseImages() {
                 onPageChanged: (i) => setState(() => _currentPage = i),
                 itemBuilder: (context, index) {
                   final imgPath = _images[index];
-                  // ✅ ИСПРАВЛЕНО: Детектор нажатий возвращен на саму картинку.
-                  // Теперь PageView снова может ловить жесты свайпа.
                   return GestureDetector(
                     onTap: _navigateToDetails,
                     child: imgPath.startsWith('http')
@@ -104,7 +113,7 @@ void _parseImages() {
               ),
             ),
 
-            // 2. ГРАДИЕНТ (Визуал - сквозной благодаря IgnorePointer)
+            // 2. ГРАДИЕНТ
             Positioned.fill(
               child: IgnorePointer(
                 child: Container(
@@ -112,14 +121,14 @@ void _parseImages() {
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
+                      colors: [Colors.transparent, Colors.black.withValues(alpha: 0.8)],
                     ),
                   ),
                 ),
               ),
             ),
 
-            // 3. ТЕКСТ (Пропускает нажатия сквозь себя на картинку)
+            // 3. ТЕКСТОВЫЙ БЛОК
             Positioned(
               left: 12, right: 12, bottom: 12,
               child: IgnorePointer(
@@ -139,7 +148,7 @@ void _parseImages() {
               ),
             ),
 
-            // 4. УПРАВЛЕНИЕ (Верхний слой, перехватывает клики только на своих элементах)
+            // 4. ЭЛЕМЕНТЫ УПРАВЛЕНИЯ КАРУСЕЛЬЮ
             if (_images.length > 1) ...[
               if (_currentPage > 0)
                 Positioned(
@@ -165,43 +174,48 @@ void _parseImages() {
     );
   }
 
-void _navigateToDetails() async {
-  final bloc = context.read<SearchBloc>();
-  
-  // 1. Загружаем детали поста
-  bloc.add(LoadPostDetails(
-    id: widget.post['id'],
-    category: widget.post['category'] ?? 'people',
-    locale: widget.currentLocale,
-  ));
+  void _navigateToDetails() async {
+    // Если передан внешний обработчик, вызываем его
+    if (widget.onTap != null) {
+      widget.onTap!();
+      return;
+    }
 
-  // 2. Переходим на страницу и ЖДЕМ результат (result)
-  final result = await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => BlocProvider.value(
-        value: bloc, 
-      child: PostCardPage(
-          initialCategory: widget.post['category']?.toString() ?? 'people',),
+    // Дефолтная встроенная навигация
+    final bloc = context.read<SearchBloc>();
+    
+    bloc.add(LoadPostDetails(
+      id: widget.post['id'],
+      category: widget.post['category'] ?? 'people',
+      locale: widget.currentLocale,
+    ));
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: bloc, 
+          child: PostCardPage(
+            initialCategory: widget.post['category']?.toString() ?? 'people',
+          ),
+        ),
       ),
-    ),
-  );
+    );
 
-  // 3. ПРОВЕРКА: Если вернулся true (пост удален или создан), обновляем список
- if (result == true && context.mounted) {
-  bloc.add(LoadFilters(
-    category: widget.post['category'] ?? 'people', 
-    locale: widget.currentLocale,
-  )); 
-}
-}
+    if (result == true && context.mounted) {
+      bloc.add(LoadFilters(
+        category: widget.post['category'] ?? 'people', 
+        locale: widget.currentLocale,
+      )); 
+    }
+  }
 
   Widget _buildStatusBadge(String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF00F2FF).withOpacity(0.1),
+        color: const Color(0xFF00F2FF).withValues(alpha: 0.1),
         border: Border.all(color: const Color(0xFF00F2FF), width: 1),
         borderRadius: BorderRadius.circular(4),
       ),

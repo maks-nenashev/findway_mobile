@@ -71,9 +71,9 @@ class PostButtonPanel extends StatelessWidget {
       child: Container(
         width: 52, height: 52,
         decoration: BoxDecoration(
-          color: bgColor ?? color.withOpacity(0.1),
+          color: bgColor ?? color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3), width: 2),
+          border: Border.all(color: color.withValues(alpha: 0.3), width: 2),
         ),
         child: Icon(icon, color: color, size: 24),
       ),

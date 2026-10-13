@@ -126,7 +126,7 @@ class _LocationPickerWidgetState extends State<LocationPickerWidget> {
       decoration: BoxDecoration(
         color: _cardDark,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _accentCyan.withOpacity(0.3)),
+        border: Border.all(color: _accentCyan.withValues(alpha: 0.3)),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
@@ -205,7 +205,7 @@ class _LocationPickerWidgetState extends State<LocationPickerWidget> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.75),
+                        color: Colors.black.withValues(alpha: 0.75),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(

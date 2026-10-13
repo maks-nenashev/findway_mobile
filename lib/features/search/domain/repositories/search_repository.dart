@@ -1,4 +1,3 @@
-import '../../data/models/filter_model.dart';
 
 // =============================================================================
 // ABSTRACT SEARCH REPOSITORY CONTRACT

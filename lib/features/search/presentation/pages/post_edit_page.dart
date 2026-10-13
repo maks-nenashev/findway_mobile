@@ -424,7 +424,7 @@ class _PostEditPageState extends State<PostEditPage> {
                 decoration: BoxDecoration(
                   color: _cardDark,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: _accentCyan.withOpacity(0.3)),
+                  border: Border.all(color: _accentCyan.withValues(alpha: 0.3)),
                 ),
                 child: Icon(Icons.add_a_photo, color: _accentOrange),
               ),
@@ -477,7 +477,7 @@ class _PostEditPageState extends State<PostEditPage> {
         borderRadius: BorderRadius.circular(16),
       ),
       child: DropdownButtonFormField<int>(
-        value: val,
+        initialValue: val,
         items: f.options
                 ?.map((e) => DropdownMenuItem(
                       value: e.id,
@@ -553,7 +553,7 @@ class _PostEditPageState extends State<PostEditPage> {
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: _accentCyan,
-              side: BorderSide(color: _accentCyan.withOpacity(0.6)),
+              side: BorderSide(color: _accentCyan.withValues(alpha: 0.6)),
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
@@ -568,7 +568,7 @@ class _PostEditPageState extends State<PostEditPage> {
             decoration: BoxDecoration(
               color: _cardDark,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _accentCyan.withOpacity(0.3), width: 1),
+              border: Border.all(color: _accentCyan.withValues(alpha: 0.3), width: 1),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -622,7 +622,7 @@ class _PostEditPageState extends State<PostEditPage> {
       decoration: BoxDecoration(
         color: _cardDark,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _accentCyan.withOpacity(0.3), width: 1),
+        border: Border.all(color: _accentCyan.withValues(alpha: 0.3), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -754,7 +754,7 @@ class _PostEditPageState extends State<PostEditPage> {
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11),
+        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11),
         labelStyle: TextStyle(color: _textMuted, fontSize: 12),
         prefixIcon: Icon(icon, color: iconColor, size: 18),
         filled: true,

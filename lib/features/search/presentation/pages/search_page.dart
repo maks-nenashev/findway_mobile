@@ -6,7 +6,6 @@
 //                 dynamic ID panels synchronized with chosen subcategories.
 // =============================================================================
 
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'; 
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -26,9 +25,6 @@ import 'package:findway_mobile/features/search/presentation/pages/post_card_page
 import 'package:findway_mobile/features/chat/presentation/pages/inbox_page.dart';
 import 'package:findway_mobile/features/chat/presentation/bloc/chat_bloc.dart';
 import 'package:findway_mobile/features/chat/presentation/bloc/chat_event.dart';
-import 'package:findway_mobile/features/profile/presentation/pages/profile_page.dart';
-import 'package:findway_mobile/features/profile/presentation/bloc/profile_bloc.dart';
-import 'package:findway_mobile/features/profile/presentation/bloc/profile_event.dart';
 import 'package:findway_mobile/features/chat/presentation/bloc/notification_bloc.dart';
 
 // =============================================================================
@@ -567,7 +563,7 @@ class _SearchPageState extends State<SearchPage> {
       decoration: BoxDecoration(
         color: darkBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderCyan.withOpacity(0.3)),
+        border: Border.all(color: borderCyan.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -634,7 +630,7 @@ class _SearchPageState extends State<SearchPage> {
       decoration: BoxDecoration(
         color: darkBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderCyan.withOpacity(0.3)),
+        border: Border.all(color: borderCyan.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -686,9 +682,9 @@ class _SearchPageState extends State<SearchPage> {
           style: const TextStyle(color: Colors.white, fontSize: 12),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
             filled: true,
-            fillColor: Colors.black.withOpacity(0.3),
+            fillColor: Colors.black.withValues(alpha: 0.3),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white24)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF00F2FF))),
@@ -882,7 +878,7 @@ class _SearchPageState extends State<SearchPage> {
       decoration: BoxDecoration(
         color: darkBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: orangeAccent.withOpacity(0.4)),
+        border: Border.all(color: orangeAccent.withValues(alpha: 0.4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -898,7 +894,7 @@ class _SearchPageState extends State<SearchPage> {
             children: [
               Text(
                 radiusLabelText,
-                style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 11),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 11),
               ),
               Text(
                 '${_radiusKm.round()} $kmUnit',
@@ -1082,7 +1078,7 @@ class _SearchPageState extends State<SearchPage> {
         icon: const Icon(Icons.filter_list),
         label: Text(translations['filter_button'] ?? "Застосувати фильтри"),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFFF8A00).withOpacity(0.1),
+          backgroundColor: const Color(0xFFFF8A00).withValues(alpha: 0.1),
           foregroundColor: const Color(0xFFFF8A00),
           side: const BorderSide(color: Color(0xFFFF8A00)),
         ),
@@ -1193,7 +1189,7 @@ class CategoryCard extends StatelessWidget {
               ? NetworkImage(path) as ImageProvider
               : AssetImage(path) as ImageProvider,
           fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.55), BlendMode.darken),
+          colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.55), BlendMode.darken),
         ),
       ),
       child: ClipRRect(
@@ -1255,7 +1251,7 @@ class CustomBottomNavBar extends StatelessWidget {
         color: Colors.white, 
         borderRadius: BorderRadius.circular(30),
         border: Border.all(color: const Color(0xFF1E293B), width: 2),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20)],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
