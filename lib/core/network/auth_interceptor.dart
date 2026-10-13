@@ -1,16 +1,20 @@
+
 import 'package:dio/dio.dart';
 
 class AuthInterceptor extends Interceptor {
-  final Function() onUnauthenticated;
+  final void Function()? onUnauthenticated;
 
-  AuthInterceptor({required this.onUnauthenticated});
+  AuthInterceptor({this.onUnauthenticated});
 
   @override
-  void onError(DioException err, ErrorInterceptorHandler handler) {
+  void onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) {
     if (err.response?.statusCode == 401) {
-      // При получении 401 сбрасываем сессию/токен и уведомляем AuthBloc
-      onUnauthenticated();
+      onUnauthenticated?.call();
     }
-    super.onError(err, handler);
+
+    handler.next(err);
   }
 }

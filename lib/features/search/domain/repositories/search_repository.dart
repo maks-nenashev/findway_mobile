@@ -1,33 +1,38 @@
-// =============================================================================
-// FILE: lib/features/search/domain/repositories/search_repository.dart
-// LAYER: Domain Layer (Contract / Interface)
-// RESPONSIBILITY: Чистый контракт интерфейса репозитория поиска и CUD-операций.
-// =============================================================================
+import '../../data/models/filter_model.dart';
 
+// =============================================================================
+// ABSTRACT SEARCH REPOSITORY CONTRACT
+// =============================================================================
 abstract class SearchRepository {
-  /// Получение метаданных фильтров и переводов для заданной категории
+  // ===========================================================================
+  // 1. GET FILTERS DATA
+  // ===========================================================================
   Future<Map<String, dynamic>> getFiltersData({
     required String category, 
     required String locale,
   });
   
-  /// Выполнение поиска с фильтрацией
+  // ===========================================================================
+  // 2. SEARCH RECORDS
+  // ===========================================================================
   Future<List<dynamic>> search({
     required String category, 
     required Map<String, dynamic> filters, 
     required String locale,
   });
   
-  /// Загрузка детальной карточки объявления
+  // ===========================================================================
+  // 3. GET POST DETAILS
+  // ===========================================================================
   Future<Map<String, dynamic>> getPostDetails({
     required int id, 
     required String category, 
     required String locale,
   });
 
-  // =========================================================================
-  // СОЗДАНИЕ ПОСТА
-  // =========================================================================
+  // ===========================================================================
+  // 4. CREATE POST (With Geolocation & JSONB Metadata)
+  // ===========================================================================
   Future<Map<String, dynamic>> createPost({
     required String category,
     required String title,
@@ -39,13 +44,14 @@ abstract class SearchRepository {
     double? longitude,
     String? address,
     Map<String, dynamic>? animalMetadata,
+    Map<String, dynamic>? thingMetadata,
     required String locale,
     required List<String> imagePaths,
   });
 
-  // =========================================================================
-  // ОБНОВЛЕНИЕ ПОСТА
-  // =========================================================================
+  // ===========================================================================
+  // 5. UPDATE POST (With Geolocation & JSONB Metadata)
+  // ===========================================================================
   Future<void> updatePost({
     required int postId,
     required String category,
@@ -58,13 +64,14 @@ abstract class SearchRepository {
     double? longitude,
     String? address,
     Map<String, dynamic>? animalMetadata,
+    Map<String, dynamic>? thingMetadata,
     required String locale,
     required List<String> existingImages,
     required List<String> newImagePaths,
   });
 
-  // =========================================================================
-  // УДАЛЕНИЕ ПОСТА
-  // =========================================================================
+  // ===========================================================================
+  // 6. DELETE POST
+  // ===========================================================================
   Future<void> deletePost(int postId, String category); 
 }

@@ -1,5 +1,8 @@
 // =============================================================================
 // FILE: lib/features/search/presentation/pages/post_create_page.dart
+// LAYER: Presentation Layer (Page / Form)
+// RESPONSIBILITY: Post creation form with expandable ID panel placed under
+//                 category selector, featuring dynamic field counts and toggle.
 // =============================================================================
 
 import 'dart:io';
@@ -9,12 +12,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../bloc/search_bloc.dart';
-import '../bloc/search_event.dart';
-import '../bloc/search_state.dart';
-import '../../data/models/filter_model.dart';
-import '../widgets/map/location_picker_widget.dart'; // 👉 Импорт карты
-
+import 'package:findway_mobile/features/search/presentation/bloc/search_bloc.dart';
+import 'package:findway_mobile/features/search/presentation/bloc/search_event.dart';
+import 'package:findway_mobile/features/search/presentation/bloc/search_state.dart';
+import 'package:findway_mobile/features/search/data/models/filter_model.dart';
+import 'package:findway_mobile/features/search/presentation/widgets/map/location_picker_widget.dart';
+// =============================================================================
+// 1. MAIN POST CREATE PAGE WIDGET & STATE
+// =============================================================================
 class PostCreatePage extends StatefulWidget {
   final String initialCategory;
 
@@ -31,9 +36,10 @@ class _PostCreatePageState extends State<PostCreatePage> {
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _picker = ImagePicker();
 
+  // Palette
   final Color _bgDark = const Color(0xFF0F172A);
   final Color _cardDark = const Color(0xFF1E293B);
-  final Color _accentOrange = const Color(0xFFFF9800);
+  final Color _accentOrange = const Color(0xFFFF8A00);
   final Color _accentCyan = const Color(0xFF00F2FF);
   final Color _textMuted = Colors.white54;
 
@@ -43,18 +49,22 @@ class _PostCreatePageState extends State<PostCreatePage> {
   String _text = '';
 
   int? _localId;
-  int? _choiceId;
-  int? _actionId;
+  int? _choiceId; // Subcategory (Phone / Cat ID)
+  int? _actionId; // Action Choice (Lost / Found)
 
-  // 👉 Геолокационные данные
+  // Geolocation
   double? _latitude;
   double? _longitude;
   String _address = '';
 
-  // Специфика животных
+  // Animal Metadata
   String _chipNumber = '';
   String _passportNumber = '';
   String _insurancePolicyId = '';
+
+  // Thing Metadata
+  bool _isThingMetadataOpen = false;
+  final Map<String, String> _thingMetadataValues = {};
 
   List<File> _images = [];
 
@@ -67,8 +77,12 @@ class _PostCreatePageState extends State<PostCreatePage> {
     'text_2': 'Text',
     'submit_article': 'Submit',
     'animal_identifiers': 'ANIMAL IDENTIFIERS',
+    'thing_identifiers': 'THING IDENTIFIERS & SPECS',
   };
 
+  // =============================================================================
+  // 2. LIFECYCLE & HELPERS
+  // =============================================================================
   @override
   void initState() {
     super.initState();
@@ -90,6 +104,26 @@ class _PostCreatePageState extends State<PostCreatePage> {
     return cat == 'animals' || cat == 'animal' || cat == 'sense' || cat == 'senses';
   }
 
+  bool get _isThingCategory {
+    final cat = _category.toLowerCase().trim();
+    return cat == 'things' || cat == 'thing';
+  }
+
+  String? get _selectedSubCategoryLabel {
+    if (_choiceId == null || _filters.length < 2) return null;
+    final subFilter = _filters[1];
+    final options = subFilter.options ?? [];
+    for (final opt in options) {
+      if (opt.id == _choiceId) {
+        return opt.label;
+      }
+    }
+    return null;
+  }
+
+  // =============================================================================
+  // 3. IMAGE PICKER
+  // =============================================================================
   Future<void> _pickImagesMobile() async {
     final selected = await _picker.pickMultiImage(imageQuality: 70, maxWidth: 1440);
     if (selected.isNotEmpty) {
@@ -109,6 +143,9 @@ class _PostCreatePageState extends State<PostCreatePage> {
     }
   }
 
+  // =============================================================================
+  // 4. MAIN BUILD METHOD
+  // =============================================================================
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<SearchBloc, SearchState>(
@@ -170,13 +207,23 @@ class _PostCreatePageState extends State<PostCreatePage> {
                         _buildPhotos(),
                         const SizedBox(height: 24),
                         _buildFilters(),
+                        
+                        if (_isThingCategory) ...[
+                          const SizedBox(height: 16),
+                          _buildThingMetadataSection(),
+                        ],
+
+                        if (_isAnimalCategory) ...[
+                          const SizedBox(height: 16),
+                          _buildAnimalMetadataSection(),
+                        ],
+
                         const SizedBox(height: 20),
                         _input(tr('tytul_2'), (v) => _title = v),
                         const SizedBox(height: 20),
                         _input(tr('text_2'), (v) => _text = v, max: 6),
                         const SizedBox(height: 24),
 
-                        // 👉 Интерактивная карта выбора точки события
                         LocationPickerWidget(
                           translations: _translations,
                           onLocationSelected: (lat, lng) {
@@ -189,11 +236,6 @@ class _PostCreatePageState extends State<PostCreatePage> {
                         ),
                         const SizedBox(height: 24),
 
-                        if (_isAnimalCategory) ...[
-                          _buildAnimalMetadataSection(),
-                          const SizedBox(height: 24),
-                        ],
-
                         _submitButton(),
                         const SizedBox(height: 40),
                       ],
@@ -205,6 +247,9 @@ class _PostCreatePageState extends State<PostCreatePage> {
     );
   }
 
+  // =============================================================================
+  // 5. FORM COMPONENTS
+  // =============================================================================
   Widget _buildPhotos() {
     return SizedBox(
       height: 90,
@@ -275,7 +320,11 @@ class _PostCreatePageState extends State<PostCreatePage> {
                     ))
                 .toList() ??
             [],
-        onChanged: (v) => setState(() => onChanged(v)),
+        onChanged: (v) {
+          setState(() {
+            onChanged(v);
+          });
+        },
         validator: (v) => v == null ? 'Required' : null,
         dropdownColor: _cardDark,
         decoration: InputDecoration(
@@ -306,6 +355,97 @@ class _PostCreatePageState extends State<PostCreatePage> {
     );
   }
 
+  // =============================================================================
+  // 6. COLLAPSIBLE THING METADATA PANEL (Under Category Select)
+  // =============================================================================
+  Widget _buildThingMetadataSection() {
+    final String label = _selectedSubCategoryLabel ?? '';
+    final List<String> fields = _getFieldsForCategoryLabel(label);
+    final int fieldsCount = fields.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              setState(() {
+                _isThingMetadataOpen = !_isThingMetadataOpen;
+              });
+            },
+            icon: Icon(
+              _isThingMetadataOpen ? Icons.keyboard_arrow_up : Icons.security,
+              size: 18,
+            ),
+            label: Text(
+              fieldsCount > 0
+                  ? 'ID SPECIFIC PARAMETERS ($fieldsCount)'
+                  : 'ID SPECIFIC PARAMETERS',
+              style: const TextStyle(fontFamily: 'Orbitron', fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _accentCyan,
+              side: BorderSide(color: _accentCyan.withOpacity(0.6)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ),
+
+        if (_isThingMetadataOpen) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _cardDark,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _accentCyan.withOpacity(0.3), width: 1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (fields.isEmpty)
+                  Text(
+                    tr('thing_metadata.select_category_prompt'),
+                    style: TextStyle(color: _textMuted, fontSize: 12),
+                  )
+                else ...[
+                  Text(
+                    'IDENTIFIERS: ${label.toUpperCase()}',
+                    style: TextStyle(
+                      color: _accentCyan,
+                      fontFamily: 'Orbitron',
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Divider(color: Colors.white12, height: 20),
+                  ...fields.map((field) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: _metaInputField(
+                        label: _getAttrLabel(field),
+                        hint: _getAttrPlaceholder(field),
+                        icon: _getIconForField(field),
+                        iconColor: _accentCyan,
+                        initialVal: _thingMetadataValues[field] ?? '',
+                        onChanged: (v) => _thingMetadataValues[field] = v.trim(),
+                      ),
+                    );
+                  }),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // =============================================================================
+  // 7. ANIMAL METADATA SECTION BUILDER
+  // =============================================================================
   Widget _buildAnimalMetadataSection() {
     final String sectionTitle = tr('animal_identifiers');
 
@@ -337,6 +477,7 @@ class _PostCreatePageState extends State<PostCreatePage> {
           const Divider(color: Colors.white12, height: 24),
           _metaInputField(
             label: 'Microchip ID',
+            hint: 'e.g. 98512...',
             icon: Icons.memory,
             iconColor: _accentCyan,
             onChanged: (v) => _chipNumber = v,
@@ -344,6 +485,7 @@ class _PostCreatePageState extends State<PostCreatePage> {
           const SizedBox(height: 12),
           _metaInputField(
             label: 'Passport / Reg №',
+            hint: 'Reg number',
             icon: Icons.badge_outlined,
             iconColor: Colors.amber,
             onChanged: (v) => _passportNumber = v,
@@ -351,6 +493,7 @@ class _PostCreatePageState extends State<PostCreatePage> {
           const SizedBox(height: 12),
           _metaInputField(
             label: 'Insurance Policy',
+            hint: 'Policy ID',
             icon: Icons.verified_outlined,
             iconColor: Colors.greenAccent,
             onChanged: (v) => _insurancePolicyId = v,
@@ -360,17 +503,87 @@ class _PostCreatePageState extends State<PostCreatePage> {
     );
   }
 
+  // =============================================================================
+  // 8. METADATA INPUT HELPERS
+  // =============================================================================
+  List<String> _getFieldsForCategoryLabel(String? label) {
+    if (label == null || label.trim().isEmpty) return [];
+
+    final lower = label.toLowerCase();
+    if (lower.contains('doc') || lower.contains('документ') || lower.contains('dokumen')) {
+      return ['document_type', 'document_number', 'full_name'];
+    } else if (lower.contains('phone') || lower.contains('телефон') || lower.contains('telefon') || lower.contains('gadget')) {
+      return ['imei', 'serial_number', 'brand_model', 'color'];
+    } else if (lower.contains('car') || lower.contains('авто') || lower.contains('машин') || lower.contains('samochód')) {
+      return ['vin', 'license_plate', 'brand_model', 'color'];
+    } else if (lower.contains('moto') || lower.contains('мото')) {
+      return ['vin', 'license_plate', 'brand_model', 'color'];
+    } else if (lower.contains('bike') || lower.contains('вело') || lower.contains('rower')) {
+      return ['frame_number', 'brand_model', 'color'];
+    } else if (lower.contains('jewel') || lower.contains('ювелир') || lower.contains('прикрас') || lower.contains('biżuteria')) {
+      return ['brand_model', 'serial_number', 'hallmark', 'engraving'];
+    } else if (lower.contains('key') || lower.contains('ключ') || lower.contains('klucz')) {
+      return ['key_type', 'keychain_description'];
+    } else if (lower.contains('bag') || lower.contains('сумк') || lower.contains('кошел') || lower.contains('portfel') || lower.contains('wallet')) {
+      return ['brand_model', 'color', 'contents_description'];
+    }
+
+    return ['brand_model', 'serial_number', 'additional_info'];
+  }
+
+  IconData _getIconForField(String key) {
+    switch (key) {
+      case 'vin':
+      case 'license_plate': return Icons.directions_car_outlined;
+      case 'imei': return Icons.phone_android_outlined;
+      case 'serial_number':
+      case 'frame_number': return Icons.pin_outlined;
+      case 'document_type':
+      case 'document_number': return Icons.badge_outlined;
+      case 'full_name': return Icons.person_outline;
+      case 'brand_model': return Icons.sell_outlined;
+      case 'color': return Icons.palette_outlined;
+      case 'hallmark':
+      case 'engraving': return Icons.diamond_outlined;
+      case 'key_type':
+      case 'keychain_description': return Icons.key_outlined;
+      case 'contents_description': return Icons.inventory_2_outlined;
+      default: return Icons.tag;
+    }
+  }
+
+  String _getAttrLabel(String field) {
+    final trKey = 'thing_metadata.attributes.$field';
+    if (_translations.containsKey(trKey) && _translations[trKey] != null) {
+      return _translations[trKey].toString();
+    }
+    return field.split('_').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' ');
+  }
+
+  String _getAttrPlaceholder(String field) {
+    final trKey = 'thing_metadata.placeholders.$field';
+    if (_translations.containsKey(trKey) && _translations[trKey] != null) {
+      return _translations[trKey].toString();
+    }
+    return '';
+  }
+
   Widget _metaInputField({
     required String label,
     required IconData icon,
     required Color iconColor,
     required Function(String) onChanged,
+    String? hint,
+    String initialVal = '',
   }) {
     return TextFormField(
+      initialValue: initialVal,
       onChanged: onChanged,
       style: const TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'Monospace'),
       decoration: InputDecoration(
         labelText: label,
+        hintText: hint,
+        hintStyle: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11),
         labelStyle: TextStyle(color: _textMuted, fontSize: 12),
         prefixIcon: Icon(icon, color: iconColor, size: 18),
         filled: true,
@@ -384,6 +597,9 @@ class _PostCreatePageState extends State<PostCreatePage> {
     );
   }
 
+  // =============================================================================
+  // 9. SUBMIT BUTTON
+  // =============================================================================
   Widget _submitButton() {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
@@ -404,6 +620,15 @@ class _PostCreatePageState extends State<PostCreatePage> {
             };
           }
 
+          Map<String, dynamic>? thingMetadata;
+          if (_isThingCategory) {
+            final cleaned = Map<String, dynamic>.from(_thingMetadataValues)
+              ..removeWhere((k, v) => v == null || v.toString().trim().isEmpty);
+            if (cleaned.isNotEmpty) {
+              thingMetadata = cleaned;
+            }
+          }
+
           context.read<SearchBloc>().add(CreatePost(
                 category: _category,
                 title: _title.trim(),
@@ -411,10 +636,11 @@ class _PostCreatePageState extends State<PostCreatePage> {
                 localId: _localId!,
                 choiceId: _actionId!,
                 catId: _choiceId,
-                latitude: _latitude,   // 👉 Передача широты
-                longitude: _longitude, // 👉 Передача долготы
-                address: _address.trim(), // 👉 Передача текста адреса
+                latitude: _latitude,
+                longitude: _longitude,
+                address: _address.trim(),
                 animalMetadata: animalMetadata,
+                thingMetadata: thingMetadata,
                 locale: context.read<SearchBloc>().currentLocale,
                 imagePaths: _images.map((e) => e.path).toList(),
               ));

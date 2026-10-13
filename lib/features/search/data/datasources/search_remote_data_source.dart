@@ -1,3 +1,10 @@
+// =============================================================================
+// FILE: lib/features/search/data/datasources/search_remote_data_source.dart
+// LAYER: Data Layer (Remote Data Source)
+// RESPONSIBILITY: Выполнение HTTP-запросов (Dio) к API Rails с поддержкой
+//                 геолокации, animal_metadata и thing_metadata.
+// =============================================================================
+
 import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 
@@ -33,11 +40,12 @@ abstract class SearchRemoteDataSource {
     required int choiceId,
     int? catId,
     
-    // 👉 Геолокация и идентификаторы животных
+    // 👉 Геолокация и идентификаторы (JSONB)
     double? latitude,
     double? longitude,
     String? address,
     Map<String, dynamic>? animalMetadata,
+    Map<String, dynamic>? thingMetadata,
     
     required String locale,
     required List<String> imagePaths,
@@ -52,11 +60,12 @@ abstract class SearchRemoteDataSource {
     required int choiceId,
     int? catId,
     
-    // 👉 Геолокация и идентификаторы животных
+    // 👉 Геолокация и идентификаторы (JSONB)
     double? latitude,
     double? longitude,
     String? address,
     Map<String, dynamic>? animalMetadata,
+    Map<String, dynamic>? thingMetadata,
     
     required String locale,
     required List<String> existingImages,
@@ -192,6 +201,7 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     double? longitude,
     String? address,
     Map<String, dynamic>? animalMetadata,
+    Map<String, dynamic>? thingMetadata,
     required String locale,
     required List<String> imagePaths,
   }) async {
@@ -216,12 +226,15 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
       data[subCategoryKey] = catId;
     }
 
-    // Добавление координат и подметаданных в payload
+    // Добавление координат и метаданных в payload
     if (latitude != null) data['latitude'] = latitude;
     if (longitude != null) data['longitude'] = longitude;
     if (address != null && address.isNotEmpty) data['address'] = address;
     if (animalMetadata != null && animalMetadata.isNotEmpty) {
       data['animal_metadata'] = animalMetadata;
+    }
+    if (thingMetadata != null && thingMetadata.isNotEmpty) {
+      data['thing_metadata'] = thingMetadata;
     }
 
     final formData = FormData.fromMap(data);
@@ -248,6 +261,7 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     double? longitude,
     String? address,
     Map<String, dynamic>? animalMetadata,
+    Map<String, dynamic>? thingMetadata,
     required String locale,
     required List<String> existingImages,
     required List<String> newImagePaths,
@@ -273,12 +287,15 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
       data[subCategoryKey] = catId;
     }
 
-    // Добавление координат и подметаданных в payload
+    // Добавление координат и метаданных в payload
     if (latitude != null) data['latitude'] = latitude;
     if (longitude != null) data['longitude'] = longitude;
     if (address != null && address.isNotEmpty) data['address'] = address;
     if (animalMetadata != null && animalMetadata.isNotEmpty) {
       data['animal_metadata'] = animalMetadata;
+    }
+    if (thingMetadata != null && thingMetadata.isNotEmpty) {
+      data['thing_metadata'] = thingMetadata;
     }
 
     if (existingImages.isNotEmpty) {

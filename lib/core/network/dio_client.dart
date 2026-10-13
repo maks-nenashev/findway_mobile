@@ -7,44 +7,39 @@ import 'auth_interceptor.dart';
 class DioClient {
   final Dio _dio;
 
-  /// 🔥 ГЛАВНОЕ — ОДИН CookieJar
   static final CookieJar _cookieJar = CookieJar();
 
   DioClient(this._dio, {void Function()? onUnauthenticated}) {
-    _dio
-      ..options.baseUrl = 'http://10.0.2.2:3000'
-      ..options.connectTimeout = const Duration(seconds: 15)
-      ..options.receiveTimeout = const Duration(seconds: 15)
-      ..options.headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      }
+    _dio.options.baseUrl = 'http://10.0.2.2:3000';
+    _dio.options.connectTimeout = const Duration(seconds: 15);
+    _dio.options.receiveTimeout = const Duration(seconds: 15);
+    _dio.options.headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
 
-      /// 👉 КЛЮЧЕВОЙ ФИКС: 401/403/404 — это штатные ответы сервера (гостевой режим), а не краш Dio
-      ..options.validateStatus = (status) => status != null && status < 500
+    _dio.options.validateStatus = (status) =>
+        status != null && status < 500;
 
-      /// ✅ Менеджер кук (сохраняет _findway_session)
-      ..interceptors.add(CookieManager(_cookieJar))
+    _dio.interceptors.add(CookieManager(_cookieJar));
 
-      /// 🔒 Централизованная обработка 401 (гостевой режим / истечение сессии)
-      ..interceptors.add(
-        AuthInterceptor(onUnauthenticated: onUnauthenticated),
-      )
+    _dio.interceptors.add(
+      AuthInterceptor(onUnauthenticated: onUnauthenticated),
+    );
 
-      /// 📝 Логирование сетевых запросов и ответов
-      ..interceptors.add(
-        LogInterceptor(
-          requestBody: true,
-          responseBody: true,
-        ),
-      );
+    _dio.interceptors.add(
+      LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+      ),
+    );
   }
 
   Future<Response> get(
     String url, {
     Map<String, dynamic>? queryParameters,
   }) async {
-    return await _dio.get(url, queryParameters: queryParameters);
+    return _dio.get(url, queryParameters: queryParameters);
   }
 
   Future<Response> post(
@@ -52,7 +47,7 @@ class DioClient {
     dynamic data,
     Map<String, dynamic>? queryParameters,
   }) async {
-    return await _dio.post(
+    return _dio.post(
       url,
       data: data,
       queryParameters: queryParameters,
@@ -60,10 +55,10 @@ class DioClient {
   }
 
   Future<Response> delete(String url) async {
-    return await _dio.delete(url);
+    return _dio.delete(url);
   }
 
   Future<Response> patch(String url, {dynamic data}) async {
-    return await _dio.patch(url, data: data);
+    return _dio.patch(url, data: data);
   }
 }

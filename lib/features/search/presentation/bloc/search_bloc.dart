@@ -1,3 +1,9 @@
+// =============================================================================
+// FILE: lib/features/search/presentation/bloc/search_bloc.dart
+// RESPONSIBILITY: BLoC поиска и управление CUD-операциями объявлений
+//                 с пробросом animalMetadata и thingMetadata в репозиторий.
+// =============================================================================
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'search_event.dart';
 import 'search_state.dart';
@@ -95,7 +101,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     });
 
     // =========================================================================
-    // UPDATE POST (Редактирование с учетом геолокации и animal_metadata)
+    // UPDATE POST (Редактирование с учетом геолокации, animalMetadata и thingMetadata)
     // =========================================================================
     on<UpdatePost>((event, emit) async {
       try {
@@ -107,10 +113,11 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           localId: event.localId,
           choiceId: event.choiceId,
           catId: event.catId,
-          latitude: event.latitude,     // 👉 Проброс широты
-          longitude: event.longitude,   // 👉 Проброс долготы
-          address: event.address,       // 👉 Проброс адреса
-          animalMetadata: event.animalMetadata, // 👉 Проброс идентификаторов животных
+          latitude: event.latitude,
+          longitude: event.longitude,
+          address: event.address,
+          animalMetadata: event.animalMetadata,
+          thingMetadata: event.thingMetadata, // 👉 Проброс метаданных вещей
           locale: event.locale,
           existingImages: event.existingImages,
           newImagePaths: event.newImagePaths,
@@ -221,7 +228,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     });
 
     // =========================================================================
-    // CREATE POST (Создание поста с координатами и метаданными)
+    // CREATE POST (Создание поста с координатами, animalMetadata и thingMetadata)
     // =========================================================================
     on<CreatePost>((event, emit) async {
       try {
@@ -232,10 +239,11 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           localId: event.localId,
           choiceId: event.choiceId,
           catId: event.catId,
-          latitude: event.latitude,     // 👉 Проброс широты
-          longitude: event.longitude,   // 👉 Проброс долготы
-          address: event.address,       // 👉 Проброс адреса
-          animalMetadata: event.animalMetadata, // 👉 Проброс идентификаторов животных
+          latitude: event.latitude,
+          longitude: event.longitude,
+          address: event.address,
+          animalMetadata: event.animalMetadata,
+          thingMetadata: event.thingMetadata, // 👉 Проброс метаданных вещей
           locale: event.locale,
           imagePaths: event.imagePaths,
         );

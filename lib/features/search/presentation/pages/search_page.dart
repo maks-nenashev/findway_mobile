@@ -1,5 +1,9 @@
 // =============================================================================
 // FILE: lib/features/search/presentation/pages/search_page.dart
+// LAYER: Presentation Layer (Page)
+// RESPONSIBILITY: Main search dashboard rendering category feeds, interactive
+//                 OpenStreetMap index maps, PostGIS radius filters, and
+//                 dynamic ID panels synchronized with chosen subcategories.
 // =============================================================================
 
 import 'dart:ui';
@@ -7,17 +11,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'; 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../../injection_container.dart';
-import '../bloc/search_bloc.dart';
-import '../bloc/search_event.dart';
-import '../bloc/search_state.dart';
-import '../widgets/filter_builder.dart';
-import '../widgets/articles_card.dart';
-import '../widgets/locale_selector.dart';
-import '../widgets/map/index_map_widget.dart';
+import 'package:findway_mobile/injection_container.dart';
+import 'package:findway_mobile/features/search/presentation/bloc/search_bloc.dart';
+import 'package:findway_mobile/features/search/presentation/bloc/search_event.dart';
+import 'package:findway_mobile/features/search/presentation/bloc/search_state.dart';
+import 'package:findway_mobile/features/search/presentation/widgets/filter_builder.dart';
+import 'package:findway_mobile/features/search/presentation/widgets/articles_card.dart';
+import 'package:findway_mobile/features/search/presentation/widgets/locale_selector.dart';
+import 'package:findway_mobile/features/search/presentation/widgets/map/index_map_widget.dart';
 
-import 'post_create_page.dart'; 
-import 'post_card_page.dart'; 
+import 'package:findway_mobile/features/search/presentation/pages/post_create_page.dart'; 
+import 'package:findway_mobile/features/search/presentation/pages/post_card_page.dart'; 
+
 import 'package:findway_mobile/features/chat/presentation/pages/inbox_page.dart';
 import 'package:findway_mobile/features/chat/presentation/bloc/chat_bloc.dart';
 import 'package:findway_mobile/features/chat/presentation/bloc/chat_event.dart';
@@ -27,7 +32,7 @@ import 'package:findway_mobile/features/profile/presentation/bloc/profile_event.
 import 'package:findway_mobile/features/chat/presentation/bloc/notification_bloc.dart';
 
 // =============================================================================
-// 1. МОДЕЛЬ КАТЕГОРИИ (FindWayCategory)
+// 1. CATEGORY MODEL
 // =============================================================================
 class FindWayCategory {
   final String title;
@@ -46,7 +51,7 @@ class FindWayCategory {
 }
 
 // =============================================================================
-// 2. ОСНОВНОЙ ВИДЖЕТ СТРАНИЦЫ (SearchPage)
+// 2. MAIN SEARCH PAGE WIDGET & STATE
 // =============================================================================
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -56,25 +61,40 @@ class SearchPage extends StatefulWidget {
 }
 
 class _SearchPageState extends State<SearchPage> {
-  // --- Состояние скролла и навигации ---
   String _localActiveCategory = '';
   late ScrollController _mainScrollController;
   late ScrollController _titleScrollController;
   bool _isMenuVisible = true;
 
-  // --- Состояние выдвижных панелей фильтрации ---
   bool _isAdvancedIdOpen = false;
   bool _isGeoPanelOpen = false;
 
-  // --- Состояние PostGIS Геолокации ---
   double _radiusKm = 5.0;
   double? _searchLat;
   double? _searchLng;
 
-  // --- Контроллеры полей идентификаторов животных ---
+  // Animal Controllers
   final TextEditingController _chipController = TextEditingController();
   final TextEditingController _passportController = TextEditingController();
   final TextEditingController _insuranceController = TextEditingController();
+
+  // Thing Controllers (All 16 fields)
+  final TextEditingController _brandModelController = TextEditingController();
+  final TextEditingController _vinController = TextEditingController();
+  final TextEditingController _licensePlateController = TextEditingController();
+  final TextEditingController _imeiController = TextEditingController();
+  final TextEditingController _serialNumberController = TextEditingController();
+  final TextEditingController _frameNumberController = TextEditingController();
+  final TextEditingController _docTypeController = TextEditingController();
+  final TextEditingController _docNumberController = TextEditingController();
+  final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _colorController = TextEditingController();
+  final TextEditingController _hallmarkController = TextEditingController();
+  final TextEditingController _engravingController = TextEditingController();
+  final TextEditingController _keyTypeController = TextEditingController();
+  final TextEditingController _keychainDescController = TextEditingController();
+  final TextEditingController _contentsDescController = TextEditingController();
+  final TextEditingController _additionalInfoController = TextEditingController();
 
   @override
   void initState() {
@@ -96,21 +116,36 @@ class _SearchPageState extends State<SearchPage> {
   void dispose() {
     _mainScrollController.dispose();
     _titleScrollController.dispose();
+
     _chipController.dispose();
     _passportController.dispose();
     _insuranceController.dispose();
+
+    _brandModelController.dispose();
+    _vinController.dispose();
+    _licensePlateController.dispose();
+    _imeiController.dispose();
+    _serialNumberController.dispose();
+    _frameNumberController.dispose();
+    _docTypeController.dispose();
+    _docNumberController.dispose();
+    _fullNameController.dispose();
+    _colorController.dispose();
+    _hallmarkController.dispose();
+    _engravingController.dispose();
+    _keyTypeController.dispose();
+    _keychainDescController.dispose();
+    _contentsDescController.dispose();
+    _additionalInfoController.dispose();
+
     super.dispose();
   }
 
-  // ---------------------------------------------------------------------------
-  // BUILD METHOD (Главный контейнер)
-  // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (context) {
         final bloc = sl<SearchBloc>();
-        // 👉 Исправление хардкода: запрашиваем фильтры с активной локалью BLoC
         final String initialLocale = bloc.currentLocale.isNotEmpty ? bloc.currentLocale : 'uk';
         bloc.add(LoadFilters(category: '', locale: initialLocale)); 
         return bloc;
@@ -144,8 +179,6 @@ class _SearchPageState extends State<SearchPage> {
           return Scaffold( 
             extendBody: true,
             backgroundColor: const Color(0xFFF0F4F8),
-            
-            // --- Плавающая кнопка создания поста ---
             floatingActionButton: AnimatedSlide(
               duration: const Duration(milliseconds: 300),
               offset: _isMenuVisible ? Offset.zero : const Offset(0, 2.5),
@@ -171,7 +204,7 @@ class _SearchPageState extends State<SearchPage> {
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => BlocProvider.value(value: bloc, child: const PostCardPage()),
+                            builder: (context) => BlocProvider.value(value: bloc, child: PostCardPage()),
                           ),
                         );
                         if (mounted) bloc.add(LoadFilters(category: targetCategory, locale: bloc.currentLocale));
@@ -186,7 +219,6 @@ class _SearchPageState extends State<SearchPage> {
             ),
             floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
-            // --- Нижняя навигационная панель ---
             bottomNavigationBar: AnimatedSlide(
               duration: const Duration(milliseconds: 300),
               offset: _isMenuVisible ? Offset.zero : const Offset(0, 2.0),
@@ -221,7 +253,6 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
 
-            // --- Основной скролл приложения ---
             body: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               child: isTitlePage 
@@ -233,8 +264,6 @@ class _SearchPageState extends State<SearchPage> {
                         controller: _mainScrollController,
                         slivers: [
                           _buildSliverAppBar(),
-                          
-                          // 1. Панель поиска и фильтров
                           SliverToBoxAdapter(
                             child: _buildFilterPanel(
                               context, state, translations, currentLocale,
@@ -242,7 +271,6 @@ class _SearchPageState extends State<SearchPage> {
                             ),
                           ),
 
-                          // 2. Выплывающая карта (Локализованный паршел shared/map_index)
                           if (searchResults.isNotEmpty)
                             SliverToBoxAdapter(
                               child: Padding(
@@ -256,7 +284,7 @@ class _SearchPageState extends State<SearchPage> {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => BlocProvider.value(value: bloc, child: const PostCardPage()),
+                                        builder: (context) => BlocProvider.value(value: bloc, child: PostCardPage()),
                                       ),
                                     );
                                   },
@@ -264,7 +292,6 @@ class _SearchPageState extends State<SearchPage> {
                               ),
                             ),
 
-                          // 3. Сетка результатов с фиксированным ValueKey
                           if (searchResults.isNotEmpty)
                             _buildResultsGrid(searchResults, currentLocale)
                           else if (state is! SearchLoading && state is! ResultsLoading)
@@ -294,10 +321,6 @@ class _SearchPageState extends State<SearchPage> {
       ),
     );
   }
-
-  // ===========================================================================
-  // 3. UI БЛОКИ И ПАНЕЛИ УПРАВЛЕНИЯ
-  // ===========================================================================
 
   Widget _buildSliverAppBar() {
     return SliverAppBar(
@@ -412,6 +435,9 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
+  // =============================================================================
+  // FILTER PANEL WITH ID & GEO UNDER DROPDOWNS
+  // =============================================================================
   Widget _buildFilterPanel(
     BuildContext context, 
     SearchState state, 
@@ -424,6 +450,11 @@ class _SearchPageState extends State<SearchPage> {
     const Color darkSlate = Color(0xFF1E293B);
     const Color neonBlue = Color(0xFF00F2FF);
     final bool isAnimalCategory = activeCategory == 'animals';
+    final bool isThingCategory = activeCategory == 'things';
+    final bool hasIdPanel = isAnimalCategory || isThingCategory;
+
+    final String? selectedSubCategoryLabel = _getSelectedSubCategoryLabel(filters, selectedFilterValues);
+    final int fieldsCount = _getFieldsCountForCategory(selectedSubCategoryLabel);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
@@ -438,45 +469,9 @@ class _SearchPageState extends State<SearchPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildCategoryButtons(context, activeCategory, translations, currentLocale),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
             _buildSearchField(context, translations),
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                if (isAnimalCategory) ...[
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => setState(() => _isAdvancedIdOpen = !_isAdvancedIdOpen),
-                      icon: const Icon(Icons.security, size: 16),
-                      label: const Text('ID', style: TextStyle(fontFamily: 'Orbitron', fontSize: 11)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF00F2FF),
-                        side: const BorderSide(color: Color(0xFF00F2FF)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => setState(() => _isGeoPanelOpen = !_isGeoPanelOpen),
-                    icon: const Icon(Icons.my_location, size: 16),
-                    label: const Text('Geo', style: TextStyle(fontFamily: 'Orbitron', fontSize: 11)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFFF8A00),
-                      side: const BorderSide(color: Color(0xFFFF8A00)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            if (isAnimalCategory && _isAdvancedIdOpen) _buildAdvancedIdPanel(context, translations),
-
-            if (_isGeoPanelOpen) _buildGeoPanel(context, translations),
-
             const SizedBox(height: 16),
 
             if (filters != null) ...[
@@ -500,17 +495,64 @@ class _SearchPageState extends State<SearchPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              _buildApplyFiltersButton(context, translations),
             ],
 
-            if (state is SearchSuccess) _buildResetFiltersButton(context, currentLocale, activeCategory, translations),
+            Row(
+              children: [
+                if (hasIdPanel) ...[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => setState(() => _isAdvancedIdOpen = !_isAdvancedIdOpen),
+                      icon: const Icon(Icons.security, size: 16),
+                      label: Text(
+                        fieldsCount > 0 ? 'ID ($fieldsCount)' : 'ID',
+                        style: const TextStyle(fontFamily: 'Orbitron', fontSize: 11),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF00F2FF),
+                        side: const BorderSide(color: Color(0xFF00F2FF)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => setState(() => _isGeoPanelOpen = !_isGeoPanelOpen),
+                    icon: const Icon(Icons.my_location, size: 16),
+                    label: const Text('Geo', style: TextStyle(fontFamily: 'Orbitron', fontSize: 11)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFFF8A00),
+                      side: const BorderSide(color: Color(0xFFFF8A00)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            if (isAnimalCategory && _isAdvancedIdOpen) 
+              _buildAdvancedAnimalIdPanel(context, translations),
+
+            if (isThingCategory && _isAdvancedIdOpen) 
+              _buildAdvancedThingIdPanel(context, translations, selectedSubCategoryLabel),
+
+            if (_isGeoPanelOpen) 
+              _buildGeoPanel(context, translations),
+
+            const SizedBox(height: 16),
+
+            if (filters != null)
+              _buildApplyFiltersButton(context, translations),
+
+            if (state is SearchSuccess) 
+              _buildResetFiltersButton(context, currentLocale, activeCategory, translations),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAdvancedIdPanel(BuildContext context, Map<String, dynamic> trans) {
+  Widget _buildAdvancedAnimalIdPanel(BuildContext context, Map<String, dynamic> trans) {
     const Color darkBg = Color(0xFF0F172A);
     const Color borderCyan = Color(0xFF00F2FF);
 
@@ -545,28 +587,251 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  Widget _idTextField(TextEditingController controller, String hint, String filterKey) {
-    return TextField(
-      controller: controller,
-      style: const TextStyle(color: Colors.white, fontSize: 12),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
-        filled: true,
-        fillColor: Colors.black.withOpacity(0.3),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white24)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF00F2FF))),
+  Widget _buildAdvancedThingIdPanel(
+    BuildContext context, 
+    Map<String, dynamic> trans, 
+    String? subCategoryLabel
+  ) {
+    const Color darkBg = Color(0xFF0F172A);
+    const Color borderCyan = Color(0xFF00F2FF);
+
+    final List<String> fields = _getFieldsForCategoryLabel(subCategoryLabel);
+
+    if (fields.isEmpty) {
+      final String prompt = trans['thing_metadata.select_category_prompt'] ?? 
+                            trans['select_category_prompt'] ?? 
+                            'Select a category to view specific parameters (VIN, IMEI, frame number, documents, etc.).';
+      return Container(
+        margin: const EdgeInsets.only(top: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: darkBg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.info_outline, color: borderCyan, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                prompt,
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final String titleText = subCategoryLabel != null
+        ? 'IDENTIFIERS: ${subCategoryLabel.toUpperCase()}'
+        : (trans['thing_metadata.title'] ?? 'THING IDENTIFIERS');
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: darkBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderCyan.withOpacity(0.3)),
       ),
-      onChanged: (val) {
-        context.read<SearchBloc>().add(UpdateFilterValue(filterId: filterKey, value: val));
-      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            titleText.toUpperCase(),
+            style: const TextStyle(color: borderCyan, fontFamily: 'Orbitron', fontSize: 10, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+
+          ...fields.map((field) {
+            final String label = _getAttrLabel(field, trans);
+            final String placeholder = _getAttrPlaceholder(field, trans);
+            final TextEditingController controller = _getControllerForField(field);
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: _idTextField(
+                controller, 
+                placeholder.isNotEmpty ? placeholder : label, 
+                'q[thing_metadata_$field]',
+                labelOverride: label,
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // БЛОК F: Панель PostGIS радиусного поиска (Чтение из shared.map_picker)
-  // ---------------------------------------------------------------------------
+  Widget _idTextField(
+    TextEditingController controller, 
+    String hint, 
+    String filterKey, 
+    {String? labelOverride}
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (labelOverride != null && labelOverride.isNotEmpty) ...[
+          Text(
+            labelOverride,
+            style: const TextStyle(color: Color(0xFF00F2FF), fontSize: 10, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+        ],
+        TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white, fontSize: 12),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
+            filled: true,
+            fillColor: Colors.black.withOpacity(0.3),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Colors.white24)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFF00F2FF))),
+          ),
+          onChanged: (val) {
+            context.read<SearchBloc>().add(UpdateFilterValue(filterId: filterKey, value: val));
+          },
+        ),
+      ],
+    );
+  }
+
+  String? _getSelectedSubCategoryLabel(dynamic filters, Map<String, dynamic> selectedValues) {
+    if (filters == null) return null;
+
+    dynamic selectedId;
+    selectedValues.forEach((k, v) {
+      if ((k.contains('phone_id') || k.contains('cat_id') || k.contains('sub_category')) && v != null) {
+        selectedId = v;
+      }
+    });
+
+    if (selectedId == null) return null;
+
+    if (filters is List) {
+      for (final f in filters) {
+        if (f.options != null) {
+          for (final opt in f.options) {
+            if (opt.id.toString() == selectedId.toString()) {
+              return opt.label;
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  List<String> _getFieldsForCategoryLabel(String? label) {
+    if (label == null || label.trim().isEmpty) return [];
+
+    final lower = label.toLowerCase();
+    if (lower.contains('doc') || lower.contains('документ') || lower.contains('dokumen')) {
+      return ['document_type', 'document_number', 'full_name'];
+    } else if (lower.contains('phone') || lower.contains('телефон') || lower.contains('telefon') || lower.contains('gadget')) {
+      return ['imei', 'serial_number', 'brand_model', 'color'];
+    } else if (lower.contains('car') || lower.contains('авто') || lower.contains('машин') || lower.contains('samochód')) {
+      return ['vin', 'license_plate', 'brand_model', 'color'];
+    } else if (lower.contains('moto') || lower.contains('мото')) {
+      return ['vin', 'license_plate', 'brand_model', 'color'];
+    } else if (lower.contains('bike') || lower.contains('вело') || lower.contains('rower')) {
+      return ['frame_number', 'brand_model', 'color'];
+    } else if (lower.contains('jewel') || lower.contains('ювелир') || lower.contains('прикрас') || lower.contains('biżuteria')) {
+      return ['brand_model', 'serial_number', 'hallmark', 'engraving'];
+    } else if (lower.contains('key') || lower.contains('ключ') || lower.contains('klucz')) {
+      return ['key_type', 'keychain_description'];
+    } else if (lower.contains('bag') || lower.contains('сумк') || lower.contains('кошел') || lower.contains('portfel') || lower.contains('wallet')) {
+      return ['brand_model', 'color', 'contents_description'];
+    }
+
+    return ['brand_model', 'serial_number', 'additional_info'];
+  }
+
+  int _getFieldsCountForCategory(String? label) {
+    return _getFieldsForCategoryLabel(label).length;
+  }
+
+  TextEditingController _getControllerForField(String field) {
+    switch (field) {
+      case 'vin': return _vinController;
+      case 'license_plate': return _licensePlateController;
+      case 'imei': return _imeiController;
+      case 'serial_number': return _serialNumberController;
+      case 'frame_number': return _frameNumberController;
+      case 'document_type': return _docTypeController;
+      case 'document_number': return _docNumberController;
+      case 'full_name': return _fullNameController;
+      case 'brand_model': return _brandModelController;
+      case 'color': return _colorController;
+      case 'hallmark': return _hallmarkController;
+      case 'engraving': return _engravingController;
+      case 'key_type': return _keyTypeController;
+      case 'keychain_description': return _keychainDescController;
+      case 'contents_description': return _contentsDescController;
+      case 'additional_info': return _additionalInfoController;
+      default: return _brandModelController;
+    }
+  }
+
+  String _getAttrLabel(String field, Map<String, dynamic> trans) {
+    final keys = [
+      'thing_metadata.attributes.$field',
+      'thing_metadata_attributes_$field',
+      'attributes.$field',
+    ];
+    for (final k in keys) {
+      if (trans.containsKey(k) && trans[k] != null && trans[k].toString().isNotEmpty) {
+        return trans[k].toString();
+      }
+    }
+    switch (field) {
+      case 'vin': return 'VIN Number';
+      case 'license_plate': return 'License Plate';
+      case 'imei': return 'IMEI Code';
+      case 'serial_number': return 'Serial Number (S/N)';
+      case 'frame_number': return 'Frame Number';
+      case 'document_type': return 'Document Type';
+      case 'document_number': return 'Document Number / Series';
+      case 'full_name': return 'Full Name on Document';
+      case 'brand_model': return 'Brand / Model';
+      case 'color': return 'Color';
+      case 'hallmark': return 'Hallmark / Stamp';
+      case 'engraving': return 'Engraving / Markings';
+      case 'key_type': return 'Key Type (car, apartment)';
+      case 'keychain_description': return 'Keychain Description';
+      case 'contents_description': return 'Contents Description';
+      case 'additional_info': return 'Additional Distinctive Features';
+      default: return field;
+    }
+  }
+
+  String _getAttrPlaceholder(String field, Map<String, dynamic> trans) {
+    final keys = [
+      'thing_metadata.placeholders.$field',
+      'thing_metadata_placeholders_$field',
+      'placeholders.$field',
+    ];
+    for (final k in keys) {
+      if (trans.containsKey(k) && trans[k] != null && trans[k].toString().isNotEmpty) {
+        return trans[k].toString();
+      }
+    }
+    switch (field) {
+      case 'vin': return 'e.g., WBA3A51070F...';
+      case 'imei': return '15 digits (e.g., 356890...)';
+      case 'license_plate': return 'e.g., KR 12345';
+      case 'frame_number': return 'e.g., WTU1234567X';
+      case 'document_number': return 'e.g., AB 123456';
+      case 'full_name': return 'Full name as shown on document';
+      default: return '';
+    }
+  }
+
   Widget _buildGeoPanel(BuildContext context, Map<String, dynamic> trans) {
     const Color darkBg = Color(0xFF0F172A);
     const Color orangeAccent = Color(0xFFFF8A00);
@@ -831,6 +1096,24 @@ class _SearchPageState extends State<SearchPage> {
         _chipController.clear();
         _passportController.clear();
         _insuranceController.clear();
+
+        _brandModelController.clear();
+        _vinController.clear();
+        _licensePlateController.clear();
+        _imeiController.clear();
+        _serialNumberController.clear();
+        _frameNumberController.clear();
+        _docTypeController.clear();
+        _docNumberController.clear();
+        _fullNameController.clear();
+        _colorController.clear();
+        _hallmarkController.clear();
+        _engravingController.clear();
+        _keyTypeController.clear();
+        _keychainDescController.clear();
+        _contentsDescController.clear();
+        _additionalInfoController.clear();
+
         setState(() {
           _searchLat = null;
           _searchLng = null;
@@ -888,6 +1171,9 @@ class _SearchPageState extends State<SearchPage> {
   }
 }
 
+// =============================================================================
+// CATEGORY CARD WIDGET
+// =============================================================================
 class CategoryCard extends StatelessWidget {
   final FindWayCategory category;
   final VoidCallback onTap;
@@ -941,6 +1227,9 @@ class CategoryCard extends StatelessWidget {
   }
 }
 
+// =============================================================================
+// CUSTOM BOTTOM NAVBAR WIDGET
+// =============================================================================
 class CustomBottomNavBar extends StatelessWidget {
   final int currentIndex;
   final String currentLocale; 

@@ -181,7 +181,8 @@ void _navigateToDetails() async {
     MaterialPageRoute(
       builder: (_) => BlocProvider.value(
         value: bloc, 
-        child: const PostCardPage(), // Если конструктор позволяет const — оставляй, если нет — удали const
+      child: PostCardPage(
+          initialCategory: widget.post['category']?.toString() ?? 'people',),
       ),
     ),
   );

@@ -1,5 +1,15 @@
+// =============================================================================
+// FILE: lib/features/search/presentation/bloc/search_event.dart
+// LAYER: Presentation Layer (BLoc Events)
+// RESPONSIBILITY: Strongly-typed BLoc events with geolocation and metadata
+//                 support (animalMetadata & thingMetadata).
+// =============================================================================
+
 import 'package:equatable/equatable.dart';
 
+// =============================================================================
+// 0. ABSTRACT BASE EVENT
+// =============================================================================
 abstract class SearchEvent extends Equatable {
   const SearchEvent();
 
@@ -7,6 +17,9 @@ abstract class SearchEvent extends Equatable {
   List<Object?> get props => [];
 }
 
+// =============================================================================
+// 1. LOAD FILTERS EVENT
+// =============================================================================
 class LoadFilters extends SearchEvent {
   final String category;
   final String locale;
@@ -17,6 +30,9 @@ class LoadFilters extends SearchEvent {
   List<Object?> get props => [category, locale];
 }
 
+// =============================================================================
+// 2. UPDATE FILTER VALUE EVENT
+// =============================================================================
 class UpdateFilterValue extends SearchEvent {
   final String filterId; 
   final dynamic value;   
@@ -27,10 +43,16 @@ class UpdateFilterValue extends SearchEvent {
   List<Object?> get props => [filterId, value];
 }
 
+// =============================================================================
+// 3. PERFORM SEARCH EVENT
+// =============================================================================
 class PerformSearch extends SearchEvent {
   const PerformSearch();
 }
 
+// =============================================================================
+// 4. CHANGE LOCALE EVENT
+// =============================================================================
 class ChangeLocale extends SearchEvent {
   final String locale;
   const ChangeLocale(this.locale);
@@ -39,6 +61,9 @@ class ChangeLocale extends SearchEvent {
   List<Object?> get props => [locale];
 }
 
+// =============================================================================
+// 5. LOAD POST DETAILS EVENT
+// =============================================================================
 class LoadPostDetails extends SearchEvent {
   final int id;
   final String category;
@@ -54,21 +79,27 @@ class LoadPostDetails extends SearchEvent {
   List<Object?> get props => [id, category, locale];
 }
 
+// =============================================================================
+// 6. CHANGE TAB EVENT ("Search" / "Found")
+// =============================================================================
 class ChangeTab extends SearchEvent {
   final int index;
   const ChangeTab(this.index);
-  
+
   @override
   List<Object> get props => [index];
 }
 
+// =============================================================================
+// 7. RESTORE SEARCH EVENT (From Cache)
+// =============================================================================
 class RestoreSearch extends SearchEvent {
   @override
   List<Object> get props => [];
 }
 
 // =============================================================================
-// СОБЫТИЕ СОЗДАНИЯ ПОСТА (CreatePost)
+// 8. CREATE POST EVENT (With Geolocation, Animal & Thing Metadata)
 // =============================================================================
 class CreatePost extends SearchEvent {
   final String category;
@@ -78,11 +109,14 @@ class CreatePost extends SearchEvent {
   final int choiceId;
   final int? catId;
 
-  // 👉 Геолокационные данные и подпараметры животных
+  // 👉 Geolocation fields
   final double? latitude;
   final double? longitude;
   final String? address;
+
+  // 👉 Dynamic JSONB Metadata
   final Map<String, dynamic>? animalMetadata;
+  final Map<String, dynamic>? thingMetadata;
 
   final String locale;
   final List<String> imagePaths;
@@ -98,6 +132,7 @@ class CreatePost extends SearchEvent {
     this.longitude,
     this.address,
     this.animalMetadata,
+    this.thingMetadata,
     required this.locale,
     required this.imagePaths,
   });
@@ -114,26 +149,14 @@ class CreatePost extends SearchEvent {
         longitude,
         address,
         animalMetadata,
+        thingMetadata,
         locale,
         imagePaths,
       ];
 }
 
 // =============================================================================
-// СОБЫТИЕ УДАЛЕНИЯ ПОСТА (DeletePost)
-// =============================================================================
-class DeletePost extends SearchEvent {
-  final int postId;
-  final String category;
-
-  const DeletePost({required this.postId, required this.category});
-
-  @override
-  List<Object?> get props => [postId, category];
-}
-
-// =============================================================================
-// СОБЫТИЕ ОБНОВЛЕНИЯ ПОСТА (UpdatePost)
+// 9. UPDATE POST EVENT (With Geolocation, Animal & Thing Metadata)
 // =============================================================================
 class UpdatePost extends SearchEvent {
   final int postId;
@@ -144,11 +167,14 @@ class UpdatePost extends SearchEvent {
   final int choiceId;
   final int? catId;
 
-  // 👉 Геолокационные данные и подпараметры животных
+  // 👉 Geolocation fields
   final double? latitude;
   final double? longitude;
   final String? address;
+
+  // 👉 Dynamic JSONB Metadata
   final Map<String, dynamic>? animalMetadata;
+  final Map<String, dynamic>? thingMetadata;
 
   final String locale;
   final List<String> existingImages;
@@ -166,6 +192,7 @@ class UpdatePost extends SearchEvent {
     this.longitude,
     this.address,
     this.animalMetadata,
+    this.thingMetadata,
     required this.locale,
     required this.existingImages,
     required this.newImagePaths,
@@ -184,8 +211,22 @@ class UpdatePost extends SearchEvent {
         longitude,
         address,
         animalMetadata,
+        thingMetadata,
         locale,
         existingImages,
         newImagePaths,
       ];
+}
+
+// =============================================================================
+// 10. DELETE POST EVENT
+// =============================================================================
+class DeletePost extends SearchEvent {
+  final int postId;
+  final String category;
+
+  const DeletePost({required this.postId, required this.category});
+
+  @override
+  List<Object?> get props => [postId, category];
 }

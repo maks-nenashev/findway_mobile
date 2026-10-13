@@ -1,20 +1,19 @@
-// =============================================================================
-// FILE: lib/features/search/data/repositories/search_repository_impl.dart
-// LAYER: Data Layer (Repository Implementation)
-// RESPONSIBILITY: Реализация интерфейса SearchRepository с пробросом 
-//                 геолокации (PostGIS) и метаданных животных в RemoteDataSource.
-// =============================================================================
-
 import '../../domain/repositories/search_repository.dart';
 import '../datasources/search_remote_data_source.dart';
 import '../models/filter_model.dart';
 import '../models/post_detail_model.dart';
 
+// =============================================================================
+// SEARCH REPOSITORY IMPLEMENTATION
+// =============================================================================
 class SearchRepositoryImpl implements SearchRepository {
   final SearchRemoteDataSource remoteDataSource;
 
   SearchRepositoryImpl({required this.remoteDataSource});
 
+  // ===========================================================================
+  // 1. GET FILTERS DATA
+  // ===========================================================================
   @override
   Future<Map<String, dynamic>> getFiltersData({
     required String category,
@@ -31,6 +30,9 @@ class SearchRepositoryImpl implements SearchRepository {
     };
   }
 
+  // ===========================================================================
+  // 2. SEARCH RECORDS
+  // ===========================================================================
   @override
   Future<List<dynamic>> search({
     required String category,
@@ -44,6 +46,9 @@ class SearchRepositoryImpl implements SearchRepository {
     );
   }
 
+  // ===========================================================================
+  // 3. GET POST DETAILS
+  // ===========================================================================
   @override
   Future<Map<String, dynamic>> getPostDetails({
     required int id,
@@ -62,9 +67,9 @@ class SearchRepositoryImpl implements SearchRepository {
     };
   }
   
-  // =========================================================================
-  // CREATE POST (Добавлены latitude, longitude, address, animalMetadata)
-  // =========================================================================
+  // ===========================================================================
+  // 4. CREATE POST (With Geolocation & JSONB Metadata)
+  // ===========================================================================
   @override
   Future<Map<String, dynamic>> createPost({
     required String category,
@@ -77,6 +82,7 @@ class SearchRepositoryImpl implements SearchRepository {
     double? longitude,
     String? address,
     Map<String, dynamic>? animalMetadata,
+    Map<String, dynamic>? thingMetadata,
     required String locale,
     required List<String> imagePaths,
   }) {
@@ -91,14 +97,15 @@ class SearchRepositoryImpl implements SearchRepository {
       longitude: longitude,
       address: address,
       animalMetadata: animalMetadata,
+      thingMetadata: thingMetadata,
       locale: locale,
       imagePaths: imagePaths,
     );
   }
 
-  // =========================================================================
-  // UPDATE POST (Добавлены latitude, longitude, address, animalMetadata)
-  // =========================================================================
+  // ===========================================================================
+  // 5. UPDATE POST (With Geolocation & JSONB Metadata)
+  // ===========================================================================
   @override
   Future<void> updatePost({
     required int postId,
@@ -112,6 +119,7 @@ class SearchRepositoryImpl implements SearchRepository {
     double? longitude,
     String? address,
     Map<String, dynamic>? animalMetadata,
+    Map<String, dynamic>? thingMetadata,
     required String locale,
     required List<String> existingImages,
     required List<String> newImagePaths,
@@ -128,12 +136,16 @@ class SearchRepositoryImpl implements SearchRepository {
       longitude: longitude,
       address: address,
       animalMetadata: animalMetadata,
+      thingMetadata: thingMetadata,
       locale: locale,
       existingImages: existingImages,
       newImagePaths: newImagePaths,
     );
   }
 
+  // ===========================================================================
+  // 6. DELETE POST
+  // ===========================================================================
   @override
   Future<void> deletePost(int postId, String category) async {
     return await remoteDataSource.deletePost(postId, category);

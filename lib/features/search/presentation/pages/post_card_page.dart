@@ -1,595 +1,664 @@
-// lib/features/search/presentation/pages/post_card_page.dart
+// =============================================================================
+// FILE: lib/features/search/presentation/pages/post_create_page.dart
+// LAYER: Presentation Layer (Page / Form)
+// RESPONSIBILITY: Post creation form with expandable ID panel placed under
+//                 category selector, featuring dynamic field counts and toggle.
+// =============================================================================
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_selector/file_selector.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../bloc/search_bloc.dart';
 import '../bloc/search_event.dart';
 import '../bloc/search_state.dart';
-import '../../../../features/comments/presentation/bloc/comments_bloc.dart';
-import '../../../../features/comments/presentation/bloc/comments_event.dart';
-import '../../../../injection_container.dart';
+import '../../data/models/filter_model.dart';
+import '../widgets/map/location_picker_widget.dart';
 
-import '../widgets/post_button_panel.dart';
-import '../widgets/map/show_map_widget.dart';
-import 'package:findway_mobile/features/comments/presentation/widgets/comments_section.dart';
+// =============================================================================
+// 1. MAIN POST CREATE PAGE WIDGET & STATE
+// =============================================================================
+class PostCardPage extends StatefulWidget {
+  final String initialCategory;
 
-class PostCardPage extends StatelessWidget {
-  const PostCardPage({super.key});
+const PostCardPage({
+  super.key,
+  this.initialCategory = 'people',
+});
 
-  void _onEditTapped(BuildContext context, dynamic post, SearchBloc searchBloc) async {
-    final String category = _getSafeString(post, 'category', fallback: 'people');
-    final int postId = _getSafeInt(post, 'id');
+  @override
+  State<PostCardPage> createState() => _PostCardPageState();
+}
 
-    await Navigator.pushNamed(context, '/post_edit', arguments: {
-      'bloc': searchBloc,
-      'postId': postId,
-      'initialCategory': category,
-      'initialTitle': _getSafeString(post, 'title'),
-      'initialText': _getSafeString(post, 'text'),
-      'initialLocalId': null, 
-      'initialChoiceId': null,
-      'initialActionId': null,
-      'existingImages': _getSafeList(post, 'images'),
-    });
+class _PostCardPageState extends State<PostCardPage> {
+  final _formKey = GlobalKey<FormState>();
+  final ImagePicker _picker = ImagePicker();
 
-    if (context.mounted) {
-      searchBloc.add(LoadPostDetails(
-        id: postId,
-        category: category,
-        locale: searchBloc.currentLocale,
-      ));
+  // Palette
+  final Color _bgDark = const Color(0xFF0F172A);
+  final Color _cardDark = const Color(0xFF1E293B);
+  final Color _accentOrange = const Color(0xFFFF8A00);
+  final Color _accentCyan = const Color(0xFF00F2FF);
+  final Color _textMuted = Colors.white54;
+
+  late String _category;
+
+  String _title = '';
+  String _text = '';
+
+  int? _localId;
+  int? _choiceId; // Subcategory (Phone / Cat ID)
+  int? _actionId; // Action Choice (Lost / Found)
+
+  // Geolocation
+  double? _latitude;
+  double? _longitude;
+  String _address = '';
+
+  // Animal Metadata
+  String _chipNumber = '';
+  String _passportNumber = '';
+  String _insurancePolicyId = '';
+
+  // Thing Metadata
+  bool _isThingMetadataOpen = false;
+  final Map<String, String> _thingMetadataValues = {};
+
+  List<File> _images = [];
+
+  Map<String, dynamic> _translations = {};
+  List<FilterModel> _filters = [];
+
+  final Map<String, String> _fallback = const {
+    'title': 'New post!',
+    'tytul_2': 'Title',
+    'text_2': 'Text',
+    'submit_article': 'Submit',
+    'animal_identifiers': 'ANIMAL IDENTIFIERS',
+    'thing_identifiers': 'THING IDENTIFIERS & SPECS',
+  };
+
+  // =============================================================================
+  // 2. LIFECYCLE & HELPERS
+  // =============================================================================
+  @override
+  void initState() {
+    super.initState();
+    _category = widget.initialCategory;
+
+    final bloc = context.read<SearchBloc>();
+    bloc.add(LoadFilters(
+      category: _category,
+      locale: bloc.currentLocale,
+    ));
+  }
+
+  String tr(String key) {
+    return (_translations[key] ?? _fallback[key] ?? key).toString();
+  }
+
+  bool get _isAnimalCategory {
+    final cat = _category.toLowerCase().trim();
+    return cat == 'animals' || cat == 'animal' || cat == 'sense' || cat == 'senses';
+  }
+
+  bool get _isThingCategory {
+    final cat = _category.toLowerCase().trim();
+    return cat == 'things' || cat == 'thing';
+  }
+
+  String? get _selectedSubCategoryLabel {
+    if (_choiceId == null || _filters.length < 2) return null;
+    final subFilter = _filters[1];
+    final options = subFilter.options ?? [];
+    for (final opt in options) {
+      if (opt.id == _choiceId) {
+        return opt.label;
+      }
+    }
+    return null;
+  }
+
+  // =============================================================================
+  // 3. IMAGE PICKER
+  // =============================================================================
+  Future<void> _pickImagesMobile() async {
+    final selected = await _picker.pickMultiImage(imageQuality: 70, maxWidth: 1440);
+    if (selected.isNotEmpty) {
+      setState(() {
+        _images = [..._images, ...selected.map((e) => File(e.path))].take(4).toList();
+      });
     }
   }
 
+  Future<void> _pickImagesDesktop() async {
+    final typeGroup = XTypeGroup(label: 'images', extensions: ['jpg', 'jpeg', 'png']);
+    final files = await openFiles(acceptedTypeGroups: [typeGroup]);
+    if (files.isNotEmpty) {
+      setState(() {
+        _images = [..._images, ...files.map((f) => File(f.path))].take(4).toList();
+      });
+    }
+  }
+
+  // =============================================================================
+  // 4. MAIN BUILD METHOD
+  // =============================================================================
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      resizeToAvoidBottomInset: true,
-      body: BlocListener<SearchBloc, SearchState>(
-        listener: (context, state) {
-          if (state is PostDeleteSuccess) {
-            final msg = state.uiTranslations['post_destroy_success'] ?? "Deleted successfully!";
-            
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(msg),
-                backgroundColor: Colors.orange,
+    return BlocConsumer<SearchBloc, SearchState>(
+      listener: (context, state) {
+        if (state is FiltersLoaded) {
+          setState(() {
+            _translations = state.uiTranslations;
+            _filters = state.filters;
+          });
+        }
+
+        if (state is PostCreateSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(tr('post_create_success')),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context, state.postId);
+        }
+
+        if (state is PostCreateError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.error),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      },
+      builder: (context, state) {
+        return Scaffold(
+          backgroundColor: _bgDark,
+          appBar: AppBar(
+            backgroundColor: _bgDark,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: Text(
+              tr('title'),
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
               ),
-            );
-            Navigator.pop(context, true);
-          }
+            ),
+          ),
+          body: _filters.isEmpty
+              ? const Center(child: CircularProgressIndicator(color: Color(0xFF00F2FF)))
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildPhotos(),
+                        const SizedBox(height: 24),
+                        _buildFilters(),
+                        
+                        // 👉 ДИНАМИЧЕСКИЙ БЛОК METADATA СРАЗУ ПОД ДРОПДАУНАМИ
+                        if (_isThingCategory) ...[
+                          const SizedBox(height: 16),
+                          _buildThingMetadataSection(),
+                        ],
 
-          if (state is SearchError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: Colors.redAccent,
-              ),
-            );
-          }
-        },
-        child: BlocBuilder<SearchBloc, SearchState>(
-          builder: (context, state) {
-            if (state is PostDetailsLoading) {
-              return const Center(child: CircularProgressIndicator());
-            }
+                        if (_isAnimalCategory) ...[
+                          const SizedBox(height: 16),
+                          _buildAnimalMetadataSection(),
+                        ],
 
-            if (state is PostDetailsLoaded) {
-              final post = state.post;
-              final tr = state.uiTranslations;
-              final int postId = _getSafeInt(post, 'id');
-              final String category = _getSafeString(post, 'category', fallback: 'people');
+                        const SizedBox(height: 20),
+                        _input(tr('tytul_2'), (v) => _title = v),
+                        const SizedBox(height: 20),
+                        _input(tr('text_2'), (v) => _text = v, max: 6),
+                        const SizedBox(height: 24),
 
-              final double? lat = _getSafeDouble(post, 'lat');
-              final double? lng = _getSafeDouble(post, 'lng');
-
-
-              final String address = _getSafeString(post, 'address');
-              final String title = _getSafeString(post, 'title');
-
-              return BlocProvider(
-                create: (context) => sl<CommentsBloc>(
-                  param1: postId,
-                  param2: _mapCategory(category),
-                )..add(const FetchComments()),
-                child: Builder(
-                  builder: (pageContext) {
-                    return CustomScrollView(
-                      slivers: [
-                        _buildGallery(post),
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _buildAuthorHeader(post),
-                                const Divider(height: 32),
-                                Text(
-                                  title,
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _getSafeString(post, 'text'),
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    height: 1.6,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-
-                                // Блок идентификторов животных (animal_metadata)
-                                _buildAnimalMetadataCard(post, tr),
-
-                                _buildLocationRow(post),
-                                const SizedBox(height: 16),
-
-                                // Интерактивная карта OpenStreetMap / Leaflet ( shared/map_show )
-                                if (lat != null && lng != null)
-                                  ShowMapWidget(
-                                    lat: lat,
-                                    lng: lng,
-                                    title: title,
-                                    address: address,
-                                    translations: tr,
-                                  ),
-
-                                const SizedBox(height: 24),
-                                PostButtonPanel(
-                                  tr: tr,
-                                  showEdit: _getCanEdit(post),
-                                  showDelete: _getCanDelete(post),
-                                  onCommentTap: () => CommentsSection.showAddCommentSheet(pageContext, tr),
-                                  onEditTap: () => _onEditTapped(context, post, context.read<SearchBloc>()),
-                                  onDeleteTap: () => _showDeleteConfirmation(context, postId, category, tr),
-                                  onMessageTap: () {
-                                    final searchBloc = context.read<SearchBloc>();
-                                    final authorId = _getAuthorId(post);
-                                    final authorName = _getAuthorName(post);
-                                    final avatarUrl = _getAuthorAvatar(post);
-
-                                    Navigator.pushNamed(context, '/chat', arguments: {
-                                      'recipientId': authorId,
-                                      'username': authorName,
-                                      'avatarUrl': avatarUrl,
-                                      'currentLocale': searchBloc.currentLocale,
-                                    });
-                                  },
-                                ),
-                                const SizedBox(height: 32),
-                              ],
-                            ),
-                          ),
+                        // Interactive Map Picker
+                        LocationPickerWidget(
+                          translations: _translations,
+                          onLocationSelected: (lat, lng) {
+                            _latitude = lat;
+                            _longitude = lng;
+                          },
+                          onAddressChanged: (addr) {
+                            _address = addr;
+                          },
                         ),
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                            child: CommentsSection(tr: tr),
-                          ),
-                        ),
-                        const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                        const SizedBox(height: 24),
+
+                        _submitButton(),
+                        const SizedBox(height: 40),
                       ],
-                    );
-                  },
+                    ),
+                  ),
                 ),
-              );
-            }
-            return const SizedBox.shrink();
-          },
+        );
+      },
+    );
+  }
+
+  // =============================================================================
+  // 5. FORM COMPONENTS
+  // =============================================================================
+  Widget _buildPhotos() {
+    return SizedBox(
+      height: 90,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _images.length < 4 ? _images.length + 1 : 4,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (_, i) {
+          if (i == _images.length && _images.length < 4) {
+            return GestureDetector(
+              onTap: () async {
+                try {
+                  await _pickImagesDesktop();
+                } catch (_) {
+                  await _pickImagesMobile();
+                }
+              },
+              child: Container(
+                width: 90,
+                decoration: BoxDecoration(
+                  color: _cardDark,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: _accentCyan.withOpacity(0.3)),
+                ),
+                child: Icon(Icons.add_a_photo, color: _accentOrange),
+              ),
+            );
+          }
+
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.file(_images[i], width: 90, height: 90, fit: BoxFit.cover),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildFilters() {
+    final action = _filters.first;
+    final sub = _filters.length > 1 ? _filters[1] : null;
+    final region = _filters.last;
+
+    return Column(
+      children: [
+        _dropdown(action, _actionId, (v) => _actionId = v),
+        const SizedBox(height: 16),
+        if (sub != null) _dropdown(sub, _choiceId, (v) => _choiceId = v),
+        const SizedBox(height: 16),
+        _dropdown(region, _localId, (v) => _localId = v),
+      ],
+    );
+  }
+
+  Widget _dropdown(FilterModel f, int? val, Function(int?) onChanged) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: _cardDark,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: DropdownButtonFormField<int>(
+        value: val,
+        items: f.options
+                ?.map((e) => DropdownMenuItem(
+                      value: e.id,
+                      child: Text(e.label, style: const TextStyle(color: Colors.white)),
+                    ))
+                .toList() ??
+            [],
+        onChanged: (v) {
+          setState(() {
+            onChanged(v);
+          });
+        },
+        validator: (v) => v == null ? 'Required' : null,
+        dropdownColor: _cardDark,
+        decoration: InputDecoration(
+          labelText: f.label,
+          labelStyle: TextStyle(color: _textMuted),
+          border: InputBorder.none,
         ),
       ),
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Блок спецификаций животного (animal_metadata)
-  // ---------------------------------------------------------------------------
-  Widget _buildAnimalMetadataCard(dynamic post, Map<String, dynamic> tr) {
-    final meta = _getAnimalMeta(post);
-    if (meta.isEmpty) return const SizedBox.shrink();
+  Widget _input(String hint, Function(String) onChanged, {int max = 1}) {
+    return TextFormField(
+      maxLines: max,
+      onChanged: onChanged,
+      validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: _textMuted),
+        filled: true,
+        fillColor: _cardDark,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
 
-    final String chip = meta['chip_number']?.toString().trim() ?? '';
-    final String passport = meta['passport_number']?.toString().trim() ?? '';
-    final String insurance = meta['insurance_policy_id']?.toString().trim() ?? '';
+  // =============================================================================
+  // 6. COLLAPSIBLE THING METADATA PANEL (Under Category Select)
+  // =============================================================================
+  Widget _buildThingMetadataSection() {
+    final String label = _selectedSubCategoryLabel ?? '';
+    final List<String> fields = _getFieldsForCategoryLabel(label);
+    final int fieldsCount = fields.length;
 
-    if (chip.isEmpty && passport.isEmpty && insurance.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Кнопка переключения состояния (Кнопка со счетчиком)
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              setState(() {
+                _isThingMetadataOpen = !_isThingMetadataOpen;
+              });
+            },
+            icon: Icon(
+              _isThingMetadataOpen ? Icons.keyboard_arrow_up : Icons.security,
+              size: 18,
+            ),
+            label: Text(
+              fieldsCount > 0
+                  ? 'ID SPECIFIC PARAMETERS ($fieldsCount)'
+                  : 'ID SPECIFIC PARAMETERS',
+              style: const TextStyle(fontFamily: 'Orbitron', fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _accentCyan,
+              side: BorderSide(color: _accentCyan.withOpacity(0.6)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+          ),
+        ),
 
-    final String headerTitle = tr['animal_identifiers'] ?? 
-                                tr['senses.show.animal_identifiers'] ?? 
-                                'ІДЕНТИФІКАТОРИ ТВАРИНИ';
+        // Выдвижная панель полей
+        if (_isThingMetadataOpen) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _cardDark,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _accentCyan.withOpacity(0.3), width: 1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (fields.isEmpty)
+                  Text(
+                    tr('thing_metadata.select_category_prompt'),
+                    style: TextStyle(color: _textMuted, fontSize: 12),
+                  )
+                else ...[
+                  Text(
+                    'IDENTIFIERS: ${label.toUpperCase()}',
+                    style: TextStyle(
+                      color: _accentCyan,
+                      fontFamily: 'Orbitron',
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Divider(color: Colors.white12, height: 20),
+                  ...fields.map((field) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: _metaInputField(
+                        label: _getAttrLabel(field),
+                        hint: _getAttrPlaceholder(field),
+                        icon: _getIconForField(field),
+                        iconColor: _accentCyan,
+                        initialVal: _thingMetadataValues[field] ?? '',
+                        onChanged: (v) => _thingMetadataValues[field] = v.trim(),
+                      ),
+                    );
+                  }),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // =============================================================================
+  // 7. ANIMAL METADATA SECTION BUILDER
+  // =============================================================================
+  Widget _buildAnimalMetadataSection() {
+    final String sectionTitle = tr('animal_identifiers');
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
+        color: _cardDark,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF00F2FF).withOpacity(0.3)),
+        border: Border.all(color: _accentCyan.withOpacity(0.3), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.shield_outlined, color: Color(0xFF00F2FF), size: 16),
+              Icon(Icons.shield_outlined, color: _accentCyan, size: 18),
               const SizedBox(width: 8),
               Text(
-                headerTitle.toUpperCase(),
-                style: const TextStyle(
-                  color: Color(0xFF00F2FF),
+                sectionTitle.toUpperCase(),
+                style: TextStyle(
+                  color: _accentCyan,
                   fontFamily: 'Orbitron',
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
-          const Divider(color: Colors.white12, height: 20),
-          if (chip.isNotEmpty)
-            _specRow('Microchip ID:', chip, const Color(0xFF00F2FF)),
-          if (passport.isNotEmpty)
-            _specRow('Passport / Reg №:', passport, Colors.amber),
-          if (insurance.isNotEmpty)
-            _specRow('Insurance Policy:', insurance, Colors.greenAccent),
-        ],
-      ),
-    );
-  }
-
-  Widget _specRow(String label, String value, Color valueColor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white60, fontSize: 12)),
-          Text(
-            value,
-            style: TextStyle(
-              color: valueColor,
-              fontFamily: 'Monospace',
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
+          const Divider(color: Colors.white12, height: 24),
+          _metaInputField(
+            label: 'Microchip ID',
+            hint: 'e.g. 98512...',
+            icon: Icons.memory,
+            iconColor: _accentCyan,
+            onChanged: (v) => _chipNumber = v,
+          ),
+          const SizedBox(height: 12),
+          _metaInputField(
+            label: 'Passport / Reg №',
+            hint: 'Reg number',
+            icon: Icons.badge_outlined,
+            iconColor: Colors.amber,
+            onChanged: (v) => _passportNumber = v,
+          ),
+          const SizedBox(height: 12),
+          _metaInputField(
+            label: 'Insurance Policy',
+            hint: 'Policy ID',
+            icon: Icons.verified_outlined,
+            iconColor: Colors.greenAccent,
+            onChanged: (v) => _insurancePolicyId = v,
           ),
         ],
       ),
     );
   }
 
-  String _mapCategory(String? rawType) {
-    final type = rawType?.toLowerCase() ?? 'article';
-    if (type == 'article' || type == 'people') return 'people';
-    if (type == 'sense' || type == 'animal' || type == 'animals') return 'animals';
-    if (type == 'thing' || type == 'things') return 'things';
-    return 'people';
-  }
+  // =============================================================================
+  // 8. METADATA INPUT HELPERS
+  // =============================================================================
+  List<String> _getFieldsForCategoryLabel(String? label) {
+    if (label == null || label.trim().isEmpty) return [];
 
-  Widget _buildGallery(dynamic post) {
-    final List<String> images = _getSafeList(post, 'images');
-    return SliverAppBar(
-      expandedHeight: 350.0,
-      pinned: true,
-      backgroundColor: const Color(0xFF0A0E14),
-      flexibleSpace: FlexibleSpaceBar(
-        background: _PostDetailsGallery(images: images),
-      ),
-    );
-  }
-
-  Widget _buildAuthorHeader(dynamic post) {
-    final String username = _getAuthorName(post);
-    final String? avatarUrl = _getAuthorAvatar(post);
-    final String createdAt = _getSafeString(post, 'created_at', fallback: _getSafeString(post, 'createdAt'));
-
-    return Row(
-      children: [
-        CircleAvatar(
-          backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-          child: avatarUrl == null ? const Icon(Icons.person) : null,
-        ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("POSTED BY", style: TextStyle(fontSize: 10, color: Colors.grey)),
-            Text(username, style: const TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        const Spacer(),
-        Text(createdAt, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-      ],
-    );
-  }
-
-  Widget _buildLocationRow(dynamic post) {
-    final String localTitle = _getSafeString(post, 'local');
-    if (localTitle.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return Row(
-      children: [
-        const Icon(Icons.location_on, color: Colors.blueAccent, size: 18),
-        const SizedBox(width: 4),
-        Text(
-          localTitle, 
-          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent),
-        ),
-      ],
-    );
-  }
-
-  void _showDeleteConfirmation(
-    BuildContext context,
-    int postId,
-    String category,
-    Map<String, dynamic> trData, 
-  ) {
-    final searchBloc = context.read<SearchBloc>();
-
-    String t(String key, String fallback) {
-      final fullKey = 'delete.$key';
-      return (trData[fullKey] ?? trData[key] ?? fallback).toString();
+    final lower = label.toLowerCase();
+    if (lower.contains('doc') || lower.contains('документ') || lower.contains('dokumen')) {
+      return ['document_type', 'document_number', 'full_name'];
+    } else if (lower.contains('phone') || lower.contains('телефон') || lower.contains('telefon') || lower.contains('gadget')) {
+      return ['imei', 'serial_number', 'brand_model', 'color'];
+    } else if (lower.contains('car') || lower.contains('авто') || lower.contains('машин') || lower.contains('samochód')) {
+      return ['vin', 'license_plate', 'brand_model', 'color'];
+    } else if (lower.contains('moto') || lower.contains('мото')) {
+      return ['vin', 'license_plate', 'brand_model', 'color'];
+    } else if (lower.contains('bike') || lower.contains('вело') || lower.contains('rower')) {
+      return ['frame_number', 'brand_model', 'color'];
+    } else if (lower.contains('jewel') || lower.contains('ювелир') || lower.contains('прикрас') || lower.contains('biżuteria')) {
+      return ['brand_model', 'serial_number', 'hallmark', 'engraving'];
+    } else if (lower.contains('key') || lower.contains('ключ') || lower.contains('klucz')) {
+      return ['key_type', 'keychain_description'];
+    } else if (lower.contains('bag') || lower.contains('сумк') || lower.contains('кошел') || lower.contains('portfel') || lower.contains('wallet')) {
+      return ['brand_model', 'color', 'contents_description'];
     }
 
-    showDialog(
-      context: context,
-      builder: (confirmContext) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          t('delete_title', 'Delete?'),
-          style: const TextStyle(color: Colors.white),
+    return ['brand_model', 'serial_number', 'additional_info'];
+  }
+
+  IconData _getIconForField(String key) {
+    switch (key) {
+      case 'vin':
+      case 'license_plate': return Icons.directions_car_outlined;
+      case 'imei': return Icons.phone_android_outlined;
+      case 'serial_number':
+      case 'frame_number': return Icons.pin_outlined;
+      case 'document_type':
+      case 'document_number': return Icons.badge_outlined;
+      case 'full_name': return Icons.person_outline;
+      case 'brand_model': return Icons.sell_outlined;
+      case 'color': return Icons.palette_outlined;
+      case 'hallmark':
+      case 'engraving': return Icons.diamond_outlined;
+      case 'key_type':
+      case 'keychain_description': return Icons.key_outlined;
+      case 'contents_description': return Icons.inventory_2_outlined;
+      default: return Icons.tag;
+    }
+  }
+
+  String _getAttrLabel(String field) {
+    final trKey = 'thing_metadata.attributes.$field';
+    if (_translations.containsKey(trKey) && _translations[trKey] != null) {
+      return _translations[trKey].toString();
+    }
+    return field.split('_').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' ');
+  }
+
+  String _getAttrPlaceholder(String field) {
+    final trKey = 'thing_metadata.placeholders.$field';
+    if (_translations.containsKey(trKey) && _translations[trKey] != null) {
+      return _translations[trKey].toString();
+    }
+    return '';
+  }
+
+  Widget _metaInputField({
+    required String label,
+    required IconData icon,
+    required Color iconColor,
+    required Function(String) onChanged,
+    String? hint,
+    String initialVal = '',
+  }) {
+    return TextFormField(
+      initialValue: initialVal,
+      onChanged: onChanged,
+      style: const TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'Monospace'),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        hintStyle: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 11),
+        labelStyle: TextStyle(color: _textMuted, fontSize: 12),
+        prefixIcon: Icon(icon, color: iconColor, size: 18),
+        filled: true,
+        fillColor: _bgDark,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
         ),
-        content: Text(
-          t('delete_message', 'Are you sure?'),
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(confirmContext),
-            child: Text(
-              t('cancel', 'CANCEL'),
-              style: const TextStyle(color: Colors.white60),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              searchBloc.add(DeletePost(postId: postId, category: category));
-              Navigator.pop(confirmContext);
-            },
-            child: Text(
-              t('confirm', 'DELETE'),
-              style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
       ),
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Безопасные универсальные считыватели полей (Map & Dart Class Objects)
-  // ---------------------------------------------------------------------------
-  String _getSafeString(dynamic obj, String key, {String fallback = ''}) {
-    if (obj == null) return fallback;
-    try {
-      if (obj is Map) return obj[key]?.toString() ?? fallback;
-      final val = (obj as dynamic).toJson()[key] ?? (obj as dynamic).toString();
-      return val.toString();
-    } catch (_) {
-      try {
-        switch (key) {
-          case 'title': return obj.title?.toString() ?? fallback;
-          case 'text': return obj.text?.toString() ?? fallback;
-          case 'category': return obj.category?.toString() ?? fallback;
-          case 'local': return obj.local?.toString() ?? fallback;
-          case 'address': return obj.address?.toString() ?? fallback;
-          case 'created_at':
-          case 'createdAt': return obj.createdAt?.toString() ?? obj.created_at?.toString() ?? fallback;
+  // =============================================================================
+  // 9. SUBMIT BUTTON
+  // =============================================================================
+  Widget _submitButton() {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _accentOrange,
+        minimumSize: const Size(double.infinity, 60),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      onPressed: () {
+        if (_formKey.currentState!.validate()) {
+          Map<String, dynamic>? animalMetadata;
+          if (_isAnimalCategory) {
+            animalMetadata = {
+              'chip_number': _chipNumber.trim(),
+              'passport_number': _passportNumber.trim(),
+              'insurance_policy_id': _insurancePolicyId.trim(),
+            };
+          }
+
+          Map<String, dynamic>? thingMetadata;
+          if (_isThingCategory) {
+            final cleaned = Map<String, dynamic>.from(_thingMetadataValues)
+              ..removeWhere((k, v) => v == null || v.toString().trim().isEmpty);
+            if (cleaned.isNotEmpty) {
+              thingMetadata = cleaned;
+            }
+          }
+
+          context.read<SearchBloc>().add(CreatePost(
+                category: _category,
+                title: _title.trim(),
+                text: _text.trim(),
+                localId: _localId!,
+                choiceId: _actionId!,
+                catId: _choiceId,
+                latitude: _latitude,
+                longitude: _longitude,
+                address: _address.trim(),
+                animalMetadata: animalMetadata,
+                thingMetadata: thingMetadata,
+                locale: context.read<SearchBloc>().currentLocale,
+                imagePaths: _images.map((e) => e.path).toList(),
+              ));
         }
-      } catch (_) {}
-    }
-    return fallback;
-  }
-
-  int _getSafeInt(dynamic obj, String key) {
-    if (obj == null) return 0;
-    try {
-      if (obj is Map) return int.tryParse(obj[key].toString()) ?? 0;
-      return (obj.id as int?) ?? 0;
-    } catch (_) {
-      return 0;
-    }
-  }
-
-  double? _getSafeDouble(dynamic obj, String key) {
-    if (obj == null) return null;
-    try {
-      // 1. Проверка структуры Map
-      if (obj is Map) {
-        final v = obj[key] ??
-            (key == 'lat' ? (obj['latitude'] ?? obj['lat']) : (obj['longitude'] ?? obj['lng']));
-        if (v == null) return null;
-        return double.tryParse(v.toString());
-      }
-
-      // 2. Проверка свойства Dart Class (например, PostModel)
-      if (key == 'lat') {
-        try { final v = (obj as dynamic).lat; if (v != null) return (v as num).toDouble(); } catch (_) {}
-        try { final v = (obj as dynamic).latitude; if (v != null) return (v as num).toDouble(); } catch (_) {}
-      } else if (key == 'lng') {
-        try { final v = (obj as dynamic).lng; if (v != null) return (v as num).toDouble(); } catch (_) {}
-        try { final v = (obj as dynamic).longitude; if (v != null) return (v as num).toDouble(); } catch (_) {}
-      }
-
-      // 3. Проверка через вызов toJson()
-      try {
-        final map = (obj as dynamic).toJson();
-        if (map is Map) {
-          final v = map[key] ?? (key == 'lat' ? map['latitude'] : map['longitude']);
-          if (v != null) return double.tryParse(v.toString());
-        }
-      } catch (_) {}
-    } catch (_) {}
-    return null;
-  }
-
-  List<String> _getSafeList(dynamic obj, String key) {
-    if (obj == null) return [];
-    try {
-      if (obj is Map) {
-        final list = obj[key] as List?;
-        return list?.map((e) => e.toString()).toList() ?? [];
-      }
-      if (obj.images != null) {
-        return List<String>.from(obj.images);
-      }
-    } catch (_) {}
-    return [];
-  }
-
-  Map<String, dynamic> _getAnimalMeta(dynamic obj) {
-    if (obj == null) return {};
-    try {
-      if (obj is Map) {
-        final meta = obj['animal_metadata'] ?? obj['animalMetadata'];
-        if (meta is Map) return Map<String, dynamic>.from(meta);
-      } else {
-        final meta = obj.animalMetadata ?? obj.animal_metadata;
-        if (meta is Map) return Map<String, dynamic>.from(meta);
-      }
-    } catch (_) {}
-    return {};
-  }
-
-  bool _getCanEdit(dynamic obj) {
-    try {
-      if (obj is Map) return obj['permissions']?['can_edit'] == true;
-      return obj.permissions.canEdit == true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  bool _getCanDelete(dynamic obj) {
-    try {
-      if (obj is Map) return obj['permissions']?['can_delete'] == true;
-      return obj.permissions.canDelete == true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  int _getAuthorId(dynamic obj) {
-    try {
-      if (obj is Map) return int.tryParse(obj['author']?['id'].toString() ?? '0') ?? 0;
-      return obj.author.id as int;
-    } catch (_) {
-      return 0;
-    }
-  }
-
-  String _getAuthorName(dynamic obj) {
-    try {
-      if (obj is Map) return obj['author']?['username']?.toString() ?? 'Guest';
-      return obj.author.username.toString();
-    } catch (_) {
-      return 'Guest';
-    }
-  }
-
-  String? _getAuthorAvatar(dynamic obj) {
-    try {
-      if (obj is Map) return obj['author']?['avatar_url']?.toString();
-      return obj.author.avatarUrl?.toString();
-    } catch (_) {
-      return null;
-    }
-  }
-}
-
-// =============================================================================
-// ВСПОМОГАТЕЛЬНЫЙ ВИДЖЕТ ГАЛЕРЕИ ИЗОБРАЖЕНИЙ (_PostDetailsGallery)
-// =============================================================================
-class _PostDetailsGallery extends StatefulWidget {
-  final List<String> images;
-  const _PostDetailsGallery({required this.images});
-
-  @override
-  State<_PostDetailsGallery> createState() => _PostDetailsGalleryState();
-}
-
-class _PostDetailsGalleryState extends State<_PostDetailsGallery> {
-  late PageController _pageController;
-  int _currentPage = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _pageController = PageController();
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.images.isEmpty) {
-      return Container(
-        color: Colors.grey[200],
-        child: const Icon(Icons.image_not_supported, size: 50),
-      );
-    }
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        PageView.builder(
-          controller: _pageController,
-          itemCount: widget.images.length,
-          onPageChanged: (page) => setState(() => _currentPage = page),
-          itemBuilder: (context, index) => Image.network(
-            widget.images[index], 
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => Container(
-              color: Colors.grey[800],
-              child: const Icon(Icons.broken_image, color: Colors.white54, size: 40),
-            ),
-          ),
+      },
+      child: Text(
+        tr('submit_article'),
+        style: const TextStyle(
+          color: Colors.black,
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
         ),
-        Positioned(
-          bottom: 20,
-          left: 0,
-          right: 0,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(
-              widget.images.length,
-              (index) => Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                height: 4,
-                width: index == _currentPage ? 16 : 4,
-                decoration: BoxDecoration(
-                  color: index == _currentPage ? const Color(0xFF00F2FF) : Colors.white54,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

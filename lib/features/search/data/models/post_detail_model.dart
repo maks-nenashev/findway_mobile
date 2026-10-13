@@ -1,3 +1,10 @@
+// =============================================================================
+// FILE: lib/features/search/data/models/post_detail_model.dart
+// LAYER: Data Layer (Model)
+// RESPONSIBILITY: Полная модель детального просмотра поста с поддержкой
+//                 PostGIS-координат, animal_metadata и thing_metadata (JSONB).
+// =============================================================================
+
 import 'package:equatable/equatable.dart';
 
 // =============================================================================
@@ -18,6 +25,9 @@ class PostDetailModel extends Equatable {
   
   // 👉 Специфика животных (JSONB: chip_number, passport_number, insurance_policy_id)
   final Map<String, dynamic> animalMetadata;
+
+  // 👉 Специфика вещей (JSONB: brand_model, vin, license_plate, imei, serial_number, etc.)
+  final Map<String, dynamic> thingMetadata;
   
   // 👉 Вложенные сущности и медиа
   final List<String> images;
@@ -36,6 +46,7 @@ class PostDetailModel extends Equatable {
     this.lat,
     this.lng,
     this.animalMetadata = const {},
+    this.thingMetadata = const {},
     required this.images,
     required this.author,
     required this.comments,
@@ -61,6 +72,13 @@ class PostDetailModel extends Equatable {
         ? Map<String, dynamic>.from(json['animal_metadata'])
         : {};
 
+    // 4. Извлечение JSONB-поля thing_metadata (с фоллбэком на things_metadata)
+    final Map<String, dynamic> parsedThingMeta = json['thing_metadata'] is Map
+        ? Map<String, dynamic>.from(json['thing_metadata'])
+        : (json['things_metadata'] is Map
+            ? Map<String, dynamic>.from(json['things_metadata'])
+            : {});
+
     return PostDetailModel(
       id: json['id'] as int? ?? 0,
       title: json['title']?.toString() ?? '',
@@ -72,6 +90,7 @@ class PostDetailModel extends Equatable {
       lat: parsedLat,
       lng: parsedLng,
       animalMetadata: parsedAnimalMeta,
+      thingMetadata: parsedThingMeta,
       images: List<String>.from(json['images'] ?? []),
       author: AuthorModel.fromJson(json['author'] is Map ? json['author'] : {}),
       comments: (json['comments'] as List? ?? [])
@@ -93,6 +112,7 @@ class PostDetailModel extends Equatable {
         lat,
         lng,
         animalMetadata,
+        thingMetadata,
         images,
         author,
         comments,
