@@ -10,6 +10,7 @@ dependencies:
     sdk: flutter
   flutter_map: ^6.1.0
   latlong2: ^0.9.1
+  google_sign_in: ^6.2.1
 
   file_selector: ^1.0.3
   desktop_drop: ^0.4.4
@@ -47,12 +48,14 @@ dependencies:
   intl: ^0.20.2
   cached_network_image: ^3.4.1
   geolocator: ^14.1.1
+  path: ^1.9.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   drift_dev: ^2.14.0
   build_runner: ^2.4.8 # Обновил до стабильного
+  flutter_lints: ^5.0.0
 
 flutter:
   # Этот флаг разрешает использование встроенных иконок Material

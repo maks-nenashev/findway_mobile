@@ -3,9 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../bloc/profile_bloc.dart';
-import '../bloc/profile_event.dart';
 import '../bloc/profile_state.dart';
-import '../../../../injection_container.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart' as auth;
 
 class ProfilePage extends StatelessWidget {
@@ -135,7 +133,7 @@ class ProfilePage extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(color: bg.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10)),
+          BoxShadow(color: bg.withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 10)),
         ],
       ),
       child: Row(
@@ -196,7 +194,7 @@ class ProfilePage extends StatelessWidget {
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4)),
+              BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4)),
             ],
           ),
           child: Column(
@@ -256,7 +254,7 @@ class ProfilePage extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1E293B).withOpacity(0.1), // Тень чуть гуще
+            color: const Color(0xFF1E293B).withValues(alpha: 0.1), // Тень чуть гуще
             blurRadius: 10, 
             offset: const Offset(0, 5)
           )
@@ -300,8 +298,8 @@ class ProfilePage extends StatelessWidget {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Colors.black.withOpacity(0.05),
-                        Colors.black.withOpacity(0.8), // Темный низ
+                        Colors.black.withValues(alpha: 0.05),
+                        Colors.black.withValues(alpha: 0.8), // Темный низ
                       ],
                       stops: const [0.0, 0.5, 1.0],
                     ),
@@ -356,9 +354,9 @@ class ProfilePage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.photo_camera_back_outlined, color: Colors.white.withOpacity(0.2), size: 36),
+            Icon(Icons.photo_camera_back_outlined, color: Colors.white.withValues(alpha: 0.2), size: 36),
             const SizedBox(height: 6),
-            Text("NO PHOTO", style: TextStyle(fontSize: 9, color: Colors.white.withOpacity(0.3), fontWeight: FontWeight.bold, fontFamily: 'Orbitron', letterSpacing: 1.0)),
+            Text("NO PHOTO", style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.3), fontWeight: FontWeight.bold, fontFamily: 'Orbitron', letterSpacing: 1.0)),
           ],
         ),
       ),
