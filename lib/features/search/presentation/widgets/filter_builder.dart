@@ -42,7 +42,7 @@ class FilterBuilder extends StatelessWidget {
 
     return DropdownButtonFormField<int>(
       key: key,
-      value: valueExists ? (currentValue as int?) : null,
+      initialValue: valueExists ? (currentValue as int?) : null,
       decoration: InputDecoration(labelText: filter.label, border: const OutlineInputBorder()),
       items: items,
       onChanged: (val) => onFilterChanged(filter.id, val),
