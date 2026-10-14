@@ -1,94 +1,152 @@
-// =============================================================================
-// FILE: lib/features/auth/data/repositories/auth_repository.dart
-// LAYER: Data Layer (Repository)
-// RESPONSIBILITY: Coordinates authentication requests with Dio & Google Auth SDK.
-// =============================================================================
-
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthRepository {
   final Dio client;
+  final SharedPreferences prefs;
 
-  // Web Client ID из Google Cloud Console (для валидации idToken на стороне Rails API)
+  static const String _tokenKey = 'auth_token';
+
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    serverClientId: '620503062302-u4so8o291u7vq3knipnand840rthkgeh.apps.googleusercontent.com',
+    serverClientId:
+        '620503062302-u4so8o291u7vq3knipnand840rthkgeh.apps.googleusercontent.com',
     scopes: ['email', 'profile'],
   );
 
-  AuthRepository({required this.client});
+  AuthRepository({
+    required this.client,
+    required this.prefs,
+  });
 
-  /// 🔑 Нативный вход через Google OAuth
+  /// Вход через Google OAuth.
   Future<void> loginWithGoogle() async {
     try {
-      debugPrint('>>> [AuthRepository] Triggering GoogleSignIn().signIn()...');
+      debugPrint('[AuthRepository] Starting Google Sign-In');
 
-      // 1. Нативный вызов Google Play Services
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
-        debugPrint('>>> [AuthRepository] User cancelled Google Sign-In dialog');
         throw Exception('Вхід скасовано користувачем');
       }
 
-      debugPrint('>>> [AuthRepository] Google Account selected: ${googleUser.email}');
+      debugPrint(
+        '[AuthRepository] Google account: ${googleUser.email}',
+      );
 
-      // 2. Извлечение idToken
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
       final String? idToken = googleAuth.idToken;
 
-      debugPrint('>>> [AuthRepository] Obtained idToken: ${idToken != null ? "SUCCESS" : "NULL"}');
-
-      if (idToken == null) {
+      if (idToken == null || idToken.isEmpty) {
         throw Exception('Не вдалося отримати idToken від Google');
       }
 
-      // 3. Передача idToken на Rails API
-      debugPrint('>>> [AuthRepository] Sending idToken to Rails /api/v1/auth/google...');
       final response = await client.post(
         '/api/v1/auth/google',
         data: {'id_token': idToken},
       );
 
-      debugPrint('>>> [AuthRepository] Rails Response Status: ${response.statusCode}');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final token = response.headers.value('Authorization');
-        if (token != null) {
-          debugPrint('>>> [AuthRepository] JWT Session Token saved: $token');
-        }
-      } else {
-        throw Exception('Помилка авторизації на сервері');
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw Exception(
+          'Помилка авторизації на сервері: HTTP ${response.statusCode}',
+        );
       }
+
+      // Rails returns its own auth token in JSON.
+      // The Google idToken and the Rails auth token are different tokens.
+      final dynamic body = response.data;
+      String? token;
+
+      if (body is Map) {
+        final value = body['token'];
+        if (value != null) {
+          token = value.toString().trim();
+        }
+      }
+
+      // Fallback if Rails returns the token in the Authorization header.
+      if (token == null || token.isEmpty) {
+        final header = response.headers.value('Authorization');
+
+        if (header != null && header.trim().isNotEmpty) {
+          token = header
+              .replaceFirst(
+                RegExp(r'^Bearer\s+', caseSensitive: false),
+                '',
+              )
+              .trim();
+        }
+      }
+
+      if (token == null || token.isEmpty) {
+        throw Exception(
+          'Rails підтвердив вхід, але не повернув токен авторизації',
+        );
+      }
+
+      await prefs.setString(_tokenKey, token);
+
+      debugPrint('[AuthRepository] Rails auth token saved');
     } catch (e, stackTrace) {
-      debugPrint('>>> [AuthRepository] Google Auth Exception: $e');
-      debugPrint('>>> [AuthRepository] StackTrace: $stackTrace');
+      debugPrint('[AuthRepository] Google authentication failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
       rethrow;
     }
   }
 
-  /// 📧 Стандартный вход по Email / Password (Devise)
+  /// Вхід через email і пароль.
   Future<void> login(String email, String password) async {
-    final response = await client.post('/users/sign_in.json', data: {
-      'user': {
-        'email': email,
-        'password': password,
-      }
-    });
+    final response = await client.post(
+      '/users/sign_in.json',
+      data: {
+        'user': {
+          'email': email,
+          'password': password,
+        },
+      },
+    );
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception('Невірний email або пароль');
     }
+
+    // Save a token if this endpoint returns one.
+    final dynamic body = response.data;
+    String? token;
+
+    if (body is Map && body['token'] != null) {
+      token = body['token'].toString().trim();
+    }
+
+    if (token == null || token.isEmpty) {
+      final header = response.headers.value('Authorization');
+
+      if (header != null && header.trim().isNotEmpty) {
+        token = header
+            .replaceFirst(
+              RegExp(r'^Bearer\s+', caseSensitive: false),
+              '',
+            )
+            .trim();
+      }
+    }
+
+    if (token != null && token.isNotEmpty) {
+      await prefs.setString(_tokenKey, token);
+    }
   }
 
-  /// 🚪 Сброс сессии
+  /// Удаление сохранённого токена.
   Future<void> clearToken() async {
-    // Очистка локального хранилища токенов
+    await prefs.remove(_tokenKey);
   }
 
-  /// 🔍 Проверка наличия сохраненного токена
+  /// Проверка наличия сохранённого токена.
   Future<bool> hasValidToken() async {
-    return false; // Заглушка: проверяется через AuthInterceptor / SecureStorage
+    final token = prefs.getString(_tokenKey);
+    return token != null && token.trim().isNotEmpty;
   }
 }
