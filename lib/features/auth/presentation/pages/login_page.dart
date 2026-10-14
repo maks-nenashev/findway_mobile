@@ -46,7 +46,6 @@ class _LoginPageState extends State<LoginPage> {
       final password = _passwordController.text.trim();
 
       if (_isSignUp) {
-        // TODO: Регистрация по email (если требуется отдельное событие)
         context.read<AuthBloc>().add(LoginSubmitted(email, password));
       } else {
         context.read<AuthBloc>().add(LoginSubmitted(email, password));
@@ -81,14 +80,66 @@ class _LoginPageState extends State<LoginPage> {
 
             return Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // --- ЛОГОТИП / ЗАГОЛОВОК ---
+                      // --- ЛОГОТИП FINDWAY (assets/images/findway_logo.png) ---
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _cardDark,
+                            boxShadow: [
+                              BoxShadow(
+                                color: _accentCyan.withValues(alpha: 0.35),
+                                blurRadius: 24,
+                                spreadRadius: 3,
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: Image.asset(
+                              'assets/images/findway_logo.png',
+                              height: 80,
+                              width: 80,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Image.asset(
+                                  'assets/images/logo.png',
+                                  height: 80,
+                                  width: 80,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      width: 80,
+                                      height: 80,
+                                      decoration: BoxDecoration(
+                                        color: _accentCyan.withValues(alpha: 0.1),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: _accentCyan, width: 2),
+                                      ),
+                                      child: Icon(
+                                        Icons.radar_rounded,
+                                        size: 44,
+                                        color: _accentCyan,
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // --- ЗАГОЛОВОК FINDWAY ---
                       Text(
                         'FINDWAY',
                         textAlign: TextAlign.center,
@@ -100,19 +151,19 @@ class _LoginPageState extends State<LoginPage> {
                           letterSpacing: 2,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Text(
                         _isSignUp ? 'Створення нового акаунту' : 'Вхід у систему',
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: Colors.white54, fontSize: 14),
                       ),
 
-                      const SizedBox(height: 36),
+                      const SizedBox(height: 28),
 
-                      // --- КНОПКА GOOGLE SIGN-IN ---
+                      // --- КНОПКА GOOGLE SIGN-IN С ФИРМЕННОЙ "G" ---
                       OutlinedButton.icon(
                         onPressed: isLoading ? null : _submitGoogleLogin,
-                        icon: const Icon(Icons.g_mobiledata, size: 32, color: Colors.white),
+                        icon: const _GoogleGLogo(size: 24),
                         label: Text(
                           _isSignUp ? 'Зареєструватися через Google' : 'Увійти через Google',
                           style: const TextStyle(
@@ -130,7 +181,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
 
                       // --- РАЗДЕЛИТЕЛЬ ---
                       Row(
@@ -147,7 +198,7 @@ class _LoginPageState extends State<LoginPage> {
                         ],
                       ),
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
 
                       // --- ПОЛЕ USERNAME (Только для регистрации) ---
                       if (_isSignUp) ...[
@@ -159,7 +210,7 @@ class _LoginPageState extends State<LoginPage> {
                               ? 'Введіть ім\'я'
                               : null,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 14),
                       ],
 
                       // --- ПОЛЕ EMAIL ---
@@ -171,7 +222,7 @@ class _LoginPageState extends State<LoginPage> {
                         validator: (v) => v == null || !v.contains('@') ? 'Введіть коректний email' : null,
                       ),
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
 
                       // --- ПОЛЕ PASSWORD ---
                       TextFormField(
@@ -190,7 +241,7 @@ class _LoginPageState extends State<LoginPage> {
                         validator: (v) => v == null || v.length < 6 ? 'Пароль має бути від 6 символів' : null,
                       ),
 
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 24),
 
                       // --- КНОПКА ОТПРАВКИ ФОРМЫ ---
                       ElevatedButton(
@@ -218,7 +269,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                       ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
 
                       // --- ПЕРЕКЛЮЧАТЕЛЬ: ВХОД / РЕГИСТРАЦИЯ ---
                       TextButton(
@@ -273,4 +324,87 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
+}
+
+// =============================================================================
+// ВСПОМОГАТЕЛЬНЫЙ ВИДЖЕТ ФИРМЕННОГО МНОГОЦВЕТНОГО ЛОГОТИПА GOOGLE 'G'
+// =============================================================================
+class _GoogleGLogo extends StatelessWidget {
+  final double size;
+
+  const _GoogleGLogo({this.size = 24.0});
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      'assets/images/google_logo.png',
+      width: size,
+      height: size,
+      errorBuilder: (context, error, stackTrace) {
+        return Image.asset(
+          'assets/google.png',
+          width: size,
+          height: size,
+          errorBuilder: (context, error, stackTrace) {
+            return CustomPaint(
+              size: Size(size, size),
+              painter: _GoogleGLogoPainter(),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _GoogleGLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double center = size.width / 2;
+    final double radius = size.width / 2;
+    final Rect rect = Rect.fromCircle(center: Offset(center, center), radius: radius - 2);
+
+    final double strokeWidth = size.width * 0.22;
+
+    final Paint redPaint = Paint()
+      ..color = const Color(0xFFEA4335)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
+
+    final Paint yellowPaint = Paint()
+      ..color = const Color(0xFFFBBC05)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
+
+    final Paint greenPaint = Paint()
+      ..color = const Color(0xFF34A853)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
+
+    final Paint bluePaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt;
+
+    final Paint blueFill = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawArc(rect, -0.8, 1.8, false, redPaint);
+    canvas.drawArc(rect, 1.0, 1.1, false, yellowPaint);
+    canvas.drawArc(rect, 2.1, 1.1, false, greenPaint);
+    canvas.drawArc(rect, -0.3, 0.9, false, bluePaint);
+
+    canvas.drawRect(
+      Rect.fromLTWH(center - 1, center - strokeWidth / 2, radius * 0.9, strokeWidth),
+      blueFill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
