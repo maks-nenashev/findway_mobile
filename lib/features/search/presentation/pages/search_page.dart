@@ -267,26 +267,49 @@ class _SearchPageState extends State<SearchPage> {
                             ),
                           ),
 
-                          if (searchResults.isNotEmpty)
-                            SliverToBoxAdapter(
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                                child: IndexMapWidget(
-                                  results: searchResults,
-                                  translations: translations,
-                                  onMarkerTap: (id, category) {
-                                    final bloc = context.read<SearchBloc>();
-                                    bloc.add(LoadPostDetails(id: id, category: category, locale: currentLocale));
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => BlocProvider.value(value: bloc, child: PostCardPage()),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
+if (searchResults.isNotEmpty)
+  SliverToBoxAdapter(
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: IndexMapWidget(
+        results: searchResults,
+        radiusKm: double.tryParse(
+          context.read<SearchBloc>().selectedValues['radius_km']?.toString() ?? '10',
+        ),
+        translations: translations,
+        onLocationFound: (userLocation) {
+          final searchBloc = context.read<SearchBloc>();
+          final double? radius = double.tryParse(
+            searchBloc.selectedValues['radius_km']?.toString() ?? '10',
+          );
+
+          searchBloc.add(
+            SearchFilterChanged(
+              lat: userLocation.latitude,
+              lng: userLocation.longitude,
+              radiusKm: radius,
+            ),
+          );
+        },
+        onMarkerTap: (id, category) async {
+          final bloc = context.read<SearchBloc>();
+          bloc.add(LoadPostDetails(id: id, category: category, locale: currentLocale));
+
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => BlocProvider.value(
+                value: bloc,
+                child: const PostCardPage(),
+              ),
+            ),
+          );
+
+          if (!context.mounted) return;
+        },
+      ),
+    ),
+  ),
 
                           if (searchResults.isNotEmpty)
                             _buildResultsGrid(searchResults, currentLocale)

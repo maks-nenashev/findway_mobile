@@ -230,3 +230,21 @@ class DeletePost extends SearchEvent {
   @override
   List<Object?> get props => [postId, category];
 }
+
+// =============================================================================
+// 11 GEOLOCATION UPDATE EVENT
+// =============================================================================
+class SearchFilterChanged extends SearchEvent {
+  final double? lat;
+  final double? lng;
+  final double? radiusKm;
+
+  const SearchFilterChanged({
+    this.lat,
+    this.lng,
+    this.radiusKm,
+  });
+
+  @override
+  List<Object?> get props => [lat, lng, radiusKm];
+}

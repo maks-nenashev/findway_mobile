@@ -1,7 +1,7 @@
 // =============================================================================
 // FILE: lib/features/search/presentation/bloc/search_bloc.dart
 // RESPONSIBILITY: BLoC поиска и управление CUD-операциями объявлений
-//                 с пробросом animalMetadata и thingMetadata в репозиторий.
+//                 с пробросом animalMetadata, thingMetadata и GPS-геолокации.
 // =============================================================================
 
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -98,6 +98,32 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       if (event.filterId == 'sort' || event.filterId == 'sort_by' || event.filterId == 'order') {
         add(const PerformSearch());
       }
+    });
+
+    // =========================================================================
+    // SEARCH FILTER CHANGED (Обновление GPS-координат lat/lng и радиуса поиска)
+    // =========================================================================
+    on<SearchFilterChanged>((event, emit) {
+      _selectedValues = Map<String, dynamic>.from(_selectedValues);
+
+      if (event.lat != null) {
+        _selectedValues['search_lat'] = event.lat;
+      }
+      if (event.lng != null) {
+        _selectedValues['search_lng'] = event.lng;
+      }
+      if (event.radiusKm != null) {
+        _selectedValues['radius_km'] = event.radiusKm;
+      }
+
+      if (state is FiltersLoaded) {
+        emit((state as FiltersLoaded).copyWith(selectedValues: _selectedValues));
+      } else if (state is SearchSuccess) {
+        emit((state as SearchSuccess).copyWith(selectedValues: _selectedValues));
+      }
+
+      // Перезапускаем поиск для получения объектов вокруг полученной точки GPS
+      add(const PerformSearch());
     });
 
     // =========================================================================
