@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'auth_interceptor.dart';
@@ -14,8 +16,10 @@ class DioClient {
     this._dio, {
     required SharedPreferences prefs,
     void Function()? onUnauthenticated,
+    String? customBaseUrl,
   }) {
-    _dio.options.baseUrl = 'http://10.0.2.2:3000';
+    // 💡 Определяем корректный URL в зависимости от среды
+    _dio.options.baseUrl = customBaseUrl ?? _resolveBaseUrl();
     _dio.options.connectTimeout = const Duration(seconds: 15);
     _dio.options.receiveTimeout = const Duration(seconds: 15);
 
@@ -24,7 +28,6 @@ class DioClient {
       'Accept': 'application/json',
     };
 
-    // Preserve the existing HTTP status handling.
     _dio.options.validateStatus = (status) => status != null && status < 500;
 
     _dio.interceptors.add(
@@ -38,7 +41,6 @@ class DioClient {
       ),
     );
 
-    // Do not log request/response bodies: they may contain credentials.
     _dio.interceptors.add(
       LogInterceptor(
         requestHeader: false,
@@ -47,6 +49,17 @@ class DioClient {
         responseBody: false,
       ),
     );
+  }
+
+  static String _resolveBaseUrl() {
+    if (kReleaseMode) {
+      return 'https://findway.pro';
+    }
+    // Для реального Android-устройства с adb reverse tcp:3000 tcp:3000
+    if (!kIsWeb && Platform.isAndroid) {
+      return 'http://localhost:3000';
+    }
+    return 'http://127.0.0.1:3000';
   }
 
   Future<Response> get(

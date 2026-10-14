@@ -41,11 +41,19 @@
             android:value="2" />
     </application>
 
-    <!-- Package visibility для ACTION_PROCESS_TEXT -->
+    <!-- Package visibility: текстовые интенты + вызов внешних ссылок http/https -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
         </intent>
     </queries>
 </manifest>
