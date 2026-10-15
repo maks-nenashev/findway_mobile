@@ -1,11 +1,15 @@
+// =============================================================================
+// FILE: lib/features/search/data/repositories/search_repository_impl.dart
+// LAYER: Data Layer (Repository Implementation)
+// RESPONSIBILITY: Concrete implementation routing data sources and preserving
+//                 Pagy pagination metadata payload.
+// =============================================================================
+
 import '../../domain/repositories/search_repository.dart';
 import '../datasources/search_remote_data_source.dart';
 import '../models/filter_model.dart';
 import '../models/post_detail_model.dart';
 
-// =============================================================================
-// SEARCH REPOSITORY IMPLEMENTATION
-// =============================================================================
 class SearchRepositoryImpl implements SearchRepository {
   final SearchRemoteDataSource remoteDataSource;
 
@@ -20,7 +24,7 @@ class SearchRepositoryImpl implements SearchRepository {
     required String locale,
   }) async {
     final Map<String, dynamic> data = await remoteDataSource.getFiltersData(
-      category: category, 
+      category: category,
       locale: locale,
     );
 
@@ -31,10 +35,10 @@ class SearchRepositoryImpl implements SearchRepository {
   }
 
   // ===========================================================================
-  // 2. SEARCH RECORDS
+  // 2. SEARCH RECORDS (Returns dynamic payload preserving Pagy metadata)
   // ===========================================================================
   @override
-  Future<List<dynamic>> search({
+  Future<Map<String, dynamic>> search({
     required String category,
     required Map<String, dynamic> filters,
     required String locale,
@@ -43,7 +47,7 @@ class SearchRepositoryImpl implements SearchRepository {
       category: category,
       filters: filters,
       locale: locale,
-    );
+    ) as Map<String, dynamic>;
   }
 
   // ===========================================================================
@@ -66,7 +70,7 @@ class SearchRepositoryImpl implements SearchRepository {
       'translations': data['translations'] as Map<String, dynamic>,
     };
   }
-  
+
   // ===========================================================================
   // 4. CREATE POST (With Geolocation & JSONB Metadata)
   // ===========================================================================

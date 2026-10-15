@@ -248,3 +248,15 @@ class SearchFilterChanged extends SearchEvent {
   @override
   List<Object?> get props => [lat, lng, radiusKm];
 }
+
+// =============================================================================
+// 12. CHANGE PAGE EVENT
+// =============================================================================
+class ChangePage extends SearchEvent {
+  final int page;
+
+  const ChangePage(this.page);
+
+  @override
+  List<Object?> get props => [page];
+}

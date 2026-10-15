@@ -1,7 +1,8 @@
 // =============================================================================
 // FILE: lib/features/search/presentation/widgets/filter_panel/thing_id_panel.dart
 // LAYER: Presentation Layer (Widget)
-// RESPONSIBILITY: Dynamic search panel for item metadata (VIN, IMEI, Serial, Documents).
+// RESPONSIBILITY: Dynamic search panel for item metadata (VIN, IMEI, Serial, Documents)
+//                 strictly utilizing YAML translation keys without hardcoded locales.
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -21,29 +22,137 @@ class ThingIdPanel extends StatelessWidget {
     super.key,
   });
 
+  /// Универсальный поиск ключей перевода (поддерживает nested Map и dot-notation)
+  static String? _lookup(Map<String, dynamic> trans, String dotPath) {
+    if (trans.isEmpty) return null;
+
+    // 1. Проверка плоского ключа ("thing_metadata.attributes.vin")
+    if (trans.containsKey(dotPath) && trans[dotPath] != null && trans[dotPath].toString().isNotEmpty) {
+      return trans[dotPath].toString();
+    }
+
+    // 2. Итеративный обход вложенного Map ("thing_metadata" -> "attributes" -> "vin")
+    final parts = dotPath.split('.');
+    dynamic current = trans;
+
+    for (final part in parts) {
+      if (current is Map) {
+        dynamic foundKey;
+        for (final k in current.keys) {
+          if (k.toString().toLowerCase() == part.toLowerCase()) {
+            foundKey = k;
+            break;
+          }
+        }
+        if (foundKey != null) {
+          current = current[foundKey];
+        } else {
+          current = null;
+          break;
+        }
+      } else {
+        current = null;
+        break;
+      }
+    }
+
+    if (current != null && current is! Map && current.toString().isNotEmpty) {
+      return current.toString();
+    }
+
+    return null;
+  }
+
+  /// Языконезависимое определение подкатегории (DE / EN / UK / PL)
   static List<String> getFieldsForCategoryLabel(String? label) {
     if (label == null || label.trim().isEmpty) return [];
 
-    final lower = label.toLowerCase();
-    if (lower.contains('doc') || lower.contains('документ') || lower.contains('dokumen')) {
+    final String lower = label.toLowerCase().trim();
+
+    // 1. DOCUMENTS / DOKUMENTE / DOKUMENTY / ДОКУМЕНТИ / ПАСПОРТ
+    if (lower.contains('doc') || 
+        lower.contains('dok') || 
+        lower.contains('urk') || 
+        lower.contains('ausweis') || 
+        lower.contains('пасп') || 
+        lower.contains('pasp') || 
+        lower.contains('pass') || 
+        lower.contains('посвідч') || 
+        lower.contains('прав')) {
       return ['document_type', 'document_number', 'full_name'];
-    } else if (lower.contains('phone') || lower.contains('телефон') || lower.contains('telefon') || lower.contains('gadget')) {
+    } 
+    // 2. PHONES / HANDY / ELEKTRONIK / TELEFONY / ТЕЛЕФОНИ
+    else if (lower.contains('phon') || 
+             lower.contains('handy') || 
+             lower.contains('telef') || 
+             lower.contains('gadg') || 
+             lower.contains('ґадж') || 
+             lower.contains('гадж') || 
+             lower.contains('смартф') || 
+             lower.contains('ноут') || 
+             lower.contains('планш') ||
+             lower.contains('elek') ||
+             lower.contains('елек')) {
       return ['imei', 'serial_number', 'brand_model', 'color'];
-    } else if (lower.contains('car') || lower.contains('авто') || lower.contains('машин') || lower.contains('samochód')) {
+    } 
+    // 3. JEWELRY / SCHMUCK / BIŻUTERIA / ЮВЕЛІРНІ ВИРОБИ
+    else if (lower.contains('jewel') || 
+             lower.contains('schmuck') || 
+             lower.contains('ювел') || 
+             lower.contains('прикрас') || 
+             lower.contains('biżut') || 
+             lower.contains('bizut') ||
+             lower.contains('кошт')) {
+      return ['serial_number', 'brand_model', 'hallmark', 'engraving'];
+    }
+    // 4. CARS / FAHRZEUGE / AUTO / SAMOCHODY / АВТОМОБІЛІ & МОТОЦИКЛИ
+    else if (lower.contains('car') || 
+             lower.contains('fahrzeug') || 
+             lower.contains('auto') || 
+             lower.contains('pkw') || 
+             lower.contains('kfz') || 
+             lower.contains('авто') || 
+             lower.contains('маш') || 
+             lower.contains('samoch') || 
+             lower.contains('moto') || 
+             lower.contains('мото') || 
+             lower.contains('трансп')) {
       return ['vin', 'license_plate', 'brand_model', 'color'];
-    } else if (lower.contains('moto') || lower.contains('мото')) {
-      return ['vin', 'license_plate', 'brand_model', 'color'];
-    } else if (lower.contains('bike') || lower.contains('вело') || lower.contains('rower')) {
+    } 
+    // 5. BICYCLES / FAHRRÄDER / ROWERY / ВЕЛОСИПЕДИ
+    else if (lower.contains('bik') || 
+             lower.contains('fahrrad') || 
+             lower.contains('rad') || 
+             lower.contains('вело') || 
+             lower.contains('rower') || 
+             lower.contains('самок')) {
       return ['frame_number', 'brand_model', 'color'];
-    } else if (lower.contains('jewel') || lower.contains('ювелир') || lower.contains('прикрас') || lower.contains('biżuteria')) {
-      return ['brand_model', 'serial_number', 'hallmark', 'engraving'];
-    } else if (lower.contains('key') || lower.contains('ключ') || lower.contains('klucz')) {
+    } 
+    // 6. KEYS / SCHLÜSSEL / KLUCZE / КЛЮЧІ
+    else if (lower.contains('key') || 
+             lower.contains('schlüssel') || 
+             lower.contains('schluessel') || 
+             lower.contains('ключ') || 
+             lower.contains('klucz')) {
       return ['key_type', 'keychain_description'];
-    } else if (lower.contains('bag') || lower.contains('сумк') || lower.contains('кошел') || lower.contains('portfel') || lower.contains('wallet')) {
+    } 
+    // 7. BAGS / TASCHEN / WALLETS / TORBY / СУМКИ / ГАМАНЦІ
+    else if (lower.contains('bag') || 
+             lower.contains('tasch') || 
+             lower.contains('börs') || 
+             lower.contains('boers') || 
+             lower.contains('сумк') || 
+             lower.contains('кошел') || 
+             lower.contains('portf') || 
+             lower.contains('wall') ||
+             lower.contains('гаман') ||
+             lower.contains('портф') ||
+             lower.contains('рюкз')) {
       return ['brand_model', 'color', 'contents_description'];
     }
 
-    return ['brand_model', 'serial_number', 'additional_info'];
+    // 8. DEFAULT FALLBACK
+    return ['serial_number', 'brand_model', 'additional_info'];
   }
 
   @override
@@ -54,9 +163,7 @@ class ThingIdPanel extends StatelessWidget {
     final List<String> fields = getFieldsForCategoryLabel(subCategoryLabel);
 
     if (fields.isEmpty) {
-      final String prompt = trans['thing_metadata.select_category_prompt'] ??
-          trans['select_category_prompt'] ??
-          'Select a category to view specific parameters (VIN, IMEI, frame number, documents, etc.).';
+      final String prompt = _lookup(trans, 'thing_metadata.select_category_prompt') ?? '';
       return Container(
         margin: const EdgeInsets.only(top: 12),
         padding: const EdgeInsets.all(16),
@@ -80,9 +187,10 @@ class ThingIdPanel extends StatelessWidget {
       );
     }
 
+    final String defaultTitle = _lookup(trans, 'thing_metadata.title') ?? 'IDENTIFIERS';
     final String titleText = subCategoryLabel != null
-        ? 'IDENTIFIERS: ${subCategoryLabel!.toUpperCase()}'
-        : (trans['thing_metadata.title'] ?? 'THING IDENTIFIERS');
+        ? '${defaultTitle.toUpperCase()}: ${subCategoryLabel!.toUpperCase()}'
+        : defaultTitle;
 
     return Container(
       margin: const EdgeInsets.only(top: 12),
@@ -170,56 +278,28 @@ class ThingIdPanel extends StatelessWidget {
   }
 
   String _getAttrLabel(String field, Map<String, dynamic> trans) {
-    final keys = [
+    final paths = [
       'thing_metadata.attributes.$field',
       'thing_metadata_attributes_$field',
       'attributes.$field',
     ];
-    for (final k in keys) {
-      if (trans.containsKey(k) && trans[k] != null && trans[k].toString().isNotEmpty) {
-        return trans[k].toString();
-      }
+    for (final p in paths) {
+      final res = _lookup(trans, p);
+      if (res != null) return res;
     }
-    switch (field) {
-      case 'vin': return 'VIN Number';
-      case 'license_plate': return 'License Plate';
-      case 'imei': return 'IMEI Code';
-      case 'serial_number': return 'Serial Number (S/N)';
-      case 'frame_number': return 'Frame Number';
-      case 'document_type': return 'Document Type';
-      case 'document_number': return 'Document Number / Series';
-      case 'full_name': return 'Full Name on Document';
-      case 'brand_model': return 'Brand / Model';
-      case 'color': return 'Color';
-      case 'hallmark': return 'Hallmark / Stamp';
-      case 'engraving': return 'Engraving / Markings';
-      case 'key_type': return 'Key Type (car, apartment)';
-      case 'keychain_description': return 'Keychain Description';
-      case 'contents_description': return 'Contents Description';
-      case 'additional_info': return 'Additional Distinctive Features';
-      default: return field;
-    }
+    return field.replaceAll('_', ' ').toUpperCase();
   }
 
   String _getAttrPlaceholder(String field, Map<String, dynamic> trans) {
-    final keys = [
+    final paths = [
       'thing_metadata.placeholders.$field',
       'thing_metadata_placeholders_$field',
       'placeholders.$field',
     ];
-    for (final k in keys) {
-      if (trans.containsKey(k) && trans[k] != null && trans[k].toString().isNotEmpty) {
-        return trans[k].toString();
-      }
+    for (final p in paths) {
+      final res = _lookup(trans, p);
+      if (res != null) return res;
     }
-    switch (field) {
-      case 'vin': return 'e.g., WBA3A51070F...';
-      case 'imei': return '15 digits (e.g., 356890...)';
-      case 'license_plate': return 'e.g., KR 12345';
-      case 'frame_number': return 'e.g., WTU1234567X';
-      case 'document_number': return 'e.g., AB 123456';
-      case 'full_name': return 'Full name as shown on document';
-      default: return '';
-    }
+    return '';
   }
 }

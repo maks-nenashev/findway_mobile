@@ -151,6 +151,10 @@ class _SearchPageState extends State<SearchPage> {
           final selectedFilterValues = _extractSelectedValues(state);
           final currentTabIndex = _extractTabIndex(state);
 
+          final int currentPage = _extractCurrentPage(state);
+          final int lastPage = _extractLastPage(state);
+          final int totalCount = _extractTotalCount(state);
+
           final bool isTitlePage = _localActiveCategory.isEmpty;
 
           return Scaffold(
@@ -239,6 +243,8 @@ class _SearchPageState extends State<SearchPage> {
                     currentLocale: currentLocale,
                     onCategorySelected: (cat) {
                       setState(() => _localActiveCategory = cat);
+                      final bloc = context.read<SearchBloc>();
+                      bloc.add(LoadFilters(category: cat, locale: bloc.currentLocale));
                     },
                   )
                 : Stack(
@@ -248,6 +254,7 @@ class _SearchPageState extends State<SearchPage> {
                         controller: _mainScrollController,
                         slivers: [
                           _buildSliverAppBar(context),
+
                           SliverToBoxAdapter(
                             child: FilterPanel(
                               state: state,
@@ -258,6 +265,8 @@ class _SearchPageState extends State<SearchPage> {
                               activeCategory: _localActiveCategory,
                               onCategoryChanged: (cat) {
                                 setState(() => _localActiveCategory = cat);
+                                final bloc = context.read<SearchBloc>();
+                                bloc.add(LoadFilters(category: cat, locale: bloc.currentLocale));
                               },
                               chipController: _chipController,
                               passportController: _passportController,
@@ -282,13 +291,13 @@ class _SearchPageState extends State<SearchPage> {
                                 child: IndexMapWidget(
                                   results: searchResults,
                                   radiusKm: double.tryParse(
-                                    context.read<SearchBloc>().selectedValues['radius_km']?.toString() ?? '10',
+                                    selectedFilterValues['radius_km']?.toString() ?? '10',
                                   ),
                                   translations: translations,
                                   onLocationFound: (userLocation) {
                                     final searchBloc = context.read<SearchBloc>();
                                     final double? radius = double.tryParse(
-                                      searchBloc.selectedValues['radius_km']?.toString() ?? '10',
+                                      selectedFilterValues['radius_km']?.toString() ?? '10',
                                     );
 
                                     searchBloc.add(
@@ -312,8 +321,6 @@ class _SearchPageState extends State<SearchPage> {
                                         ),
                                       ),
                                     );
-
-                                    if (!context.mounted) return;
                                   },
                                 ),
                               ),
@@ -323,6 +330,9 @@ class _SearchPageState extends State<SearchPage> {
                             SearchResultsGrid(
                               results: searchResults,
                               currentLocale: currentLocale,
+                              currentPage: currentPage,
+                              lastPage: lastPage,
+                              totalCount: totalCount,
                             )
                           else if (state is! SearchLoading && state is! ResultsLoading)
                             SliverFillRemaining(
@@ -342,7 +352,8 @@ class _SearchPageState extends State<SearchPage> {
                           ),
                         ],
                       ),
-                      if (state is SearchLoading)
+
+                      if (state is SearchLoading || state is ResultsLoading)
                         const Positioned.fill(
                           child: Center(
                             child: CircularProgressIndicator(color: Color(0xFF00F2FF)),
@@ -425,5 +436,23 @@ class _SearchPageState extends State<SearchPage> {
     if (state is SearchSuccess) return state.tabIndex;
     if (state is ResultsLoading) return state.tabIndex;
     return 1;
+  }
+
+  int _extractCurrentPage(SearchState state) {
+    if (state is SearchSuccess) return state.currentPage;
+    if (state is FiltersLoaded) return state.currentPage;
+    return 1;
+  }
+
+  int _extractLastPage(SearchState state) {
+    if (state is SearchSuccess) return state.lastPage;
+    if (state is FiltersLoaded) return state.lastPage;
+    return 1;
+  }
+
+  int _extractTotalCount(SearchState state) {
+    if (state is SearchSuccess) return state.totalCount;
+    if (state is FiltersLoaded) return state.totalCount;
+    return 0;
   }
 }
