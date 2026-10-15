@@ -8,6 +8,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'; 
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:findway_mobile/injection_container.dart';
@@ -267,49 +268,49 @@ class _SearchPageState extends State<SearchPage> {
                             ),
                           ),
 
-if (searchResults.isNotEmpty)
-  SliverToBoxAdapter(
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: IndexMapWidget(
-        results: searchResults,
-        radiusKm: double.tryParse(
-          context.read<SearchBloc>().selectedValues['radius_km']?.toString() ?? '10',
-        ),
-        translations: translations,
-        onLocationFound: (userLocation) {
-          final searchBloc = context.read<SearchBloc>();
-          final double? radius = double.tryParse(
-            searchBloc.selectedValues['radius_km']?.toString() ?? '10',
-          );
+              if (searchResults.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: IndexMapWidget(
+                      results: searchResults,
+                      radiusKm: double.tryParse(
+                        context.read<SearchBloc>().selectedValues['radius_km']?.toString() ?? '10',
+                      ),
+                      translations: translations,
+                      onLocationFound: (userLocation) {
+                        final searchBloc = context.read<SearchBloc>();
+                        final double? radius = double.tryParse(
+                          searchBloc.selectedValues['radius_km']?.toString() ?? '10',
+                        );
 
-          searchBloc.add(
-            SearchFilterChanged(
-              lat: userLocation.latitude,
-              lng: userLocation.longitude,
-              radiusKm: radius,
-            ),
-          );
-        },
-        onMarkerTap: (id, category) async {
-          final bloc = context.read<SearchBloc>();
-          bloc.add(LoadPostDetails(id: id, category: category, locale: currentLocale));
+                        searchBloc.add(
+                          SearchFilterChanged(
+                            lat: userLocation.latitude,
+                            lng: userLocation.longitude,
+                            radiusKm: radius,
+                          ),
+                        );
+                      },
+                      onMarkerTap: (id, category) async {
+                        final bloc = context.read<SearchBloc>();
+                        bloc.add(LoadPostDetails(id: id, category: category, locale: currentLocale));
 
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => BlocProvider.value(
-                value: bloc,
-                child: const PostCardPage(),
-              ),
-            ),
-          );
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => BlocProvider.value(
+                              value: bloc,
+                              child: const PostCardPage(),
+                            ),
+                          ),
+                        );
 
-          if (!context.mounted) return;
-        },
-      ),
-    ),
-  ),
+                        if (!context.mounted) return;
+                      },
+                    ),
+                  ),
+                ),
 
                           if (searchResults.isNotEmpty)
                             _buildResultsGrid(searchResults, currentLocale)
@@ -323,7 +324,7 @@ if (searchResults.isNotEmpty)
                                 ),
                               ),
                             ),
-                          const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                          const SliverToBoxAdapter(child: SizedBox(height: 140)),
                         ],
                       ),
                       if (state is SearchLoading)
@@ -341,17 +342,35 @@ if (searchResults.isNotEmpty)
     );
   }
 
+// ===========================================================================
+  // SLIVER APP BAR (Кликабельный логотип для возврата на главный экран)
+  // ===========================================================================
   Widget _buildSliverAppBar() {
     return SliverAppBar(
       backgroundColor: const Color(0xFFF0F4F8),
       elevation: 0,
       floating: true,
       title: Padding(
-        padding: const EdgeInsets.only(left: 5.0), 
-        child: Image.asset(
-          'assets/images/logo1.png',
-          height: 65, 
-          fit: BoxFit.contain,
+        padding: const EdgeInsets.only(left: 5.0),
+        child: GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            // 1. Сбрасываем локальную категорию, переключая UI на титульную страницу
+            setState(() {
+              _localActiveCategory = '';
+            });
+            // 2. Уведомляем BLoC о сбросе фильтров и возврате на титул
+            final bloc = context.read<SearchBloc>();
+            bloc.add(LoadFilters(category: '', locale: bloc.currentLocale));
+          },
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Image.asset(
+              'assets/images/logo1.png',
+              height: 65,
+              fit: BoxFit.contain,
+            ),
+          ),
         ),
       ),
     );
@@ -389,11 +408,11 @@ if (searchResults.isNotEmpty)
   List<FindWayCategory> _getLocalizedCategories(Map<String, dynamic> trans) {
     return [
       FindWayCategory(
-        title: trans['title_one'] ?? 'People',
-        accentColor: const Color(0xFF00F2FF),
-        modelsInfo: 'Models EfficientNet-B0, ArcFace & NLP | ACTIVE',
-        description: trans['description_one'] ?? '',
-        imagePath: 'assets/images/peop.png',
+        title: trans['title_three'] ?? 'Things',
+        accentColor: const Color(0xFF2ECC71),
+        modelsInfo: 'Models EfficientNet-B0, NLP | ACTIVE',
+        description: trans['description_three'] ?? '',
+        imagePath: 'assets/images/things.png',
       ),
       FindWayCategory(
         title: trans['title_two'] ?? 'Animals',
@@ -403,11 +422,11 @@ if (searchResults.isNotEmpty)
         imagePath: 'assets/images/cat.png',
       ),
       FindWayCategory(
-        title: trans['title_three'] ?? 'Things',
-        accentColor: const Color(0xFF2ECC71),
-        modelsInfo: 'Models EfficientNet-B0, NLP | ACTIVE',
-        description: trans['description_three'] ?? '',
-        imagePath: 'assets/images/things.png',
+        title: trans['title_one'] ?? 'People',
+        accentColor: const Color(0xFF00F2FF),
+        modelsInfo: 'Models EfficientNet-B0, ArcFace & NLP | ACTIVE',
+        description: trans['description_one'] ?? '',
+        imagePath: 'assets/images/peop.png',
       ),
     ];
   }
