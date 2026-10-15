@@ -1,7 +1,7 @@
 // =============================================================================
 // FILE: lib/features/search/presentation/widgets/map/index_map_widget.dart
 // LAYER: Presentation Layer
-// RESPONSIBILITY: Interactive OpenStreetMap with GPS Location & Radius Layer.
+// RESPONSIBILITY: Interactive OpenStreetMap with GPS Location & Radius Filtering.
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -149,9 +149,26 @@ class _IndexMapWidgetState extends State<IndexMapWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // 💡 Фильтрация постов: наличие координат + попадание в радиус от пользователя
     final validPosts = widget.results.where((p) {
       if (p is! Map) return false;
-      return p['lat'] != null && p['lng'] != null;
+      final double? lat = double.tryParse(p['lat']?.toString() ?? '');
+      final double? lng = double.tryParse(p['lng']?.toString() ?? '');
+      if (lat == null || lng == null) return false;
+
+      // Если геолокация определена и задан радиус — фильтруем по дистанции
+      if (_userLocation != null && widget.radiusKm != null && widget.radiusKm! > 0) {
+        final double distanceInMeters = Geolocator.distanceBetween(
+          _userLocation!.latitude,
+          _userLocation!.longitude,
+          lat,
+          lng,
+        );
+        final double distanceInKm = distanceInMeters / 1000.0;
+        return distanceInKm <= widget.radiusKm!;
+      }
+
+      return true;
     }).toList();
 
     LatLng initialCenter = _userLocation ?? const LatLng(50.0412, 21.9991);
@@ -246,7 +263,7 @@ class _IndexMapWidgetState extends State<IndexMapWidget> {
                               ],
                             ),
 
-                          // 2. Слой маркеров постов
+                          // 2. Слой маркеров постов (только отфильтрованные)
                           MarkerLayer(
                             markers: [
                               ...validPosts.map((post) {

@@ -1020,7 +1020,7 @@ if (searchResults.isNotEmpty)
     );
   }
 
-  Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
+Widget _buildResultsGrid(List<dynamic> results, String currentLocale) {
     return SliverPadding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       sliver: SliverGrid(
@@ -1032,12 +1032,20 @@ if (searchResults.isNotEmpty)
         ),
         delegate: SliverChildBuilderDelegate(
           (context, index) {
-            final post = results[index];
-            final int id = post['id'] ?? index;
-            final String imageUrl = post['image_url'] ?? '';
+            final dynamic post = results[index];
+
+            // Безопасное извлечение ID (поддержка int, String и fallback на index)
+            final String rawId = (post is Map)
+                ? (post['id']?.toString() ?? index.toString())
+                : index.toString();
+
+            // Безопасное извлечение фонового изображения для уникальности ключа
+            final String imageUrl = (post is Map)
+                ? (post['image_url'] ?? post['images_urls']?[0] ?? '')
+                : '';
 
             return ArticleCard(
-              key: ValueKey('article_${id}_$imageUrl'),
+              key: ValueKey('article_${rawId}_$imageUrl'),
               post: post,
               currentLocale: currentLocale,
             );
