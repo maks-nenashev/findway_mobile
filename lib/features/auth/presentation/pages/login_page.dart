@@ -3,7 +3,7 @@
 // LAYER: Presentation
 // PURPOSE: FindWay login and registration screen with Google OAuth.
 // =============================================================================
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,6 +12,8 @@ import 'package:findway_mobile/core/terms/terms_checkbox.dart';
 import 'package:findway_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 
 class LoginPage extends StatefulWidget {
+  /// Translation keys supplied by the existing Rails translations API.
+  /// Empty map keeps Ukrainian fallback text until translations are wired in.
   final Map<String, String> translations;
 
   const LoginPage({super.key, this.translations = const {}});
@@ -21,6 +23,11 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  String _t(String key, String fallback) {
+    final value = widget.translations[key];
+    return value == null || value.trim().isEmpty ? fallback : value;
+  }
+
   final _formKey = GlobalKey<FormState>();
 
   final _emailController = TextEditingController();
@@ -30,13 +37,9 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _isSignUp = false;
   bool _obscurePassword = true;
+
   bool _termsAccepted = false;
   String _locale = 'uk';
-
-  final Color _bgDark = const Color(0xFF0F172A);
-  final Color _cardDark = const Color(0xFF1E293B);
-  final Color _accentCyan = const Color(0xFF00F2FF);
-  final Color _accentOrange = const Color(0xFFFF8A00);
 
   @override
   void initState() {
@@ -53,84 +56,6 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
-  String _t(String key, String fallback) {
-    if (widget.translations.containsKey(key) &&
-        widget.translations[key]!.trim().isNotEmpty) {
-      return widget.translations[key]!;
-    }
-
-    const aliases = <String, List<String>>{
-      'devise.sessions.new.submit': [
-        'devise.sessions.new.sign_in',
-        'devise.sessions.sign_in',
-        'devise.sessions.submit',
-        'helpers.submit.session.create',
-      ],
-      'devise.registrations.new.submit': [
-        'devise.registrations.new.sign_up',
-        'devise.registrations.sign_up',
-        'devise.registrations.submit',
-        'helpers.submit.user.create',
-      ],
-      'devise.sessions.new.google': [
-        'devise.sessions.google',
-        'auth.google.sign_in',
-        'devise.sessions.new.google_login',
-      ],
-      'devise.sessions.new.google_register': [
-        'devise.registrations.google',
-        'auth.google.sign_up',
-        'devise.registrations.new.google_register',
-      ],
-      'devise.sessions.new.email': [
-        'devise.sessions.email',
-        'users.email',
-        'activerecord.attributes.user.email',
-      ],
-      'devise.sessions.new.password': [
-        'devise.sessions.password',
-        'users.password',
-        'activerecord.attributes.user.password',
-      ],
-      'devise.registrations.new.username': [
-        'devise.registrations.username',
-        'users.username',
-        'activerecord.attributes.user.username',
-      ],
-      'devise.registrations.new.password_confirmation': [
-        'devise.registrations.password_confirmation',
-        'users.password_confirmation',
-        'activerecord.attributes.user.password_confirmation',
-      ],
-      'devise.registrations.terms_notice': [
-        'terms.notice',
-        'devise.terms_notice',
-      ],
-      'devise.registrations.terms_link': [
-        'terms.title',
-        'terms.link',
-        'devise.terms_link',
-      ],
-      'devise.registrations.privacy_link': [
-        'privacy.title',
-        'privacy.link',
-        'devise.privacy_link',
-      ],
-    };
-
-    final altKeys = aliases[key];
-    if (altKeys != null) {
-      for (final altKey in altKeys) {
-        if (widget.translations.containsKey(altKey) &&
-            widget.translations[altKey]!.trim().isNotEmpty) {
-          return widget.translations[altKey]!;
-        }
-      }
-    }
-
-    return _authText(key, fallback: fallback);
-  }
-
   String _authText(String key, {String? fallback}) {
     const translations = <String, Map<String, String>>{
       'en': {
@@ -139,13 +64,11 @@ class _LoginPageState extends State<LoginPage> {
         'devise.failure.invalid': 'Invalid email or password.',
         'errors.registration.invalid':
             'Please check your details. The email may already be registered or the password may not meet the requirements.',
-        'errors.network':
-            'Could not connect to the server. Check your internet connection.',
+        'errors.network': 'Could not connect to the server. Check your internet connection.',
         'errors.server': 'A server error occurred. Please try again.',
         'auth.google.cancelled': 'Google sign-in was cancelled.',
         'auth.google.token_missing': 'Could not obtain a Google ID token.',
-        'auth.token.missing':
-            'The server did not return an authentication token.',
+        'auth.token.missing': 'The server did not return an authentication token.',
       },
       'pl': {
         'devise.registrations.signed_up_but_unconfirmed':
@@ -153,13 +76,11 @@ class _LoginPageState extends State<LoginPage> {
         'devise.failure.invalid': 'Nieprawidłowy adres e-mail lub hasło.',
         'errors.registration.invalid':
             'Sprawdź wprowadzone dane. E-mail może być już zarejestrowany lub hasło nie spełnia wymagań.',
-        'errors.network':
-            'Nie można połączyć się z serwerem. Sprawdź połączenie z internetem.',
+        'errors.network': 'Nie można połączyć się z serwerem. Sprawdź połączenie z internetem.',
         'errors.server': 'Wystąpił błąd serwera. Spróbuj ponownie.',
         'auth.google.cancelled': 'Logowanie przez Google zostało anulowane.',
         'auth.google.token_missing': 'Nie udało się pobrać tokenu Google ID.',
-        'auth.token.missing':
-            'Serwer nie zwrócił tokenu uwierzytelniającego.',
+        'auth.token.missing': 'Serwer nie zwrócił tokenu uwierzytelniającego.',
       },
       'uk': {
         'devise.registrations.signed_up_but_unconfirmed':
@@ -167,8 +88,7 @@ class _LoginPageState extends State<LoginPage> {
         'devise.failure.invalid': 'Невірний email або пароль.',
         'errors.registration.invalid':
             'Перевірте введені дані. Можливо, email вже зареєстрований або пароль не відповідає вимогам.',
-        'errors.network':
-            'Не вдалося з’єднатися із сервером. Перевірте інтернет.',
+        'errors.network': 'Не вдалося з’єднатися із сервером. Перевірте інтернет.',
         'errors.server': 'Помилка сервера. Спробуйте ще раз.',
         'auth.google.cancelled': 'Вхід через Google скасовано.',
         'auth.google.token_missing': 'Не вдалося отримати ID-токен Google.',
@@ -183,8 +103,13 @@ class _LoginPageState extends State<LoginPage> {
   String _displayAuthMessage(String message) {
     final trimmed = message.trim();
     if (trimmed.isEmpty) return _authText('errors.server');
-    return _t(trimmed, trimmed);
+    return _authText(trimmed, fallback: trimmed);
   }
+
+  final Color _bgDark = const Color(0xFF0F172A);
+  final Color _cardDark = const Color(0xFF1E293B);
+  final Color _accentCyan = const Color(0xFF00F2FF);
+  final Color _accentOrange = const Color(0xFFFF8A00);
 
   @override
   void dispose() {
@@ -200,10 +125,7 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _t(
-              'devise.registrations.terms_required',
-              'Для реєстрації необхідно прийняти умови використання.',
-            ),
+            _t('devise.registrations.terms_required', 'Для реєстрації необхідно прийняти умови використання.'),
           ),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
@@ -224,12 +146,7 @@ class _LoginPageState extends State<LoginPage> {
       if (password != confirmation) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              _t(
-                'devise.registrations.passwords_mismatch',
-                'Паролі не співпадають',
-              ),
-            ),
+            content: Text(_t('devise.registrations.passwords_mismatch', 'Паролі не співпадають')),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           ),
@@ -266,46 +183,69 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
+  void _showRegistrationSuccess(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(_displayAuthMessage(message)),
+          backgroundColor: Colors.green.shade700,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+
+    setState(() {
+      _isSignUp = false;
+      _termsAccepted = false;
+      _formKey.currentState?.reset();
+    });
+
+    _passwordController.clear();
+    _passwordConfirmationController.clear();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bgDark,
       body: SafeArea(
-        child: BlocConsumer<AuthBloc, AuthState>(
-          listener: (context, state) {
-            debugPrint('[LoginPage] STATE: ${state.runtimeType}');
+      child: BlocConsumer<AuthBloc, AuthState>(
+        listener: (context, state) {
+          debugPrint('[LoginPage] STATE: ${state.runtimeType}');
 
-            if (state is AuthRegistrationSuccess) {
-              debugPrint('[LoginPage] REGISTRATION SUCCESS');
+          if (state is AuthRegistrationSuccess) {
+            debugPrint('[LoginPage] REGISTRATION SUCCESS');
 
-              ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(
-                  SnackBar(
-                    content: Text(_displayAuthMessage(state.message)),
-                    duration: const Duration(seconds: 8),
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor: Colors.green,
-                  ),
-                );
-
-              setState(() {
-                _isSignUp = false;
-                _termsAccepted = false;
-              });
-
-              _passwordController.clear();
-              _passwordConfirmationController.clear();
-            } else if (state is AuthError) {
-              ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
                 SnackBar(
                   content: Text(_displayAuthMessage(state.message)),
-                  backgroundColor: Colors.redAccent,
+                  duration: const Duration(seconds: 8),
+                  behavior: SnackBarBehavior.floating,
+                  backgroundColor: Colors.green,
                 ),
               );
-            }
-          },
-          builder: (context, state) {
+
+            setState(() {
+              _isSignUp = false;
+              _termsAccepted = false;
+            });
+
+            _passwordController.clear();
+            _passwordConfirmationController.clear();
+          } else if (state is AuthError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(_displayAuthMessage(state.message)),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+        },
+        builder: (context, state) {
+  
             final isLoading = state is AuthLoading;
 
             return Center(
@@ -388,14 +328,8 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 6),
                       Text(
                         _isSignUp
-                            ? _t(
-                                'devise.registrations.new.title',
-                                'Створення нового акаунту',
-                              )
-                            : _t(
-                                'devise.sessions.new.title',
-                                'Вхід у систему',
-                              ),
+                            ? _t('devise.registrations.new.title', 'Створення нового акаунту')
+                            : _t('devise.sessions.new.title', 'Вхід у систему'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: Colors.white54,
@@ -404,20 +338,14 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const SizedBox(height: 28),
 
-                      // Google OAuth.
+                      // Google OAuth — existing flow preserved.
                       OutlinedButton.icon(
                         onPressed: isLoading ? null : _submitGoogleLogin,
                         icon: const _GoogleGLogo(size: 24),
                         label: Text(
                           _isSignUp
-                              ? _t(
-                                  'devise.sessions.new.google_register',
-                                  'Зареєструватися через Google',
-                                )
-                              : _t(
-                                  'devise.sessions.new.google',
-                                  'Увійти через Google',
-                                ),
+                              ? _t('devise.sessions.new.google', 'Зареєструватися через Google')
+                              : _t('devise.sessions.new.google', 'Увійти через Google'),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 14,
@@ -435,16 +363,18 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
 
-                      // Terms notice beneath Google Sign-In button using TermsCheckbox component.
+                      // Existing Terms document and link below Google sign-in.
+                      // The Google flow shows the notice without a checkbox.
                       if (!_isSignUp) ...[
                         const SizedBox(height: 12),
                         TermsCheckbox(
                           value: true,
-                          enabled: !isLoading,
                           onChanged: (_) {},
+                          enabled: !isLoading,
+                          locale: _locale,
+                          showCheckbox: false,
                         ),
                       ],
-
                       const SizedBox(height: 20),
 
                       Row(
@@ -457,10 +387,7 @@ class _LoginPageState extends State<LoginPage> {
                               horizontal: 12,
                             ),
                             child: Text(
-                              _t(
-                                'devise.sessions.new.email_separator',
-                                'або за допомогою email',
-                              ),
+                              _t('devise.sessions.new.email_separator', 'або за допомогою email'),
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.4),
                                 fontSize: 12,
@@ -481,20 +408,14 @@ class _LoginPageState extends State<LoginPage> {
                           textInputAction: TextInputAction.next,
                           style: const TextStyle(color: Colors.white),
                           decoration: _inputDecoration(
-                            _t(
-                              'devise.registrations.new.username',
-                              'Ім\'я користувача',
-                            ),
+                            _t('devise.registrations.new.username', 'Ім\'я користувача'),
                             Icons.person_outline,
                           ),
                           validator: (value) {
                             if (!_isSignUp) return null;
 
                             if (value == null || value.trim().isEmpty) {
-                              return _t(
-                                'devise.registrations.new.username_required',
-                                'Введіть ім\'я',
-                              );
+                              return _t('devise.registrations.new.username_required', 'Введіть ім\'я');
                             }
 
                             return null;
@@ -511,7 +432,7 @@ class _LoginPageState extends State<LoginPage> {
                         autofillHints: const [AutofillHints.email],
                         style: const TextStyle(color: Colors.white),
                         decoration: _inputDecoration(
-                          _t('devise.sessions.new.email', 'Email'),
+                          'Email',
                           Icons.email_outlined,
                         ),
                         validator: (value) {
@@ -519,10 +440,7 @@ class _LoginPageState extends State<LoginPage> {
                               !RegExp(
                                 r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
                               ).hasMatch(value.trim())) {
-                            return _t(
-                              'devise.sessions.new.email_invalid',
-                              'Введіть коректний email',
-                            );
+                            return _t('devise.sessions.new.email_invalid', 'Введіть коректний email');
                           }
 
                           return null;
@@ -566,10 +484,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         validator: (value) {
                           if (value == null || value.length < 6) {
-                            return _t(
-                              'devise.passwords.minimum_length',
-                              'Пароль має бути від 6 символів',
-                            );
+                            return _t('devise.passwords.minimum_length', 'Пароль має бути від 6 символів');
                           }
 
                           return null;
@@ -585,27 +500,18 @@ class _LoginPageState extends State<LoginPage> {
                           textInputAction: TextInputAction.done,
                           style: const TextStyle(color: Colors.white),
                           decoration: _inputDecoration(
-                            _t(
-                              'devise.registrations.new.password_confirmation',
-                              'Підтвердження пароля',
-                            ),
+                            _t('devise.registrations.new.password_confirmation', 'Підтвердження пароля'),
                             Icons.lock_outline,
                           ),
                           validator: (value) {
                             if (!_isSignUp) return null;
 
                             if (value == null || value.isEmpty) {
-                              return _t(
-                                'devise.registrations.new.password_confirmation_required',
-                                'Підтвердіть пароль',
-                              );
+                              return _t('devise.registrations.new.password_confirmation_required', 'Підтвердіть пароль');
                             }
 
                             if (value != _passwordController.text) {
-                              return _t(
-                                'devise.registrations.passwords_mismatch',
-                                'Паролі не співпадають',
-                              );
+                              return _t('devise.registrations.passwords_mismatch', 'Паролі не співпадають');
                             }
 
                             return null;
@@ -616,12 +522,13 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ],
 
-                      // Terms and conditions checkbox — registration only.
+                      // Terms and conditions.
                       if (_isSignUp) ...[
                         const SizedBox(height: 16),
                         TermsCheckbox(
                           value: _termsAccepted,
                           enabled: !isLoading,
+                          locale: _locale,
                           onChanged: (accepted) {
                             setState(() {
                               _termsAccepted = accepted;
@@ -634,9 +541,10 @@ class _LoginPageState extends State<LoginPage> {
 
                       // Submit.
                       ElevatedButton(
-                        onPressed: isLoading || (_isSignUp && !_termsAccepted)
-                            ? null
-                            : _submitForm,
+                        onPressed:
+                            isLoading || (_isSignUp && !_termsAccepted)
+                                ? null
+                                : _submitForm,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _accentOrange,
                           disabledBackgroundColor:
@@ -657,14 +565,8 @@ class _LoginPageState extends State<LoginPage> {
                               )
                             : Text(
                                 _isSignUp
-                                    ? _t(
-                                        'devise.registrations.new.submit',
-                                        'ЗАРЕЄСТРУВАТИСЯ',
-                                      )
-                                    : _t(
-                                        'devise.sessions.new.submit',
-                                        'УВІЙТИ',
-                                      ),
+                                    ? _t('devise.registrations.new.submit', 'ЗАРЕЄСТРУВАТИСЯ')
+                                    : _t('devise.sessions.new.submit', 'УВІЙТИ'),
                                 style: const TextStyle(
                                   color: Colors.black,
                                   fontWeight: FontWeight.bold,
@@ -687,25 +589,13 @@ class _LoginPageState extends State<LoginPage> {
                             children: [
                               TextSpan(
                                 text: _isSignUp
-                                    ? _t(
-                                        'devise.sessions.new.already_have_account',
-                                        'Вже є акаунт? ',
-                                      )
-                                    : _t(
-                                        'devise.sessions.new.no_account',
-                                        'Ще немає акаунту? ',
-                                      ),
+                                    ? _t('devise.sessions.new.already_have_account', 'Вже є акаунт? ')
+                                    : _t('devise.sessions.new.no_account', 'Ще немає акаунту? '),
                               ),
                               TextSpan(
                                 text: _isSignUp
-                                    ? _t(
-                                        'devise.sessions.new.submit',
-                                        'Увійти',
-                                      )
-                                    : _t(
-                                        'devise.registrations.new.submit',
-                                        'Зареєструватися',
-                                      ),
+                                    ? _t('devise.sessions.new.submit', 'Увійти')
+                                    : _t('devise.registrations.new.submit', 'Зареєструватися'),
                                 style: TextStyle(
                                   color: _accentCyan,
                                   fontWeight: FontWeight.bold,

@@ -1,7 +1,3 @@
-// =============================================================================
-// FILE: lib/core/terms/terms_checkbox.dart
-// PURPOSE: Localized terms acceptance checkbox and document dialog.
-// =============================================================================
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,9 +10,12 @@ class TermsCheckbox extends StatefulWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
   final bool enabled;
-
   final String country;
   final String locale;
+
+  /// false — отображает Terms со ссылкой без чекбокса.
+  /// По умолчанию сохраняется старое поведение.
+  final bool showCheckbox;
 
   const TermsCheckbox({
     super.key,
@@ -25,6 +24,7 @@ class TermsCheckbox extends StatefulWidget {
     this.enabled = true,
     this.country = 'UA',
     this.locale = 'uk',
+    this.showCheckbox = true,
   });
 
   static const Color _accent = Color(0xFF00F2FF);
@@ -55,10 +55,12 @@ class _TermsCheckboxState extends State<TermsCheckbox> {
   }
 
   Future<void> _loadDocument() async {
-    setState(() {
-      _isLoading = true;
-      _loadError = null;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _loadError = null;
+      });
+    }
 
     try {
       final document = await TermsRepository.instance.load(
@@ -71,6 +73,7 @@ class _TermsCheckboxState extends State<TermsCheckbox> {
       setState(() {
         _document = document;
         _isLoading = false;
+        _loadError = null;
       });
     } catch (error) {
       if (!mounted) return;
@@ -94,17 +97,27 @@ class _TermsCheckboxState extends State<TermsCheckbox> {
       return;
     }
 
-    final opened = await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
+    try {
+      final opened = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
 
-    if (!opened && mounted) {
-      _showError('Не вдалося відкрити повний текст документа.');
+      if (!opened && mounted) {
+        _showError('Не вдалося відкрити повний текст документа.');
+      }
+    } catch (error) {
+      debugPrint('Failed to open legal document: $error');
+
+      if (mounted) {
+        _showError('Не вдалося відкрити повний текст документа.');
+      }
     }
   }
 
   void _showError(String message) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -124,6 +137,74 @@ class _TermsCheckboxState extends State<TermsCheckbox> {
     );
   }
 
+  Widget _buildTermsLabel(TermsDocument document) {
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(
+          document.acceptance.checkboxLabel,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(width: 4),
+        GestureDetector(
+          onTap: widget.enabled ? _showTerms : null,
+          child: Text(
+            document.fullVersion.label,
+            style: const TextStyle(
+              color: TermsCheckbox._accent,
+              fontSize: 12,
+              decoration: TextDecoration.underline,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+// Terms Cchat box  Sing_In
+Widget _buildTermsNotice(TermsDocument document) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(
+      horizontal: 12,
+      vertical: 8,
+    ),
+    child: SizedBox(
+      width: double.infinity,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            document.acceptance.checkboxLabel,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 2),
+          GestureDetector(
+            onTap: widget.enabled ? _showTerms : null,
+            child: Text(
+              document.fullVersion.label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: TermsCheckbox._accent,
+                fontSize: 12,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -134,13 +215,18 @@ class _TermsCheckboxState extends State<TermsCheckbox> {
             SizedBox(
               width: 18,
               height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+              ),
             ),
             SizedBox(width: 12),
             Expanded(
               child: Text(
                 'Завантаження умов використання...',
-                style: TextStyle(color: Colors.white70, fontSize: 12),
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                ),
               ),
             ),
           ],
@@ -156,7 +242,10 @@ class _TermsCheckboxState extends State<TermsCheckbox> {
             const Expanded(
               child: Text(
                 'Не вдалося завантажити умови використання.',
-                style: TextStyle(color: Colors.redAccent, fontSize: 12),
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontSize: 12,
+                ),
               ),
             ),
             TextButton(
@@ -170,6 +259,12 @@ class _TermsCheckboxState extends State<TermsCheckbox> {
 
     final document = _document!;
 
+    // Google sign-in: those same Terms without a checkbox.
+    if (!widget.showCheckbox) {
+      return _buildTermsNotice(document);
+    }
+
+    // Email registration: preserve the required checkbox.
     return CheckboxListTile(
       value: widget.value,
       onChanged: widget.enabled
@@ -179,30 +274,7 @@ class _TermsCheckboxState extends State<TermsCheckbox> {
       contentPadding: EdgeInsets.zero,
       activeColor: TermsCheckbox._accent,
       checkColor: const Color(0xFF0F172A),
-      title: Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Text(
-            document.acceptance.checkboxLabel,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: widget.enabled ? _showTerms : null,
-            child: Text(
-              document.fullVersion.label,
-              style: const TextStyle(
-                color: TermsCheckbox._accent,
-                fontSize: 12,
-                decoration: TextDecoration.underline,
-              ),
-            ),
-          ),
-        ],
-      ),
+      title: _buildTermsLabel(document),
     );
   }
 }
