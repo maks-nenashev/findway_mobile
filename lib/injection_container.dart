@@ -222,20 +222,21 @@ Future<void> init() async {
 // HELPER FUNCTIONS
 // ===========================================================
 
-const bool useRealDevice = false;
-
 String getBaseUrl() {
   if (kIsWeb) {
     return 'http://localhost:3000';
   }
 
   if (Platform.isAndroid) {
-    // Физический телефон подключается к компьютеру по локальному IP.
-    return 'http://10.235.162.74:3000';
+    // При подключении по USB с adb reverse используем localhost.
+    // Для эмулятора без adb reverse меняем на 10.0.2.2.
+    const bool useAdbReverse = bool.fromEnvironment('ADB_REVERSE', defaultValue: true);
+    return useAdbReverse ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
   }
 
   return 'http://127.0.0.1:3000';
 }
+
 // ===========================================================
 // LOCALE REPOSITORY
 // ===========================================================
