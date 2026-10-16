@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:dio/dio.dart';
@@ -11,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 import 'core/network/auth_interceptor.dart';
 
 // --- FEATURE IMPORTS ---
+
 // Search
 import 'features/search/domain/repositories/search_repository.dart';
 import 'features/search/data/repositories/search_repository_impl.dart';
@@ -39,23 +41,34 @@ final sl = GetIt.instance;
 
 Future<void> init() async {
   // =========================================================
-  // ⚙️ 1. БАЗОВЫЕ ЗАВИСИМОСТИ (CORE)
+  // 1. CORE DEPENDENCIES
   // =========================================================
+
   final sharedPreferences = await SharedPreferences.getInstance();
-  sl.registerLazySingleton(() => sharedPreferences);
-  sl.registerLazySingleton(() => LocaleRepository(sl()));
+
+  sl.registerLazySingleton<SharedPreferences>(
+    () => sharedPreferences,
+  );
+
+  sl.registerLazySingleton<LocaleRepository>(
+    () => LocaleRepository(sl<SharedPreferences>()),
+  );
 
   // =========================================================
-  // 🍪 2. СИСТЕМА СЕССИЙ И СЕТЬ (NETWORK)
+  // 2. SESSION STORAGE AND NETWORK
   // =========================================================
+
   final appDocDir = await getApplicationDocumentsDirectory();
   final String appDocPath = appDocDir.path;
 
   final persistCookieJar = PersistCookieJar(
     ignoreExpires: false,
-    storage: FileStorage("$appDocPath/.cookies/"),
+    storage: FileStorage('$appDocPath/.cookies/'),
   );
-  sl.registerLazySingleton<CookieJar>(() => persistCookieJar);
+
+  sl.registerLazySingleton<CookieJar>(
+    () => persistCookieJar,
+  );
 
   sl.registerLazySingleton<Dio>(() {
     final dio = Dio(
@@ -67,84 +80,191 @@ Future<void> init() async {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        // 👉 КЛЮЧЕВОЙ ФИКС: Перехват 401/403/404 статусов без выброса DioException
+
+        // Preserve the existing behavior: HTTP 4xx responses are
+        // returned as Response objects instead of DioException.
         validateStatus: (status) => status != null && status < 500,
       ),
     );
 
-    dio.interceptors.add(CookieManager(sl<CookieJar>()));
-    
-    // 👉 ДОБАВЛЕН AUTH INTERCEPTOR ДЛЯ СБРОСА СЕССИИ ПРИ 401
-    dio.interceptors.add(AuthInterceptor(
-      onUnauthenticated: () {
-        // Триггер разлогина при необходимости
-      },
-    ));
+    // Persistent Rails session cookies.
+    dio.interceptors.add(
+      CookieManager(sl<CookieJar>()),
+    );
 
-    dio.interceptors.add(LogInterceptor(
-      requestHeader: true, 
-      requestBody: true, 
-      responseBody: true,
-      responseHeader: true,
-    ));
-    
+    // Automatically attaches the saved Rails auth token.
+    dio.interceptors.add(
+      AuthInterceptor(
+        prefs: sl<SharedPreferences>(),
+        onUnauthenticated: () {
+          // 401 handling will be implemented in Stage 2.
+        },
+      ),
+    );
+
+    // Log request/response metadata without sensitive headers or bodies.
+    dio.interceptors.add(
+      LogInterceptor(
+        requestHeader: false,
+        requestBody: false,
+        responseBody: false,
+        responseHeader: false,
+      ),
+    );
+
     return dio;
   });
 
   // =========================================================
-  // 🔍 3. SEARCH
+  // 3. SEARCH
   // =========================================================
-  sl.registerFactory(() => SearchBloc(
-        repository: sl(),
-        initialLocale: sl<LocaleRepository>().getCachedLocale(),
-      ));
-  sl.registerLazySingleton<SearchRepository>(() => SearchRepositoryImpl(remoteDataSource: sl()));
-  sl.registerLazySingleton<SearchRemoteDataSource>(() => SearchRemoteDataSourceImpl(client: sl()));
+
+  sl.registerFactory(
+    () => SearchBloc(
+      repository: sl<SearchRepository>(),
+      initialLocale: sl<LocaleRepository>().getCachedLocale(),
+    ),
+  );
+
+  sl.registerLazySingleton<SearchRepository>(
+    () => SearchRepositoryImpl(
+      remoteDataSource: sl<SearchRemoteDataSource>(),
+    ),
+  );
+
+  sl.registerLazySingleton<SearchRemoteDataSource>(
+    () => SearchRemoteDataSourceImpl(
+      client: sl<Dio>(),
+    ),
+  );
 
   // =========================================================
-  // 💬 4. COMMENTS
+  // 4. COMMENTS
   // =========================================================
-  sl.registerFactoryParam<CommentsBloc, int, String>((parentId, type) => CommentsBloc(
-      repository: sl(),
+
+  sl.registerFactoryParam<CommentsBloc, int, String>(
+    (parentId, type) => CommentsBloc(
+      repository: sl<CommentRepository>(),
       parentId: parentId,
       type: type,
-    ));
-  sl.registerLazySingleton<CommentRepository>(() => CommentRepository(remoteDataSource: sl()));
-  sl.registerLazySingleton<CommentRemoteDataSource>(() => CommentRemoteDataSourceImpl(client: sl()));
-  
-  // =========================================================
-  // ✉️ 5. CHAT & NOTIFICATIONS
-  // =========================================================
-  sl.registerFactory(() => ChatBloc(repository: sl()));
-  sl.registerLazySingleton(() => NotificationBloc(repository: sl()));
-  sl.registerLazySingleton<ChatRepository>(() => ChatRepository(client: sl()));
-  
-  // =========================================================
-  // 👤 6. PROFILE / DASHBOARD
-  // =========================================================
-  sl.registerFactory(() => ProfileBloc(repository: sl()));
-  sl.registerLazySingleton<ProfileRepository>(() => ProfileRepository(client: sl()));
+    ),
+  );
+
+  sl.registerLazySingleton<CommentRepository>(
+    () => CommentRepository(
+      remoteDataSource: sl<CommentRemoteDataSource>(),
+    ),
+  );
+
+  sl.registerLazySingleton<CommentRemoteDataSource>(
+    () => CommentRemoteDataSourceImpl(
+      client: sl<Dio>(),
+    ),
+  );
 
   // =========================================================
-  // 🔐 7. AUTH
+  // 5. CHAT AND NOTIFICATIONS
   // =========================================================
-  sl.registerFactory(() => AuthBloc(repository: sl()));
-  sl.registerLazySingleton<AuthRepository>(() => AuthRepository(client: sl()));
+
+  sl.registerFactory(
+    () => ChatBloc(
+      repository: sl<ChatRepository>(),
+    ),
+  );
+
+  sl.registerLazySingleton<NotificationBloc>(
+    () => NotificationBloc(
+      repository: sl<ChatRepository>(),
+    ),
+  );
+
+  sl.registerLazySingleton<ChatRepository>(
+    () => ChatRepository(
+      client: sl<Dio>(),
+    ),
+  );
+
+  // =========================================================
+  // 6. PROFILE
+  // =========================================================
+
+  sl.registerFactory(
+    () => ProfileBloc(
+      repository: sl<ProfileRepository>(),
+    ),
+  );
+
+  sl.registerLazySingleton<ProfileRepository>(
+    () => ProfileRepository(
+      client: sl<Dio>(),
+    ),
+  );
+
+  // =========================================================
+  // 7. AUTHENTICATION
+  // =========================================================
+
+  sl.registerFactory(
+    () => AuthBloc(
+      repository: sl<AuthRepository>(),
+    ),
+  );
+
+  sl.registerLazySingleton<AuthRepository>(
+    () => AuthRepository(
+      client: sl<Dio>(),
+      prefs: sl<SharedPreferences>(),
+    ),
+  );
 }
 
-// --- HELPER FUNCTIONS ---
-const bool useRealDevice = false;
+// ===========================================================
+// HELPER FUNCTIONS
+// ===========================================================
 
 String getBaseUrl() {
-  if (kIsWeb) return "http://localhost:3000";
-  if (Platform.isAndroid) {
-    return useRealDevice ? "http://192.168.1.106:3000" : "http://10.0.2.2:3000";
+  // 1. Высший приоритет: явный URL из флага сборки (--dart-define=BASE_URL=...)
+  const String customUrl = String.fromEnvironment('BASE_URL');
+  if (customUrl.isNotEmpty) {
+    return customUrl;
   }
-  return "http://127.0.0.1:3000";
+
+  // 2. Web-платформа
+  if (kIsWeb) {
+    return 'http://localhost:3000';
+  }
+
+  // 3. Android (Физическое устройство / Эмулятор)
+  if (Platform.isAndroid) {
+    // Флаг для туннеля ADB Reverse (по умолчанию выключен, чтобы не зависеть от сокета ADB)
+    const bool useAdbReverse = bool.fromEnvironment('ADB_REVERSE', defaultValue: false);
+    if (useAdbReverse) {
+      return 'http://localhost:3000';
+    }
+
+    // Флаг для Android Emulator (AVD)
+    const bool isEmulator = bool.fromEnvironment('EMULATOR', defaultValue: false);
+    if (isEmulator) {
+      return 'http://10.0.2.2:3000';
+    }
+
+    // По умолчанию для физического телефона — прямой IP ThinkPad в локальной сети
+    return 'http://192.168.1.127:3000';
+  }
+
+  // 4. Linux Desktop / iOS
+  return 'http://127.0.0.1:3000';
 }
+// ===========================================================
+// LOCALE REPOSITORY
+// ===========================================================
 
 class LocaleRepository {
   final SharedPreferences prefs;
+
   LocaleRepository(this.prefs);
-  String getCachedLocale() => prefs.getString('locale') ?? 'uk';
+
+  String getCachedLocale() {
+    return prefs.getString('locale') ?? 'uk';
+  }
 }

@@ -64,22 +64,11 @@ class FindWayApp extends StatelessWidget {
         // =====================================================================
         home: BlocBuilder<AuthBloc, AuthState>(
           builder: (context, state) {
-            // 1. Проверка состояния сессии
-            if (state is AuthLoading) {
-              return const Scaffold(
-                backgroundColor: Color(0xFF0F172A),
-                body: Center(
-                  child: CircularProgressIndicator(color: Color(0xFF00F2FF)),
-                ),
-              );
-            }
-
-            // 2. Успешная авторизация -> Главная
             if (state is AuthAuthenticated) {
               return const SearchPage();
             }
 
-            // 3. Неавторизован -> Экран логина
+            // LoginPage остаётся смонтированным и сохраняет BlocConsumer.
             return const LoginPage();
           },
         ),

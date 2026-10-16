@@ -2,7 +2,7 @@
 // FILE: lib/features/search/data/datasources/search_remote_data_source.dart
 // LAYER: Data Layer (Remote Data Source)
 // RESPONSIBILITY: Выполнение HTTP-запросов (Dio) к API Rails с поддержкой
-//                 геолокации, animal_metadata и thing_metadata.
+//                 геолокации, animal_metadata, thing_metadata и сохранением Pagy-пагинации.
 // =============================================================================
 
 import 'package:dio/dio.dart';
@@ -20,7 +20,7 @@ abstract class SearchRemoteDataSource {
     required String locale,
   });
 
-  Future<List<dynamic>> search({
+  Future<dynamic> search({
     required String category,
     required Map<String, dynamic> filters,
     required String locale,
@@ -140,7 +140,7 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
   }
 
   @override
-  Future<List<dynamic>> search({
+  Future<dynamic> search({
     required String category,
     required Map<String, dynamic> filters,
     required String locale,
@@ -161,13 +161,7 @@ class SearchRemoteDataSourceImpl implements SearchRemoteDataSource {
     }
 
     final response = await client.get('/api/v1/search', queryParameters: queryParameters);
-    final rawData = response.data;
-    
-    if (rawData is Map<String, dynamic> && rawData.containsKey('results')) {
-      return rawData['results'] as List<dynamic>;
-    }
-    if (rawData is List) return rawData;
-    return [];
+    return response.data;
   }
 
   @override

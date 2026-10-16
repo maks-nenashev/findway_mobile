@@ -14,7 +14,7 @@ import '../pages/post_card_page.dart';
 class ArticleCard extends StatefulWidget {
   final dynamic post;
   final String currentLocale;
-  final VoidCallback? onTap; // 👉 Добавлен опциональный обработчик клика
+  final VoidCallback? onTap;
 
   const ArticleCard({
     required this.post, 
@@ -39,27 +39,41 @@ class _ArticleCardState extends State<ArticleCard> {
     _parseImages();
   }
 
+  @override
+  void didUpdateWidget(covariant ArticleCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.post != widget.post) {
+      _parseImages();
+    }
+  }
+
   void _parseImages() {
     final List<String> temp = [];
-    final dynamic imagesData = widget.post['images_urls'] ?? widget.post['images'] ?? widget.post['photos'];
+    final dynamic imagesData = _getField('images_urls') ?? _getField('images') ?? _getField('photos');
 
     if (imagesData is List && imagesData.isNotEmpty) {
       temp.addAll(imagesData.map((e) => e.toString()));
-    } else if (widget.post['image_url'] != null) {
-      temp.add(widget.post['image_url'].toString());
+    } else {
+      final singleImg = _getField('image_url');
+      if (singleImg != null && singleImg.toString().isNotEmpty) {
+        temp.add(singleImg.toString());
+      }
     }
 
     if (temp.isEmpty) {
-      final String cat = (widget.post['category'] ?? '').toString().toLowerCase();
+      final String cat = _getField('category')?.toString().toLowerCase() ?? '';
       
       switch (cat) {
         case 'animals':
+        case 'sense':
           temp.add('assets/images/cat.png');
           break;
         case 'things':
+        case 'thing':
           temp.add('assets/images/things.png');
           break;
         case 'people':
+        case 'article':
         default:
           temp.add('assets/images/peop.png');
           break;
@@ -67,6 +81,26 @@ class _ArticleCardState extends State<ArticleCard> {
     }
 
     setState(() => _images = temp);
+  }
+
+  dynamic _getField(String key) {
+    if (widget.post == null) return null;
+    if (widget.post is Map) return widget.post[key];
+    try {
+      return (widget.post as dynamic).toJson()[key];
+    } catch (_) {
+      return null;
+    }
+  }
+
+  int _getPostId() {
+    final rawId = _getField('id');
+    if (rawId is int) return rawId;
+    return int.tryParse(rawId?.toString() ?? '0') ?? 0;
+  }
+
+  String _getCategory() {
+    return _getField('category')?.toString() ?? 'people';
   }
 
   @override
@@ -77,12 +111,19 @@ class _ArticleCardState extends State<ArticleCard> {
 
   @override
   Widget build(BuildContext context) {
-    final String statusLabel = (widget.post['choice_label'] ?? '').toString().toUpperCase();
+    final String statusLabel = (_getField('choice_label') ?? '').toString().toUpperCase();
+    final String title = (_getField('title') ?? '').toString();
 
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 5))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1), 
+            blurRadius: 10, 
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
@@ -138,8 +179,13 @@ class _ArticleCardState extends State<ArticleCard> {
                   children: [
                     if (statusLabel.isNotEmpty) _buildStatusBadge(statusLabel),
                     Text(
-                      widget.post['title'] ?? "",
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Orbitron'),
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white, 
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 13, 
+                        fontFamily: 'Orbitron',
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -153,12 +199,22 @@ class _ArticleCardState extends State<ArticleCard> {
               if (_currentPage > 0)
                 Positioned(
                   left: 5, top: 0, bottom: 0,
-                  child: Center(child: _buildArrow(Icons.arrow_back_ios_new, () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.ease))),
+                  child: Center(
+                    child: _buildArrow(
+                      Icons.arrow_back_ios_new, 
+                      () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.ease),
+                    ),
+                  ),
                 ),
               if (_currentPage < _images.length - 1)
                 Positioned(
                   right: 5, top: 0, bottom: 0,
-                  child: Center(child: _buildArrow(Icons.arrow_forward_ios, () => _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.ease))),
+                  child: Center(
+                    child: _buildArrow(
+                      Icons.arrow_forward_ios, 
+                      () => _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.ease),
+                    ),
+                  ),
                 ),
               Positioned(
                 bottom: 50, left: 0, right: 0,
@@ -175,18 +231,20 @@ class _ArticleCardState extends State<ArticleCard> {
   }
 
   void _navigateToDetails() async {
-    // Если передан внешний обработчик, вызываем его
     if (widget.onTap != null) {
       widget.onTap!();
       return;
     }
 
-    // Дефолтная встроенная навигация
     final bloc = context.read<SearchBloc>();
-    
+    final int postId = _getPostId();
+    final String category = _getCategory();
+
+    if (postId == 0) return;
+
     bloc.add(LoadPostDetails(
-      id: widget.post['id'],
-      category: widget.post['category'] ?? 'people',
+      id: postId,
+      category: category,
       locale: widget.currentLocale,
     ));
 
@@ -196,7 +254,7 @@ class _ArticleCardState extends State<ArticleCard> {
         builder: (_) => BlocProvider.value(
           value: bloc, 
           child: PostCardPage(
-            initialCategory: widget.post['category']?.toString() ?? 'people',
+            initialCategory: category,
           ),
         ),
       ),
@@ -204,7 +262,7 @@ class _ArticleCardState extends State<ArticleCard> {
 
     if (result == true && context.mounted) {
       bloc.add(LoadFilters(
-        category: widget.post['category'] ?? 'people', 
+        category: category, 
         locale: widget.currentLocale,
       )); 
     }
@@ -219,7 +277,10 @@ class _ArticleCardState extends State<ArticleCard> {
         border: Border.all(color: const Color(0xFF00F2FF), width: 1),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(label, style: const TextStyle(color: Color(0xFF00F2FF), fontSize: 9, fontWeight: FontWeight.bold, fontFamily: 'Orbitron')),
+      child: Text(
+        label, 
+        style: const TextStyle(color: Color(0xFF00F2FF), fontSize: 9, fontWeight: FontWeight.bold, fontFamily: 'Orbitron'),
+      ),
     );
   }
 
@@ -239,8 +300,12 @@ class _ArticleCardState extends State<ArticleCard> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       margin: const EdgeInsets.symmetric(horizontal: 2),
-      height: 3, width: active ? 10 : 3,
-      decoration: BoxDecoration(color: active ? const Color(0xFF00F2FF) : Colors.white38, borderRadius: BorderRadius.circular(2)),
+      height: 3, 
+      width: active ? 10 : 3,
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFF00F2FF) : Colors.white38, 
+        borderRadius: BorderRadius.circular(2),
+      ),
     );
   }
 }

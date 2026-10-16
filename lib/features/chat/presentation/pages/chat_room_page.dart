@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../../../injection_container.dart';
+import '../../../search/presentation/bloc/search_bloc.dart';
+import '../../../search/presentation/bloc/search_event.dart';
+import '../../../search/presentation/pages/post_card_page.dart';
+
 import '../bloc/chat_bloc.dart';
 import '../bloc/chat_event.dart';
 import '../bloc/chat_state.dart';
@@ -61,7 +69,6 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     _messageController.clear();
   }
 
-  // 👉 МЕТОД ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ
   void _showDeleteDialog() {
     showDialog(
       context: context,
@@ -80,11 +87,8 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
           ),
           TextButton(
             onPressed: () {
-              // 1. Отправляем событие удаления
               context.read<ChatBloc>().add(DeleteChat(recipientId: widget.recipientId));
-              // 2. Закрываем диалог
               Navigator.pop(confirmContext);
-              // 3. Выходим из комнаты обратно в Inbox/Search
               Navigator.pop(context);
             },
             child: const Text("DELETE", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
@@ -94,7 +98,122 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
     );
   }
 
- @override
+  // ===========================================================================
+  // БЕЗОПАСНЫЙ ПЕРЕХВАТЧИК ССЫЛОК
+  // ===========================================================================
+  Future<bool> _handleUrlTap(String url) async {
+    final String cleanUrl = url.trim();
+    if (cleanUrl.isEmpty) return true;
+
+    try {
+      final Uri? uri = Uri.tryParse(cleanUrl);
+      if (uri == null) return true;
+
+      final List<String> segments = uri.pathSegments;
+
+      const Map<String, String> entityMapping = {
+        'biometrics': 'biometric',
+        'biometric': 'biometric',
+        'biometric_matches': 'biometric_match',
+        'biometric_match': 'biometric_match',
+        'articles': 'article',
+        'article': 'article',
+        'posts': 'post',
+        'post': 'post',
+        'matches': 'match',
+        'match': 'match',
+        'items': 'item',
+        'item': 'item',
+        'senses': 'sense',
+        'sense': 'sense',
+        'things': 'thing',
+        'thing': 'thing',
+        'people': 'people',
+      };
+
+      int entityIndex = -1;
+      String? matchedEntityType;
+
+      for (int i = 0; i < segments.length; i++) {
+        final String seg = segments[i].toLowerCase();
+        if (entityMapping.containsKey(seg)) {
+          entityIndex = i;
+          matchedEntityType = entityMapping[seg];
+          break;
+        }
+      }
+
+      if (entityIndex != -1 && entityIndex + 1 < segments.length && matchedEntityType != null) {
+        final int? entityId = int.tryParse(segments[entityIndex + 1]);
+
+        if (entityId != null) {
+          debugPrint('[ChatRoom] Internal link tapped -> Opening PostCardPage for: $matchedEntityType #$entityId');
+          _navigateToEntity(matchedEntityType, entityId);
+          return true;
+        }
+      }
+
+      if (uri.hasScheme && (uri.scheme == 'http' || uri.scheme == 'https')) {
+        final String host = uri.host.toLowerCase();
+        final bool isInternalHost = host.contains('findway') ||
+            host == 'localhost' ||
+            host == '127.0.0.1' ||
+            host.startsWith('10.') ||
+            host.startsWith('192.168.');
+
+        if (!isInternalHost && await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      }
+    } catch (e) {
+      debugPrint('[ChatRoom] Error in _handleUrlTap: $e');
+    }
+
+    return true;
+  }
+
+  // ===========================================================================
+  // ПЕРЕХОД НА РЕАЛЬНЫЙ PostCardPage
+  // ===========================================================================
+  void _navigateToEntity(String entityType, int id) {
+    if (!mounted) return;
+
+    String category = 'people';
+    if (entityType == 'biometric' ||
+        entityType == 'biometric_match' ||
+        entityType == 'sense' ||
+        entityType == 'senses' ||
+        entityType == 'animal' ||
+        entityType == 'animals') {
+      category = 'animals';
+    } else if (entityType == 'item' ||
+        entityType == 'items' ||
+        entityType == 'thing' ||
+        entityType == 'things') {
+      category = 'things';
+    } else {
+      category = 'people';
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BlocProvider<SearchBloc>(
+          create: (context) => sl<SearchBloc>()
+            ..add(LoadPostDetails(
+              id: id,
+              category: category,
+              locale: widget.currentLocale,
+            )),
+          child: PostCardPage(
+            initialCategory: category,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     const Color darkSlate = Color(0xFF1E293B);
 
@@ -119,13 +238,11 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
             CircleAvatar(
               radius: 18,
               backgroundColor: Colors.grey[200],
-              // 👉 Если аватар в постах работает, значит там передается полный URL.
-              // Здесь мы просто отображаем то, что пришло.
-              backgroundImage: (widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty) 
-                  ? NetworkImage(widget.avatarUrl!) 
+              backgroundImage: (widget.avatarUrl != null && widget.avatarUrl!.isNotEmpty)
+                  ? NetworkImage(widget.avatarUrl!)
                   : null,
-              child: (widget.avatarUrl == null || widget.avatarUrl!.isEmpty) 
-                  ? const Icon(Icons.person, size: 20, color: Colors.grey) 
+              child: (widget.avatarUrl == null || widget.avatarUrl!.isEmpty)
+                  ? const Icon(Icons.person, size: 20, color: Colors.grey)
                   : null,
             ),
             const SizedBox(width: 10),
@@ -149,8 +266,12 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
           Expanded(
             child: BlocBuilder<ChatBloc, ChatState>(
               builder: (context, state) {
-                if (state is ChatLoading) return const Center(child: CircularProgressIndicator());
-                if (state is ChatError) return Center(child: Text(state.message));
+                if (state is ChatLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (state is ChatError) {
+                  return Center(child: Text(state.message));
+                }
                 if (state is ChatLoaded) {
                   final messages = state.messages.reversed.toList();
                   return ListView.builder(
@@ -189,7 +310,11 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
             bottomRight: Radius.circular(isMe ? 0 : 16),
           ),
           boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 5, offset: const Offset(0, 2)),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
           ],
           border: !isMe ? Border.all(color: Colors.black.withValues(alpha: 0.05)) : null,
         ),
@@ -197,7 +322,14 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
         child: Column(
           crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            Text(msg.body, style: const TextStyle(color: Color(0xFF1E293B), fontSize: 15)),
+            HtmlWidget(
+              msg.body,
+              textStyle: const TextStyle(
+                color: Color(0xFF1E293B),
+                fontSize: 15,
+              ),
+              onTapUrl: (url) => _handleUrlTap(url),
+            ),
             const SizedBox(height: 4),
             Text(
               DateFormat('HH:mm').format(msg.createdAt),
@@ -210,12 +342,24 @@ class _ChatRoomPageState extends State<ChatRoomPage> {
   }
 
   Widget _buildInputArea(Color accentColor, Color textColor) {
+    // Учитываем динамическую высоту системного навигационного бара (Safe Area)
+    final double bottomInset = MediaQuery.of(context).padding.bottom;
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        8,
+        16,
+        12 + bottomInset, // Базовый отступ 12dp + высота системного бара
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
         ],
       ),
       child: Row(
