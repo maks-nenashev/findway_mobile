@@ -1,16 +1,12 @@
 // =============================================================================
 // FILE: lib/features/auth/presentation/bloc/auth_bloc.dart
-// LAYER: Presentation (BLoC)
-// RESPONSIBILITY: Manages application authentication state transitions.
+// PURPOSE: Authentication state transitions; messages remain stable keys.
 // =============================================================================
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:findway_mobile/features/auth/data/repositories/auth_repository.dart';
-
-// =============================================================================
-// EVENTS
-// =============================================================================
 
 abstract class AuthEvent extends Equatable {
   const AuthEvent();
@@ -60,10 +56,6 @@ class GoogleLoginSubmitted extends AuthEvent {}
 
 class LogoutRequested extends AuthEvent {}
 
-// =============================================================================
-// STATES
-// =============================================================================
-
 abstract class AuthState extends Equatable {
   const AuthState();
 
@@ -78,6 +70,7 @@ class AuthLoading extends AuthState {}
 class AuthAuthenticated extends AuthState {}
 
 class AuthRegistrationSuccess extends AuthState {
+  /// Stable translation key, not a localized server sentence.
   final String message;
 
   const AuthRegistrationSuccess(this.message);
@@ -87,6 +80,7 @@ class AuthRegistrationSuccess extends AuthState {
 }
 
 class AuthError extends AuthState {
+  /// Stable translation key, not a localized server sentence.
   final String message;
 
   const AuthError(this.message);
@@ -95,88 +89,55 @@ class AuthError extends AuthState {
   List<Object?> get props => [message];
 }
 
-// =============================================================================
-// BLOC
-// =============================================================================
-
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepository repository;
 
   AuthBloc({required this.repository}) : super(AuthInitial()) {
-    // -------------------------------------------------------------------------
-    // Check authentication status.
-    // -------------------------------------------------------------------------
-
     on<CheckAuthStatus>((event, emit) async {
       emit(AuthLoading());
-
       try {
-        // Existing session-check behavior preserved.
         emit(AuthAuthenticated());
       } catch (_) {
         emit(AuthInitial());
       }
     });
 
-    // -------------------------------------------------------------------------
-    // Login with email and password.
-    // -------------------------------------------------------------------------
-
     on<LoginSubmitted>((event, emit) async {
       emit(AuthLoading());
-
       try {
         await repository.login(event.email, event.password);
         emit(AuthAuthenticated());
       } catch (e) {
-        emit(AuthError(_errorMessage(e)));
+        emit(AuthError(_messageKey(e)));
       }
     });
 
-    // -------------------------------------------------------------------------
-    // Register with username, email, password and terms acceptance.
-    // -------------------------------------------------------------------------
-
     on<RegisterSubmitted>((event, emit) async {
       emit(AuthLoading());
-
       try {
-        final message = await repository.register(
+        final messageKey = await repository.register(
           event.username,
           event.email,
           event.password,
           event.passwordConfirmation,
           event.termsAccepted,
         );
-        debugPrint('[AuthBloc] Registration succeeded: $message');
-        emit(AuthRegistrationSuccess(message));
+        debugPrint('[AuthBloc] Registration succeeded: $messageKey');
+        emit(AuthRegistrationSuccess(messageKey));
       } catch (e) {
-        emit(
-          AuthError(
-            e.toString().replaceFirst('Exception: ', ''),
-          ),
-        );
+        emit(AuthError(_messageKey(e)));
       }
     });
 
-    // -------------------------------------------------------------------------
-    // Google OAuth — existing behavior preserved.
-    // -------------------------------------------------------------------------
-
     on<GoogleLoginSubmitted>((event, emit) async {
       emit(AuthLoading());
-
       try {
         await repository.loginWithGoogle();
         emit(AuthAuthenticated());
       } catch (e) {
-        emit(AuthError(_errorMessage(e)));
+        emit(AuthError(_messageKey(e)));
       }
     });
-
-    // -------------------------------------------------------------------------
-    // Logout.
-    // -------------------------------------------------------------------------
 
     on<LogoutRequested>((event, emit) async {
       try {
@@ -189,11 +150,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Error message formatting.
-  // ---------------------------------------------------------------------------
+  String _messageKey(Object error) {
+    final message = error.toString().replaceFirst('Exception: ', '').trim();
 
-  String _errorMessage(Object error) {
-    return error.toString().replaceFirst('Exception: ', '');
+    // Do not expose raw exception wrappers to the UI.
+    if (message.startsWith('devise.') ||
+        message.startsWith('errors.') ||
+        message.startsWith('auth.')) {
+      return message;
+    }
+
+    debugPrint('[AuthBloc] Unmapped authentication error: $message');
+    return AuthRepository.serverErrorKey;
   }
 }

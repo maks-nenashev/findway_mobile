@@ -223,20 +223,38 @@ Future<void> init() async {
 // ===========================================================
 
 String getBaseUrl() {
+  // 1. Высший приоритет: явный URL из флага сборки (--dart-define=BASE_URL=...)
+  const String customUrl = String.fromEnvironment('BASE_URL');
+  if (customUrl.isNotEmpty) {
+    return customUrl;
+  }
+
+  // 2. Web-платформа
   if (kIsWeb) {
     return 'http://localhost:3000';
   }
 
+  // 3. Android (Физическое устройство / Эмулятор)
   if (Platform.isAndroid) {
-    // При подключении по USB с adb reverse используем localhost.
-    // Для эмулятора без adb reverse меняем на 10.0.2.2.
-    const bool useAdbReverse = bool.fromEnvironment('ADB_REVERSE', defaultValue: true);
-    return useAdbReverse ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
+    // Флаг для туннеля ADB Reverse (по умолчанию выключен, чтобы не зависеть от сокета ADB)
+    const bool useAdbReverse = bool.fromEnvironment('ADB_REVERSE', defaultValue: false);
+    if (useAdbReverse) {
+      return 'http://localhost:3000';
+    }
+
+    // Флаг для Android Emulator (AVD)
+    const bool isEmulator = bool.fromEnvironment('EMULATOR', defaultValue: false);
+    if (isEmulator) {
+      return 'http://10.0.2.2:3000';
+    }
+
+    // По умолчанию для физического телефона — прямой IP ThinkPad в локальной сети
+    return 'http://192.168.1.127:3000';
   }
 
+  // 4. Linux Desktop / iOS
   return 'http://127.0.0.1:3000';
 }
-
 // ===========================================================
 // LOCALE REPOSITORY
 // ===========================================================
