@@ -3,7 +3,6 @@
 // LAYER: Presentation
 // PURPOSE: FindWay login and registration screen with Google OAuth.
 // =============================================================================
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,8 +11,8 @@ import 'package:findway_mobile/core/terms/terms_checkbox.dart';
 import 'package:findway_mobile/features/auth/presentation/bloc/auth_bloc.dart';
 
 class LoginPage extends StatefulWidget {
-  /// Translation keys supplied by the existing Rails translations API.
-  /// Empty map keeps Ukrainian fallback text until translations are wired in.
+  /// Optional translations already supplied by the caller. The page also loads
+  /// the current locale's auth translations from the Rails I18n API.
   final Map<String, String> translations;
 
   const LoginPage({super.key, this.translations = const {}});
@@ -23,9 +22,16 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  final Map<String, String> _translations = {};
+
   String _t(String key, String fallback) {
-    final value = widget.translations[key];
+    final value = _translations[key];
     return value == null || value.trim().isEmpty ? fallback : value;
+  }
+
+  String? _translatedOrNull(String key) {
+    final value = _translations[key];
+    return value == null || value.trim().isEmpty ? null : value;
   }
 
   final _formKey = GlobalKey<FormState>();
@@ -44,66 +50,95 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
+    _translations.addAll(widget.translations);
     _loadLocale();
   }
 
   Future<void> _loadLocale() async {
     final prefs = await SharedPreferences.getInstance();
     final savedLocale = prefs.getString('locale') ?? 'uk';
+    final locale = savedLocale.split(RegExp('[-_]')).first.toLowerCase();
+
     if (!mounted) return;
-    setState(() {
-      _locale = savedLocale.split(RegExp('[-_]')).first.toLowerCase();
-    });
+    setState(() => _locale = locale);
+
+    await _loadTranslations(locale);
   }
 
-  String _authText(String key, {String? fallback}) {
-    const translations = <String, Map<String, String>>{
-      'en': {
-        'devise.registrations.signed_up_but_unconfirmed':
-            'Registration successful. Please check your email and confirm your account.',
-        'devise.failure.invalid': 'Invalid email or password.',
-        'errors.registration.invalid':
-            'Please check your details. The email may already be registered or the password may not meet the requirements.',
-        'errors.network': 'Could not connect to the server. Check your internet connection.',
-        'errors.server': 'A server error occurred. Please try again.',
-        'auth.google.cancelled': 'Google sign-in was cancelled.',
-        'auth.google.token_missing': 'Could not obtain a Google ID token.',
-        'auth.token.missing': 'The server did not return an authentication token.',
-      },
-      'pl': {
-        'devise.registrations.signed_up_but_unconfirmed':
-            'Rejestracja zakończona. Sprawdź pocztę i potwierdź konto.',
-        'devise.failure.invalid': 'Nieprawidłowy adres e-mail lub hasło.',
-        'errors.registration.invalid':
-            'Sprawdź wprowadzone dane. E-mail może być już zarejestrowany lub hasło nie spełnia wymagań.',
-        'errors.network': 'Nie można połączyć się z serwerem. Sprawdź połączenie z internetem.',
-        'errors.server': 'Wystąpił błąd serwera. Spróbuj ponownie.',
-        'auth.google.cancelled': 'Logowanie przez Google zostało anulowane.',
-        'auth.google.token_missing': 'Nie udało się pobrać tokenu Google ID.',
-        'auth.token.missing': 'Serwer nie zwrócił tokenu uwierzytelniającego.',
-      },
-      'uk': {
-        'devise.registrations.signed_up_but_unconfirmed':
-            'Реєстрацію завершено. Перевірте пошту та підтвердьте акаунт.',
-        'devise.failure.invalid': 'Невірний email або пароль.',
-        'errors.registration.invalid':
-            'Перевірте введені дані. Можливо, email вже зареєстрований або пароль не відповідає вимогам.',
-        'errors.network': 'Не вдалося з’єднатися із сервером. Перевірте інтернет.',
-        'errors.server': 'Помилка сервера. Спробуйте ще раз.',
-        'auth.google.cancelled': 'Вхід через Google скасовано.',
-        'auth.google.token_missing': 'Не вдалося отримати ID-токен Google.',
-        'auth.token.missing': 'Сервер не повернув токен авторизації.',
-      },
-    };
+  Future<void> _loadTranslations(String locale) async {
+    try {
+      // Call the existing Rails metadata endpoint directly from this page.
+      // The SearchController's `scope=auth` branch returns flattened I18n keys.
+      final response = await context.read<AuthBloc>().repository.client.get(
+        '/api/v1/search/new_meta',
+        queryParameters: {
+          'locale': locale,
+          'scope': 'auth',
+        },
+      );
 
-    final language = translations.containsKey(_locale) ? _locale : 'uk';
-    return translations[language]?[key] ?? fallback ?? key;
+      final dynamic body = response.data;
+      if (body is! Map) {
+        throw const FormatException('Invalid auth translations response');
+      }
+
+      final dynamic rawTranslations = body['translations'];
+      if (rawTranslations is! Map) {
+        throw const FormatException('Missing translations map in Rails response');
+      }
+
+      final incoming = <String, String>{};
+      rawTranslations.forEach((dynamic key, dynamic value) {
+        if (key == null || value == null || value is Map || value is List) {
+          return;
+        }
+        final translated = value.toString();
+        if (translated.trim().isNotEmpty) {
+          incoming[key.toString()] = translated;
+        }
+      });
+
+      if (!mounted) return;
+
+      setState(() {
+        // Rails is the source of truth and overrides optional constructor values.
+        _translations.addAll(incoming);
+        _locale = incoming['locale_code'] ?? locale;
+      });
+
+      debugPrint(
+        '[LoginPage] Loaded ${incoming.length} Rails I18n keys for $_locale',
+      );
+    } catch (error) {
+      // Keep a usable screen if the API is unavailable; no locale dictionaries
+      // are embedded in this widget.
+      debugPrint('[LoginPage] Failed to load Rails auth translations: $error');
+    }
   }
 
   String _displayAuthMessage(String message) {
-    final trimmed = message.trim();
-    if (trimmed.isEmpty) return _authText('errors.server');
-    return _authText(trimmed, fallback: trimmed);
+    final key = message.trim();
+    if (key.isEmpty) {
+      return _translations['errors.server'] ?? 'errors.server';
+    }
+
+    final translated = _translations[key];
+    if (translated != null && translated.trim().isNotEmpty) {
+      return translated;
+    }
+
+    // Keep a server-provided localized sentence if the current repository
+    // still returns text instead of a stable I18n key. The recommended contract
+    // is to have AuthRepository/AuthBloc emit Rails keys.
+    if (!key.contains(' ') && key.contains('.')) {
+      final genericError = _translations['errors.server'];
+      if (genericError != null && genericError.trim().isNotEmpty) {
+        debugPrint('[LoginPage] Missing Rails translation for key: $key');
+        return genericError;
+      }
+    }
+
+    return key;
   }
 
   final Color _bgDark = const Color(0xFF0F172A);
@@ -125,7 +160,7 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _t('devise.registrations.terms_required', 'Для реєстрації необхідно прийняти умови використання.'),
+            _t('legal.terms.acceptance.validation_error', 'Для реєстрації необхідно прийняти умови використання.'),
           ),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
@@ -143,16 +178,10 @@ class _LoginPageState extends State<LoginPage> {
       final username = _usernameController.text.trim();
       final confirmation = _passwordConfirmationController.text;
 
-      if (password != confirmation) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_t('devise.registrations.passwords_mismatch', 'Паролі не співпадають')),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
+      // Temporary diagnostic: compare the domain with the Rails Parameters log
+      // without printing the complete email address to Flutter logs.
+      final emailDomain = email.contains('@') ? email.split('@').last : '<invalid>';
+      debugPrint('[LoginPage] Registration email domain being submitted: $emailDomain');
 
       context.read<AuthBloc>().add(
             RegisterSubmitted(
@@ -183,28 +212,6 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
-  void _showRegistrationSuccess(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(_displayAuthMessage(message)),
-          backgroundColor: Colors.green.shade700,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 6),
-        ),
-      );
-
-    setState(() {
-      _isSignUp = false;
-      _termsAccepted = false;
-      _formKey.currentState?.reset();
-    });
-
-    _passwordController.clear();
-    _passwordConfirmationController.clear();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -217,11 +224,15 @@ class _LoginPageState extends State<LoginPage> {
           if (state is AuthRegistrationSuccess) {
             debugPrint('[LoginPage] REGISTRATION SUCCESS');
 
+            final successKey = _translations.containsKey(state.message.trim())
+                ? state.message.trim()
+                : 'devise.registrations.signed_up_but_unconfirmed';
+
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
               ..showSnackBar(
                 SnackBar(
-                  content: Text(_displayAuthMessage(state.message)),
+                  content: Text(_displayAuthMessage(successKey)),
                   duration: const Duration(seconds: 8),
                   behavior: SnackBarBehavior.floating,
                   backgroundColor: Colors.green,
@@ -373,6 +384,9 @@ class _LoginPageState extends State<LoginPage> {
                           enabled: !isLoading,
                           locale: _locale,
                           showCheckbox: false,
+                          disclaimerTemplate: _translatedOrNull(
+                            'devise.sessions.new.oauth_disclaimer_html',
+                          ),
                         ),
                       ],
                       const SizedBox(height: 20),
@@ -387,7 +401,7 @@ class _LoginPageState extends State<LoginPage> {
                               horizontal: 12,
                             ),
                             child: Text(
-                              _t('devise.sessions.new.email_separator', 'або за допомогою email'),
+                              _t('devise.sessions.new.email', 'Email'),
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.4),
                                 fontSize: 12,
@@ -415,7 +429,15 @@ class _LoginPageState extends State<LoginPage> {
                             if (!_isSignUp) return null;
 
                             if (value == null || value.trim().isEmpty) {
-                              return _t('devise.registrations.new.username_required', 'Введіть ім\'я');
+                              final usernameLabel = _t(
+                                'devise.registrations.new.username',
+                                'Username',
+                              );
+                              final blankMessage = _t(
+                                'errors.messages.blank',
+                                "can't be blank",
+                              );
+                              return '$usernameLabel $blankMessage';
                             }
 
                             return null;
@@ -429,10 +451,19 @@ class _LoginPageState extends State<LoginPage> {
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
-                        autofillHints: const [AutofillHints.email],
+                        // Avoid saved-account autofill replacing the address
+                        // during registration; keep autofill available for login.
+                        autofillHints: _isSignUp ? null : const [AutofillHints.email],
+                        autocorrect: false,
+                        enableSuggestions: false,
                         style: const TextStyle(color: Colors.white),
                         decoration: _inputDecoration(
-                          'Email',
+                          _t(
+                            _isSignUp
+                                ? 'devise.registrations.new.email'
+                                : 'devise.sessions.new.email',
+                            'Email',
+                          ),
                           Icons.email_outlined,
                         ),
                         validator: (value) {
@@ -440,7 +471,17 @@ class _LoginPageState extends State<LoginPage> {
                               !RegExp(
                                 r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
                               ).hasMatch(value.trim())) {
-                            return _t('devise.sessions.new.email_invalid', 'Введіть коректний email');
+                            final emailLabel = _t(
+                              _isSignUp
+                                  ? 'devise.registrations.new.email'
+                                  : 'devise.sessions.new.email',
+                              'Email',
+                            );
+                            final invalidMessage = _t(
+                              'errors.messages.invalid',
+                              'is invalid',
+                            );
+                            return '$emailLabel $invalidMessage';
                           }
 
                           return null;
@@ -484,7 +525,17 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         validator: (value) {
                           if (value == null || value.length < 6) {
-                            return _t('devise.passwords.minimum_length', 'Пароль має бути від 6 символів');
+                            final passwordLabel = _t(
+                              _isSignUp
+                                  ? 'devise.registrations.new.password'
+                                  : 'devise.sessions.new.password',
+                              'Password',
+                            );
+                            final minimumText = _t(
+                              'devise.registrations.new.six_symbol',
+                              'minimum number of characters',
+                            );
+                            return '$passwordLabel: $minimumText 6';
                           }
 
                           return null;
@@ -500,18 +551,37 @@ class _LoginPageState extends State<LoginPage> {
                           textInputAction: TextInputAction.done,
                           style: const TextStyle(color: Colors.white),
                           decoration: _inputDecoration(
-                            _t('devise.registrations.new.password_confirmation', 'Підтвердження пароля'),
+                            _t('devise.registrations.new.new_password', 'Підтвердження пароля'),
                             Icons.lock_outline,
                           ),
                           validator: (value) {
                             if (!_isSignUp) return null;
 
                             if (value == null || value.isEmpty) {
-                              return _t('devise.registrations.new.password_confirmation_required', 'Підтвердіть пароль');
+                              final confirmationLabel = _t(
+                                'devise.registrations.new.new_password',
+                                'Confirm password',
+                              );
+                              final blankMessage = _t(
+                                'errors.messages.blank',
+                                "can't be blank",
+                              );
+                              return '$confirmationLabel $blankMessage';
                             }
 
                             if (value != _passwordController.text) {
-                              return _t('devise.registrations.passwords_mismatch', 'Паролі не співпадають');
+                              final confirmationLabel = _t(
+                                'devise.registrations.new.new_password',
+                                'Confirm password',
+                              );
+                              final mismatch = _t(
+                                'errors.messages.confirmation',
+                                "doesn't match %{attribute}",
+                              ).replaceAll(
+                                '%{attribute}',
+                                _t('devise.registrations.new.password', 'Password'),
+                              );
+                              return '$confirmationLabel $mismatch';
                             }
 
                             return null;
@@ -565,8 +635,8 @@ class _LoginPageState extends State<LoginPage> {
                               )
                             : Text(
                                 _isSignUp
-                                    ? _t('devise.registrations.new.submit', 'ЗАРЕЄСТРУВАТИСЯ')
-                                    : _t('devise.sessions.new.submit', 'УВІЙТИ'),
+                                    ? _t('devise.registrations.new.Sign up', 'ЗАРЕЄСТРУВАТИСЯ')
+                                    : _t('devise.sessions.new.Log in', 'УВІЙТИ'),
                                 style: const TextStyle(
                                   color: Colors.black,
                                   fontWeight: FontWeight.bold,
@@ -576,32 +646,18 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Switch between login and registration.
+                      // Switch between login and registration using Rails keys.
                       TextButton(
                         onPressed: isLoading ? null : _toggleAuthMode,
-                        child: RichText(
+                        child: Text(
+                          _isSignUp
+                              ? _t('devise.shared.links.sign_in', 'Увійти')
+                              : _t('devise.shared.links.sign_up', 'Зареєструватися'),
                           textAlign: TextAlign.center,
-                          text: TextSpan(
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 13,
-                            ),
-                            children: [
-                              TextSpan(
-                                text: _isSignUp
-                                    ? _t('devise.sessions.new.already_have_account', 'Вже є акаунт? ')
-                                    : _t('devise.sessions.new.no_account', 'Ще немає акаунту? '),
-                              ),
-                              TextSpan(
-                                text: _isSignUp
-                                    ? _t('devise.sessions.new.submit', 'Увійти')
-                                    : _t('devise.registrations.new.submit', 'Зареєструватися'),
-                                style: TextStyle(
-                                  color: _accentCyan,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                          style: TextStyle(
+                            color: _accentCyan,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
                           ),
                         ),
                       ),

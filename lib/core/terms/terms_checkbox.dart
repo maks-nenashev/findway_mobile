@@ -1,3 +1,7 @@
+// =============================================================================
+// FILE: lib/core/terms/terms_checkbox.dart
+// PURPOSE: Localized terms acceptance checkbox and document dialog.
+// =============================================================================
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -10,12 +14,16 @@ class TermsCheckbox extends StatefulWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
   final bool enabled;
+
   final String country;
   final String locale;
 
-  /// false — отображает Terms со ссылкой без чекбокса.
-  /// По умолчанию сохраняется старое поведение.
+  /// When false, displays the legal notice and document link without a checkbox.
   final bool showCheckbox;
+
+  /// Optional Rails I18n template, e.g. 'By continuing with Google, you agree to %{terms}.'.
+  /// The %{terms} placeholder is replaced with the existing legal-document link.
+  final String? disclaimerTemplate;
 
   const TermsCheckbox({
     super.key,
@@ -25,6 +33,7 @@ class TermsCheckbox extends StatefulWidget {
     this.country = 'UA',
     this.locale = 'uk',
     this.showCheckbox = true,
+    this.disclaimerTemplate,
   });
 
   static const Color _accent = Color(0xFF00F2FF);
@@ -108,7 +117,6 @@ class _TermsCheckboxState extends State<TermsCheckbox> {
       }
     } catch (error) {
       debugPrint('Failed to open legal document: $error');
-
       if (mounted) {
         _showError('Не вдалося відкрити повний текст документа.');
       }
@@ -164,46 +172,59 @@ class _TermsCheckboxState extends State<TermsCheckbox> {
     );
   }
 
-// Terms Cchat box  Sing_In
-Widget _buildTermsNotice(TermsDocument document) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(
-      horizontal: 12,
-      vertical: 8,
-    ),
-    child: SizedBox(
-      width: double.infinity,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            document.acceptance.checkboxLabel,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white54,
-              fontSize: 12,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 2),
-          GestureDetector(
-            onTap: widget.enabled ? _showTerms : null,
-            child: Text(
-              document.fullVersion.label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: TermsCheckbox._accent,
-                fontSize: 12,
-                decoration: TextDecoration.underline,
+  Widget _buildTermsNotice(TermsDocument document) {
+    const marker = '%{terms}';
+    final template = widget.disclaimerTemplate;
+
+    // Use Devise's OAuth disclaimer from Rails when available. The linked label
+    // and the document dialog still come from the existing legal repository.
+    if (template == null || !template.contains(marker)) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: SizedBox(
+          width: double.infinity,
+          child: Center(child: _buildTermsLabel(document)),
+        ),
+      );
+    }
+
+    final markerIndex = template.indexOf(marker);
+    final beforeLink = template.substring(0, markerIndex);
+    final afterLink = template.substring(markerIndex + marker.length);
+    const noticeStyle = TextStyle(
+      color: Colors.white54,
+      fontSize: 12,
+      height: 1.4,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: SizedBox(
+        width: double.infinity,
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(beforeLink, textAlign: TextAlign.center, style: noticeStyle),
+            GestureDetector(
+              onTap: widget.enabled ? _showTerms : null,
+              child: Text(
+                document.fullVersion.label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: TermsCheckbox._accent,
+                  fontSize: 12,
+                  height: 1.4,
+                  decoration: TextDecoration.underline,
+                ),
               ),
             ),
-          ),
-        ],
+            Text(afterLink, textAlign: TextAlign.center, style: noticeStyle),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -215,18 +236,13 @@ Widget _buildTermsNotice(TermsDocument document) {
             SizedBox(
               width: 18,
               height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-              ),
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
             SizedBox(width: 12),
             Expanded(
               child: Text(
                 'Завантаження умов використання...',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.white70, fontSize: 12),
               ),
             ),
           ],
@@ -242,10 +258,7 @@ Widget _buildTermsNotice(TermsDocument document) {
             const Expanded(
               child: Text(
                 'Не вдалося завантажити умови використання.',
-                style: TextStyle(
-                  color: Colors.redAccent,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.redAccent, fontSize: 12),
               ),
             ),
             TextButton(
@@ -259,12 +272,12 @@ Widget _buildTermsNotice(TermsDocument document) {
 
     final document = _document!;
 
-    // Google sign-in: those same Terms without a checkbox.
+    // Google sign-in: reuse the same localized document and dialog, but no
+    // checkbox. Email registration keeps the original checkbox behavior.
     if (!widget.showCheckbox) {
       return _buildTermsNotice(document);
     }
 
-    // Email registration: preserve the required checkbox.
     return CheckboxListTile(
       value: widget.value,
       onChanged: widget.enabled
