@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../injection_container.dart' as di;
 import 'search_event.dart';
 import 'search_state.dart';
 import '../../domain/repositories/search_repository.dart';
@@ -65,6 +66,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     _activeCategory = event.category;
     _selectedValues = {};
     _currentPage = 1;
+
+    // 🛡 СИНХРОНИЗАЦИЯ ЛОКАЛИ: Фиксируем выбранный язык в SharedPreferences
+    await di.sl<di.LocaleRepository>().setLocale(targetLocale);
 
     emit(SearchLoading(uiTranslations: _translationsCache));
 
@@ -129,11 +133,14 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   // CHANGE LOCALE
   // ===========================================================================
 
-  void _onChangeLocale(
+  Future<void> _onChangeLocale(
     ChangeLocale event,
     Emitter<SearchState> emit,
-  ) {
+  ) async {
     _currentLocale = event.locale;
+
+    // 🛡 СИНХРОНИЗАЦИЯ ЛОКАЛИ: Записываем в SharedPreferences при смене языка
+    await di.sl<di.LocaleRepository>().setLocale(event.locale);
 
     add(
       LoadFilters(

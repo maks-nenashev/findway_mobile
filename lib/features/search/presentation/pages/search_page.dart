@@ -168,30 +168,34 @@ class _SearchPageState extends State<SearchPage> {
                 child: GestureDetector(
                   onTap: () async {
                     final String targetCategory = _localActiveCategory.isEmpty ? 'people' : _localActiveCategory;
-                    final result = await Navigator.push(
-                      context,
+                    
+                    // 🛡 БЕЗОПАСНЫЙ ДОСТУП К АСИНХРОННОМУ КОНТЕКСТУ:
+                    // Кэшируем ссылки на BLoC и Navigator до вызова await
+                    final searchBloc = context.read<SearchBloc>();
+                    final navigator = Navigator.of(context);
+
+                    final result = await navigator.push(
                       MaterialPageRoute(
                         builder: (_) => BlocProvider.value(
-                          value: context.read<SearchBloc>(),
+                          value: searchBloc,
                           child: PostCreatePage(initialCategory: targetCategory),
                         ),
                       ),
                     );
 
-                    if (mounted) {
-                      final bloc = context.read<SearchBloc>();
-                      if (result is int) {
-                        bloc.add(LoadPostDetails(id: result, category: targetCategory, locale: bloc.currentLocale));
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => BlocProvider.value(value: bloc, child: const PostCardPage()),
-                          ),
-                        );
-                        if (mounted) bloc.add(LoadFilters(category: targetCategory, locale: bloc.currentLocale));
-                      } else if (result == true) {
-                        bloc.add(LoadFilters(category: targetCategory, locale: bloc.currentLocale));
-                      }
+                    if (!mounted) return;
+
+                    if (result is int) {
+                      searchBloc.add(LoadPostDetails(id: result, category: targetCategory, locale: searchBloc.currentLocale));
+                      await navigator.push(
+                        MaterialPageRoute(
+                          builder: (_) => BlocProvider.value(value: searchBloc, child: const PostCardPage()),
+                        ),
+                      );
+                      if (!mounted) return;
+                      searchBloc.add(LoadFilters(category: targetCategory, locale: searchBloc.currentLocale));
+                    } else if (result == true) {
+                      searchBloc.add(LoadFilters(category: targetCategory, locale: searchBloc.currentLocale));
                     }
                   },
                   child: const MultiColorPostButton(),
@@ -224,7 +228,13 @@ class _SearchPageState extends State<SearchPage> {
                           ),
                         );
                       } else if (index == 4) {
-                        Navigator.pushNamed(context, '/profile');
+                        Navigator.pushNamed(
+                          context,
+                          '/profile',
+                          arguments: {
+                            'locale': currentLocale,
+                          },
+                        );
                       } else {
                         context.read<SearchBloc>().add(ChangeTab(index));
                       }

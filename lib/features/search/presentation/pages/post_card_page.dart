@@ -348,30 +348,6 @@ class PostCardPage extends StatelessWidget {
     );
   }
 
-  Widget _specRow(String label, String value, Color valueColor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white60, fontSize: 12),
-          ),
-          Text(
-            value,
-            style: TextStyle(
-              color: valueColor,
-              fontFamily: 'Monospace',
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   String _mapCategory(String? rawType) {
     final type = rawType?.toLowerCase() ?? 'article';
 

@@ -23,7 +23,7 @@ import 'package:findway_mobile/features/profile/presentation/bloc/profile_bloc.d
 import 'package:findway_mobile/features/profile/presentation/bloc/profile_event.dart';
 import 'package:findway_mobile/features/search/presentation/bloc/search_bloc.dart';
 import 'package:findway_mobile/features/search/presentation/bloc/search_event.dart';
-import 'package:findway_mobile/features/chat/presentation/bloc/chat_bloc.dart'; // 👉 ДОБАВЛЕН
+import 'package:findway_mobile/features/chat/presentation/bloc/chat_bloc.dart';
 import 'package:findway_mobile/features/chat/presentation/bloc/notification_bloc.dart';
 
 void main() async {
@@ -75,6 +75,8 @@ class FindWayApp extends StatelessWidget {
 
         // --- ИМЕНОВАННЫЕ МАРШРУТЫ ---
         onGenerateRoute: (settings) {
+          final String defaultLocale = di.sl<di.LocaleRepository>().getCachedLocale();
+
           switch (settings.name) {
             case '/login':
               return MaterialPageRoute(builder: (_) => const LoginPage());
@@ -87,13 +89,14 @@ class FindWayApp extends StatelessWidget {
               final args = settings.arguments as Map<String, dynamic>?;
               final postId = args?['id'] as int? ?? 0;
               final category = args?['category'] as String? ?? 'people';
+              final locale = args?['locale'] as String? ?? defaultLocale;
               
               return MaterialPageRoute(
                 builder: (_) => BlocProvider<SearchBloc>(
                   create: (context) => di.sl<SearchBloc>()..add(LoadPostDetails(
                     id: postId,
                     category: category,
-                    locale: 'uk', 
+                    locale: locale, 
                   )),
                   child: const PostCardPage(), 
                 ),
@@ -128,17 +131,21 @@ class FindWayApp extends StatelessWidget {
                     recipientId: args['recipientId'] as int,
                     recipientName: args['username'] as String,
                     avatarUrl: args['avatarUrl'] as String?,
-                    currentLocale: args['currentLocale'] as String,
+                    currentLocale: args['currentLocale'] as String? ?? defaultLocale,
                   ),
                 ),
               );
 
             // --- ЛИЧНЫЙ КАБИНЕТ (ПРОФИЛЬ) ---
             case '/profile':
+              final args = settings.arguments as Map<String, dynamic>?;
+              final String activeLocale = args?['locale'] as String? ?? defaultLocale;
+
               return MaterialPageRoute(
                 builder: (_) => BlocProvider<ProfileBloc>(
-                  create: (context) => di.sl<ProfileBloc>()..add(GetProfileData('uk')), 
-                  child: const ProfilePage(currentLocale: 'uk'),
+                  create: (context) => di.sl<ProfileBloc>()
+                    ..add(FetchProfileEvent(locale: activeLocale)), 
+                  child: ProfilePage(currentLocale: activeLocale),
                 ),
               );
 

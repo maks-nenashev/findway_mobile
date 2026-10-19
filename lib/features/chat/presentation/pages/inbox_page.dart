@@ -1,116 +1,386 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../bloc/chat_bloc.dart';
 import '../bloc/chat_state.dart';
 
+/// Inbox page styled to match FindWay's dark navy / neon accent visual system.
+/// Conversation loading, navigation, unread counts, and Rails translations remain
+/// connected to the existing ChatBloc and API flow.
 class InboxPage extends StatelessWidget {
   final String currentLocale;
 
   const InboxPage({super.key, required this.currentLocale});
 
+  // White canvas keeps the Inbox light; the app bar and conversation cards stay dark.
+  static const Color _background = Color(0xFFFFFFFF);
+  static const Color _badgeInk = Color(0xFF0B1020);
+  static const Color _pageTextMuted = Color(0xFF475569);
+  static const Color _surface = Color(0xFF151A2D);
+  static const Color _surfaceElevated = Color(0xFF1C2637);
+  static const Color _cyan = Color(0xFF00E5F2);
+  static const Color _textPrimary = Color(0xFFF4F7FB);
+  static const Color _textMuted = Color(0xFF8D9AAF);
+  static const Color _outline = Color(0xFF26394B);
+
+  Map<String, dynamic> _translationsFor(ChatState state) {
+    if (state is InboxLoaded) return state.translations;
+    if (state is ChatLoading) return state.translations;
+    if (state is ChatLoaded) return state.translations;
+    return const <String, dynamic>{};
+  }
+
+  String _tr(
+    Map<String, dynamic> translations,
+    String key,
+    String fallback,
+  ) {
+    final value = translations[key];
+    if (value == null || value.toString().trim().isEmpty) return fallback;
+    return value.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
-    const Color darkSlate = Color(0xFF1E293B);
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F8),
+      backgroundColor: _background,
       appBar: AppBar(
-        title: const Text('MESSAGES', style: TextStyle(fontFamily: 'Orbitron', fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        foregroundColor: darkSlate,
-        elevation: 1,
+        backgroundColor: _surface,
+        foregroundColor: _textPrimary,
+        elevation: 0,
+        centerTitle: false,
+        shape: const Border(
+          bottom: BorderSide(color: _cyan, width: 0.8),
+        ),
+        title: BlocBuilder<ChatBloc, ChatState>(
+          builder: (context, state) {
+            final translations = _translationsFor(state);
+            return Row(
+              children: [
+                const Icon(Icons.forum_rounded, color: _cyan, size: 23),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    _tr(
+                      translations,
+                      'shared.message_form.title',
+                      'MESSAGES',
+                    ).toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Orbitron',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      letterSpacing: 0.7,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
       body: BlocBuilder<ChatBloc, ChatState>(
         builder: (context, state) {
           if (state is ChatLoading) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(color: _cyan),
+            );
           }
 
           if (state is InboxLoaded) {
             final conversations = state.conversations;
+            final translations = state.translations;
 
             if (conversations.isEmpty) {
-              return const Center(child: Text('No conversations yet.'));
+              return _buildEmptyState(
+                _tr(
+                  translations,
+                  'messages.index.empty',
+                  'No conversations yet.',
+                ),
+              );
             }
 
             return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
               itemCount: conversations.length,
               itemBuilder: (context, index) {
-                // 👉 ВОТ ЗДЕСЬ ОПРЕДЕЛЯЕМ ПЕРЕМЕННУЮ conversation
                 final conversation = conversations[index];
                 final otherUser = conversation['other_user'] ?? {};
                 final lastMessage = conversation['last_message'] ?? {};
-                final String? avatarUrl = otherUser['avatar_url'];
+                final String? avatarUrl = otherUser['avatar_url']?.toString();
+                final String username = (otherUser['username'] ??
+                        _tr(
+                          translations,
+                          'messages.index.unknown_user',
+                          'Unknown',
+                        ))
+                    .toString();
+                final String messagePreview =
+                    lastMessage['body']?.toString() ?? '';
+                final String timestamp =
+                    lastMessage['created_at']?.toString() ?? '';
+                final int unreadCount = int.tryParse(
+                      '${conversation['unread_count'] ?? 0}',
+                    ) ??
+                    0;
+                final bool hasUnread = unreadCount > 0;
 
-return ListTile(
-  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-  // --- АВАТАРКА С ИНДИКАТОРОМ ---
-  leading: Badge(
-    label: Text(
-      '${conversation['unread_count']}', 
-      style: const TextStyle(color: Colors.white, fontSize: 10),
-    ),
-    // Показываем кружок, только если в этом конкретном чате есть непрочитанные
-    isLabelVisible: (conversation['unread_count'] ?? 0) > 0,
-    backgroundColor: Colors.red,
-    child: CircleAvatar(
-      radius: 28,
-      backgroundColor: Colors.grey[200],
-      backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
-          ? NetworkImage(avatarUrl)
-          : null,
-      child: (avatarUrl == null || avatarUrl.isEmpty)
-          ? const Icon(Icons.person, color: Colors.grey)
-          : null,
-    ),
-  ),
-  title: Text(
-    (otherUser['username'] ?? 'Unknown').toString().toUpperCase(),
-    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B)),
-  ),
-  subtitle: Text(
-    lastMessage['body'] ?? '',
-    maxLines: 1,
-    overflow: TextOverflow.ellipsis,
-    style: TextStyle(
-      // Если есть непрочитанные, делаем текст сообщения жирнее или темнее
-      fontWeight: (conversation['unread_count'] ?? 0) > 0 ? FontWeight.bold : FontWeight.normal,
-      color: (conversation['unread_count'] ?? 0) > 0 ? Colors.black : Colors.grey[600],
-    ),
-  ),
-  trailing: Column(
-    mainAxisAlignment: MainAxisAlignment.center,
-    crossAxisAlignment: CrossAxisAlignment.end,
-    children: [
-      Text(
-        lastMessage['created_at'] ?? '',
-        style: TextStyle(color: Colors.grey[500], fontSize: 12),
-      ),
-    ],
-  ),
-  onTap: () {
-    Navigator.pushNamed(
-      context,
-      '/chat',
-      arguments: {
-        'recipientId': otherUser['id'],
-        'username': otherUser['username'],
-        'avatarUrl': avatarUrl,
-        'currentLocale': currentLocale,
-      },
-    );
-  },
-);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(20),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/chat',
+                          arguments: {
+                            'recipientId': otherUser['id'],
+                            'username': otherUser['username'],
+                            'avatarUrl': avatarUrl,
+                            'currentLocale': currentLocale,
+                          },
+                        );
+                      },
+                      child: Ink(
+                        decoration: BoxDecoration(
+                          color: _surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: hasUnread ? _cyan.withValues(alpha: 0.72) : _outline,
+                            width: hasUnread ? 1.0 : 0.7,
+                          ),
+                          boxShadow: hasUnread
+                              ? [
+                                  BoxShadow(
+                                    color: _cyan.withValues(alpha: 0.07),
+                                    blurRadius: 12,
+                                    spreadRadius: 0.2,
+                                  ),
+                                ]
+                              : const [],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(13, 14, 13, 14),
+                          child: Row(
+                            children: [
+                              _buildAvatar(
+                                avatarUrl: avatarUrl,
+                                username: username,
+                                hasUnread: hasUnread,
+                              ),
+                              const SizedBox(width: 13),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            username,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: _textPrimary,
+                                              fontSize: 14,
+                                              fontWeight: hasUnread
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                        if (timestamp.isNotEmpty) ...[
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            timestamp,
+                                            style: const TextStyle(
+                                              color: _textMuted,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                    const SizedBox(height: 7),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            messagePreview,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: hasUnread
+                                                  ? _textPrimary
+                                                  : _textMuted,
+                                              fontSize: 13,
+                                              height: 1.35,
+                                              fontWeight: hasUnread
+                                                  ? FontWeight.w600
+                                                  : FontWeight.normal,
+                                            ),
+                                          ),
+                                        ),
+                                        if (hasUnread) ...[
+                                          const SizedBox(width: 10),
+                                          Container(
+                                            constraints: const BoxConstraints(
+                                              minWidth: 22,
+                                              minHeight: 22,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 3,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: _cyan,
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              unreadCount > 99 ? '99+' : '$unreadCount',
+                                              style: const TextStyle(
+                                                color: _badgeInk,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.chevron_right_rounded,
+                                color: _textMuted,
+                                size: 22,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
               },
             );
           }
 
           if (state is ChatError) {
-            return Center(child: Text(state.message));
+            return _buildErrorState(state.message);
           }
 
-          return const SizedBox();
+          return const SizedBox.shrink();
         },
+      ),
+    );
+  }
+
+  Widget _buildAvatar({
+    required String? avatarUrl,
+    required String username,
+    required bool hasUnread,
+  }) {
+    final bool hasAvatar = avatarUrl != null && avatarUrl.isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: hasUnread ? _cyan : _outline,
+          width: hasUnread ? 1.5 : 1,
+        ),
+      ),
+      child: CircleAvatar(
+        radius: 25,
+        backgroundColor: _surfaceElevated,
+        backgroundImage: hasAvatar ? NetworkImage(avatarUrl) : null,
+        child: hasAvatar
+            ? null
+            : Text(
+                username.isNotEmpty ? username[0].toUpperCase() : '?',
+                style: const TextStyle(
+                  color: _cyan,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 82,
+              height: 82,
+              decoration: BoxDecoration(
+                color: _surface,
+                shape: BoxShape.circle,
+                border: Border.all(color: _cyan.withValues(alpha: 0.55)),
+              ),
+              child: const Icon(
+                Icons.forum_outlined,
+                size: 35,
+                color: _cyan,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _pageTextMuted,
+                fontSize: 14,
+                height: 1.45,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFFF5263).withValues(alpha: 0.7)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.error_outline_rounded, color: Color(0xFFFF5263)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(color: _textPrimary, height: 1.4),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

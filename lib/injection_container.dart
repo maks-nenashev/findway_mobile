@@ -80,10 +80,18 @@ Future<void> init() async {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-
-        // Preserve the existing behavior: HTTP 4xx responses are
-        // returned as Response objects instead of DioException.
         validateStatus: (status) => status != null && status < 500,
+      ),
+    );
+
+    // Dynamic Accept-Language Header Interceptor
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          final locale = sl<LocaleRepository>().getCachedLocale();
+          options.headers['Accept-Language'] = locale;
+          return handler.next(options);
+        },
       ),
     );
 
@@ -223,38 +231,32 @@ Future<void> init() async {
 // ===========================================================
 
 String getBaseUrl() {
-  // 1. Высший приоритет: явный URL из флага сборки (--dart-define=BASE_URL=...)
   const String customUrl = String.fromEnvironment('BASE_URL');
   if (customUrl.isNotEmpty) {
     return customUrl;
   }
 
-  // 2. Web-платформа
   if (kIsWeb) {
     return 'http://localhost:3000';
   }
 
-  // 3. Android (Физическое устройство / Эмулятор)
   if (Platform.isAndroid) {
-    // Флаг для туннеля ADB Reverse (по умолчанию выключен, чтобы не зависеть от сокета ADB)
     const bool useAdbReverse = bool.fromEnvironment('ADB_REVERSE', defaultValue: false);
     if (useAdbReverse) {
       return 'http://localhost:3000';
     }
 
-    // Флаг для Android Emulator (AVD)
     const bool isEmulator = bool.fromEnvironment('EMULATOR', defaultValue: false);
     if (isEmulator) {
       return 'http://10.0.2.2:3000';
     }
 
-    // По умолчанию для физического телефона — прямой IP ThinkPad в локальной сети
     return 'http://192.168.1.127:3000';
   }
 
-  // 4. Linux Desktop / iOS
   return 'http://127.0.0.1:3000';
 }
+
 // ===========================================================
 // LOCALE REPOSITORY
 // ===========================================================
@@ -266,5 +268,9 @@ class LocaleRepository {
 
   String getCachedLocale() {
     return prefs.getString('locale') ?? 'uk';
+  }
+
+  Future<void> setLocale(String locale) async {
+    await prefs.setString('locale', locale);
   }
 }
