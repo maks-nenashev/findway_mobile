@@ -7,11 +7,10 @@ abstract class ProfileEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-// Изменили название и сделали параметр позиционным для краткости
-class GetProfileData extends ProfileEvent {
+class FetchProfileEvent extends ProfileEvent {
   final String locale;
 
-  const GetProfileData(this.locale);
+  const FetchProfileEvent({required this.locale});
 
   @override
   List<Object?> get props => [locale];

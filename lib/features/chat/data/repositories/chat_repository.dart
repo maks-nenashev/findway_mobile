@@ -1,4 +1,6 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+
 import '../models/message_model.dart';
 
 class ChatRepository {
@@ -6,8 +8,11 @@ class ChatRepository {
 
   ChatRepository({required this.client});
 
-  /// Получение списка сообщений диалога с конкретным пользователем
-  Future<List<MessageModel>> getConversation(int recipientId, String locale) async {
+  /// Загружает сообщения диалога с конкретным пользователем.
+  Future<List<MessageModel>> getConversation(
+    int recipientId,
+    String locale,
+  ) async {
     try {
       final response = await client.get(
         '/api/v1/messages/$recipientId',
@@ -22,8 +27,35 @@ class ChatRepository {
     }
   }
 
-  /// Отправка нового сообщения
-  Future<MessageModel> sendMessage(int recipientId, String body, String locale) async {
+  /// Загружает централизованные переводы Rails из уже существующего endpoint.
+  /// Если запрос переводов временно не удался, чат всё равно должен открыться:
+  /// экран использует fallback-текст, а загрузка сообщений не блокируется.
+  Future<Map<String, dynamic>> getTranslations(String locale) async {
+    try {
+      final response = await client.get(
+        '/api/v1/search/new_meta',
+        queryParameters: {'locale': locale},
+      );
+
+      final data = response.data;
+      if (data is Map && data['translations'] is Map) {
+        return Map<String, dynamic>.from(data['translations'] as Map);
+      }
+
+      debugPrint('[ChatRepository] Translation response has unexpected format.');
+      return <String, dynamic>{};
+    } catch (e) {
+      debugPrint('[ChatRepository] Could not load translations: $e');
+      return <String, dynamic>{};
+    }
+  }
+
+  /// Отправляет новое сообщение.
+  Future<MessageModel> sendMessage(
+    int recipientId,
+    String body,
+    String locale,
+  ) async {
     try {
       final response = await client.post(
         '/api/v1/messages',
@@ -40,7 +72,7 @@ class ChatRepository {
     }
   }
 
-  /// Удаление переписки с пользователем
+  /// Удаляет переписку с пользователем.
   Future<void> deleteConversation(int recipientId) async {
     try {
       await client.delete(
@@ -54,7 +86,7 @@ class ChatRepository {
     }
   }
 
-  /// Получение списка диалогов (Inbox)
+  /// Получает список диалогов (Inbox).
   Future<List<dynamic>> getInbox(String locale) async {
     try {
       final response = await client.get(
@@ -69,7 +101,7 @@ class ChatRepository {
     }
   }
 
-  /// Получение общего количества непрочитанных сообщений
+  /// Получает общее количество непрочитанных сообщений.
   Future<int> getTotalUnreadCount() async {
     try {
       final response = await client.get('/api/v1/messages/unread_total');
@@ -81,11 +113,8 @@ class ChatRepository {
       return 0;
     } on DioException catch (e) {
       // 401 Unauthorized — штатное гостевое состояние.
-      // Не бросаем исключение, чтобы не ломать фоновый опрос и не засорять логи.
-      if (e.response?.statusCode == 401) {
-        return 0;
-      }
-      // Безопасный фоллбек для остальных ошибок (500, таймауты и т.д.)
+      // Не бросаем исключение, чтобы не ломать фоновый опрос.
+      if (e.response?.statusCode == 401) return 0;
       return 0;
     } catch (_) {
       return 0;

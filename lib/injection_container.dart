@@ -80,10 +80,18 @@ Future<void> init() async {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-
-        // Preserve the existing behavior: HTTP 4xx responses are
-        // returned as Response objects instead of DioException.
         validateStatus: (status) => status != null && status < 500,
+      ),
+    );
+
+    // Dynamic Accept-Language Header Interceptor
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          final locale = sl<LocaleRepository>().getCachedLocale();
+          options.headers['Accept-Language'] = locale;
+          return handler.next(options);
+        },
       ),
     );
 
@@ -222,18 +230,46 @@ Future<void> init() async {
 // HELPER FUNCTIONS
 // ===========================================================
 
-const bool useRealDevice = false;
-
 String getBaseUrl() {
+  // 1. ВЫСШИЙ ПРИОРИТЕТ: Явный URL из флага сборки (--dart-define=BASE_URL=https://...)
+  const String customUrl = String.fromEnvironment('BASE_URL');
+  if (customUrl.isNotEmpty) {
+    return customUrl;
+  }
+
+  // 2. PRODUCTION (RELEASE BUILD ДЛЯ GOOGLE PLAY / APP STORE)
+  // Автоматически включается при `flutter build appbundle --release`
+  if (kReleaseMode) {
+    return 'https://findway.pro'; // 👈 Укажи здесь твой боевой HTTPS-домен с валидным SSL
+  }
+
+  // 3. LOCAL DEVELOPMENT (DEBUG MODE)
+  // Полностью сохраняет твою удобную схему для эмуляторов, кабеля и Wi-Fi
+
+  // Web-платформа
   if (kIsWeb) {
     return 'http://localhost:3000';
   }
 
+  // Android (Физическое устройство / Эмулятор)
   if (Platform.isAndroid) {
-    // Физический телефон подключается к компьютеру по локальному IP.
-    return 'http://10.235.162.74:3000';
+    // Флаг для туннеля ADB Reverse
+    const bool useAdbReverse = bool.fromEnvironment('ADB_REVERSE', defaultValue: false);
+    if (useAdbReverse) {
+      return 'http://localhost:3000';
+    }
+
+    // Флаг для Android Emulator (AVD)
+    const bool isEmulator = bool.fromEnvironment('EMULATOR', defaultValue: false);
+    if (isEmulator) {
+      return 'http://10.0.2.2:3000';
+    }
+
+    // По умолчанию для физического телефона — прямой IP ThinkPad в локальной сети
+    return 'http://192.168.1.127:3000';
   }
 
+  // Linux Desktop / iOS
   return 'http://127.0.0.1:3000';
 }
 // ===========================================================
@@ -247,5 +283,9 @@ class LocaleRepository {
 
   String getCachedLocale() {
     return prefs.getString('locale') ?? 'uk';
+  }
+
+  Future<void> setLocale(String locale) async {
+    await prefs.setString('locale', locale);
   }
 }

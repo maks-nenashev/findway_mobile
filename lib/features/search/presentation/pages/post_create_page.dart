@@ -1,11 +1,11 @@
 // =============================================================================
 // FILE: lib/features/search/presentation/pages/post_create_page.dart
 // LAYER: Presentation Layer (Page / Form)
-// RESPONSIBILITY: Post creation form with expandable ID panel placed under
-//                 category selector, featuring dynamic field counts and toggle.
+// RESPONSIBILITY: Post creation form with expandable ID panel.
 // =============================================================================
 
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
@@ -17,9 +17,11 @@ import 'package:findway_mobile/features/search/presentation/bloc/search_event.da
 import 'package:findway_mobile/features/search/presentation/bloc/search_state.dart';
 import 'package:findway_mobile/features/search/data/models/filter_model.dart';
 import 'package:findway_mobile/features/search/presentation/widgets/map/location_picker_widget.dart';
+
 // =============================================================================
 // 1. MAIN POST CREATE PAGE WIDGET & STATE
 // =============================================================================
+
 class PostCreatePage extends StatefulWidget {
   final String initialCategory;
 
@@ -49,8 +51,8 @@ class _PostCreatePageState extends State<PostCreatePage> {
   String _text = '';
 
   int? _localId;
-  int? _choiceId; // Subcategory (Phone / Cat ID)
-  int? _actionId; // Action Choice (Lost / Found)
+  int? _choiceId;
+  int? _actionId;
 
   // Geolocation
   double? _latitude;
@@ -66,6 +68,7 @@ class _PostCreatePageState extends State<PostCreatePage> {
   bool _isThingMetadataOpen = false;
   final Map<String, String> _thingMetadataValues = {};
 
+  // Maximum four images per post.
   List<File> _images = [];
 
   Map<String, dynamic> _translations = {};
@@ -80,19 +83,22 @@ class _PostCreatePageState extends State<PostCreatePage> {
     'thing_identifiers': 'THING IDENTIFIERS & SPECS',
   };
 
-  // =============================================================================
+  // ===========================================================================
   // 2. LIFECYCLE & HELPERS
-  // =============================================================================
+  // ===========================================================================
+
   @override
   void initState() {
     super.initState();
     _category = widget.initialCategory;
 
     final bloc = context.read<SearchBloc>();
-    bloc.add(LoadFilters(
-      category: _category,
-      locale: bloc.currentLocale,
-    ));
+    bloc.add(
+      LoadFilters(
+        category: _category,
+        locale: bloc.currentLocale,
+      ),
+    );
   }
 
   String tr(String key) {
@@ -101,7 +107,10 @@ class _PostCreatePageState extends State<PostCreatePage> {
 
   bool get _isAnimalCategory {
     final cat = _category.toLowerCase().trim();
-    return cat == 'animals' || cat == 'animal' || cat == 'sense' || cat == 'senses';
+    return cat == 'animals' ||
+        cat == 'animal' ||
+        cat == 'sense' ||
+        cat == 'senses';
   }
 
   bool get _isThingCategory {
@@ -111,41 +120,71 @@ class _PostCreatePageState extends State<PostCreatePage> {
 
   String? get _selectedSubCategoryLabel {
     if (_choiceId == null || _filters.length < 2) return null;
+
     final subFilter = _filters[1];
     final options = subFilter.options ?? [];
+
     for (final opt in options) {
       if (opt.id == _choiceId) {
         return opt.label;
       }
     }
+
     return null;
   }
 
-  // =============================================================================
+  // ===========================================================================
   // 3. IMAGE PICKER
-  // =============================================================================
+  // ===========================================================================
+
   Future<void> _pickImagesMobile() async {
-    final selected = await _picker.pickMultiImage(imageQuality: 70, maxWidth: 1440);
-    if (selected.isNotEmpty) {
-      setState(() {
-        _images = [..._images, ...selected.map((e) => File(e.path))].take(4).toList();
-      });
-    }
+    final remaining = 4 - _images.length;
+    if (remaining <= 0) return;
+
+    final selected = await _picker.pickMultiImage(
+      imageQuality: 70,
+      maxWidth: 1440,
+    );
+
+    if (!mounted || selected.isEmpty) return;
+
+    setState(() {
+      final available = 4 - _images.length;
+      _images = [
+        ..._images,
+        ...selected.take(available).map((e) => File(e.path)),
+      ];
+    });
   }
 
   Future<void> _pickImagesDesktop() async {
-    final typeGroup = XTypeGroup(label: 'images', extensions: ['jpg', 'jpeg', 'png']);
-    final files = await openFiles(acceptedTypeGroups: [typeGroup]);
-    if (files.isNotEmpty) {
-      setState(() {
-        _images = [..._images, ...files.map((f) => File(f.path))].take(4).toList();
-      });
-    }
+    final remaining = 4 - _images.length;
+    if (remaining <= 0) return;
+
+    final typeGroup = XTypeGroup(
+      label: 'images',
+      extensions: ['jpg', 'jpeg', 'png'],
+    );
+
+    final files = await openFiles(
+      acceptedTypeGroups: [typeGroup],
+    );
+
+    if (!mounted || files.isEmpty) return;
+
+    setState(() {
+      final available = 4 - _images.length;
+      _images = [
+        ..._images,
+        ...files.take(available).map((f) => File(f.path)),
+      ];
+    });
   }
 
-  // =============================================================================
+  // ===========================================================================
   // 4. MAIN BUILD METHOD
-  // =============================================================================
+  // ===========================================================================
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<SearchBloc, SearchState>(
@@ -183,7 +222,10 @@ class _PostCreatePageState extends State<PostCreatePage> {
             backgroundColor: _bgDark,
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white),
+              icon: const Icon(
+                Icons.close,
+                color: Colors.white,
+              ),
               onPressed: () => Navigator.pop(context),
             ),
             title: Text(
@@ -196,7 +238,11 @@ class _PostCreatePageState extends State<PostCreatePage> {
             ),
           ),
           body: _filters.isEmpty
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFF00F2FF)))
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF00F2FF),
+                  ),
+                )
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
                   child: Form(
@@ -207,23 +253,26 @@ class _PostCreatePageState extends State<PostCreatePage> {
                         _buildPhotos(),
                         const SizedBox(height: 24),
                         _buildFilters(),
-                        
                         if (_isThingCategory) ...[
                           const SizedBox(height: 16),
                           _buildThingMetadataSection(),
                         ],
-
                         if (_isAnimalCategory) ...[
                           const SizedBox(height: 16),
                           _buildAnimalMetadataSection(),
                         ],
-
                         const SizedBox(height: 20),
-                        _input(tr('tytul_2'), (v) => _title = v),
+                        _input(
+                          tr('tytul_2'),
+                          (v) => _title = v,
+                        ),
                         const SizedBox(height: 20),
-                        _input(tr('text_2'), (v) => _text = v, max: 6),
+                        _input(
+                          tr('text_2'),
+                          (v) => _text = v,
+                          max: 6,
+                        ),
                         const SizedBox(height: 24),
-
                         LocationPickerWidget(
                           translations: _translations,
                           onLocationSelected: (lat, lng) {
@@ -235,7 +284,6 @@ class _PostCreatePageState extends State<PostCreatePage> {
                           },
                         ),
                         const SizedBox(height: 24),
-
                         _submitButton(),
                         const SizedBox(height: 40),
                       ],
@@ -247,17 +295,19 @@ class _PostCreatePageState extends State<PostCreatePage> {
     );
   }
 
-  // =============================================================================
-  // 5. FORM COMPONENTS
-  // =============================================================================
+  // ===========================================================================
+  // 5. PHOTO PREVIEWS WITH DELETE BUTTON
+  // ===========================================================================
+
   Widget _buildPhotos() {
     return SizedBox(
-      height: 90,
+      height: 100,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: _images.length < 4 ? _images.length + 1 : 4,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) {
+          // Add-photo tile. It disappears when four photos are selected.
           if (i == _images.length && _images.length < 4) {
             return GestureDetector(
               onTap: () async {
@@ -272,21 +322,80 @@ class _PostCreatePageState extends State<PostCreatePage> {
                 decoration: BoxDecoration(
                   color: _cardDark,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: _accentCyan.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: _accentCyan.withValues(alpha: 0.3),
+                  ),
                 ),
-                child: Icon(Icons.add_a_photo, color: _accentOrange),
+                child: Icon(
+                  Icons.add_a_photo,
+                  color: _accentOrange,
+                ),
               ),
             );
           }
 
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Image.file(_images[i], width: 90, height: 90, fit: BoxFit.cover),
+          // Selected photo with a removable cross in the top-right corner.
+          return SizedBox(
+            width: 90,
+            height: 90,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.file(
+                      _images[i],
+                      width: 90,
+                      height: 90,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) {
+                        return Container(
+                          color: _cardDark,
+                          child: const Icon(
+                            Icons.broken_image_outlined,
+                            color: Colors.white54,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Material(
+                    color: Colors.black.withValues(alpha: 0.75),
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () {
+                        setState(() {
+                          _images.removeAt(i);
+                        });
+                      },
+                      child: const SizedBox(
+                        width: 26,
+                        height: 26,
+                        child: Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 17,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           );
         },
       ),
     );
   }
+
+  // ===========================================================================
+  // 6. FORM COMPONENTS
+  // ===========================================================================
 
   Widget _buildFilters() {
     final action = _filters.first;
@@ -295,16 +404,33 @@ class _PostCreatePageState extends State<PostCreatePage> {
 
     return Column(
       children: [
-        _dropdown(action, _actionId, (v) => _actionId = v),
+        _dropdown(
+          action,
+          _actionId,
+          (v) => _actionId = v,
+        ),
         const SizedBox(height: 16),
-        if (sub != null) _dropdown(sub, _choiceId, (v) => _choiceId = v),
+        if (sub != null)
+          _dropdown(
+            sub,
+            _choiceId,
+            (v) => _choiceId = v,
+          ),
         const SizedBox(height: 16),
-        _dropdown(region, _localId, (v) => _localId = v),
+        _dropdown(
+          region,
+          _localId,
+          (v) => _localId = v,
+        ),
       ],
     );
   }
 
-  Widget _dropdown(FilterModel f, int? val, Function(int?) onChanged) {
+  Widget _dropdown(
+    FilterModel f,
+    int? val,
+    Function(int?) onChanged,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -314,10 +440,15 @@ class _PostCreatePageState extends State<PostCreatePage> {
       child: DropdownButtonFormField<int>(
         initialValue: val,
         items: f.options
-                ?.map((e) => DropdownMenuItem(
-                      value: e.id,
-                      child: Text(e.label, style: const TextStyle(color: Colors.white)),
-                    ))
+                ?.map(
+                  (e) => DropdownMenuItem(
+                    value: e.id,
+                    child: Text(
+                      e.label,
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                )
                 .toList() ??
             [],
         onChanged: (v) {
@@ -336,11 +467,16 @@ class _PostCreatePageState extends State<PostCreatePage> {
     );
   }
 
-  Widget _input(String hint, Function(String) onChanged, {int max = 1}) {
+  Widget _input(
+    String hint,
+    Function(String) onChanged, {
+    int max = 1,
+  }) {
     return TextFormField(
       maxLines: max,
       onChanged: onChanged,
-      validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+      validator: (v) =>
+          v == null || v.trim().isEmpty ? 'Required' : null,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
@@ -355,9 +491,10 @@ class _PostCreatePageState extends State<PostCreatePage> {
     );
   }
 
-  // =============================================================================
-  // 6. COLLAPSIBLE THING METADATA PANEL (Under Category Select)
-  // =============================================================================
+  // ===========================================================================
+  // 7. COLLAPSIBLE THING METADATA PANEL
+  // ===========================================================================
+
   Widget _buildThingMetadataSection() {
     final String label = _selectedSubCategoryLabel ?? '';
     final List<String> fields = _getFieldsForCategoryLabel(label);
@@ -375,24 +512,33 @@ class _PostCreatePageState extends State<PostCreatePage> {
               });
             },
             icon: Icon(
-              _isThingMetadataOpen ? Icons.keyboard_arrow_up : Icons.security,
+              _isThingMetadataOpen
+                  ? Icons.keyboard_arrow_up
+                  : Icons.security,
               size: 18,
             ),
             label: Text(
               fieldsCount > 0
                   ? 'ID SPECIFIC PARAMETERS ($fieldsCount)'
                   : 'ID SPECIFIC PARAMETERS',
-              style: const TextStyle(fontFamily: 'Orbitron', fontSize: 11, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontFamily: 'Orbitron',
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: _accentCyan,
-              side: BorderSide(color: _accentCyan.withValues(alpha: 0.6)),
+              side: BorderSide(
+                color: _accentCyan.withValues(alpha: 0.6),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
           ),
         ),
-
         if (_isThingMetadataOpen) ...[
           const SizedBox(height: 12),
           Container(
@@ -400,7 +546,10 @@ class _PostCreatePageState extends State<PostCreatePage> {
             decoration: BoxDecoration(
               color: _cardDark,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _accentCyan.withValues(alpha: 0.3), width: 1),
+              border: Border.all(
+                color: _accentCyan.withValues(alpha: 0.3),
+                width: 1,
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -408,7 +557,10 @@ class _PostCreatePageState extends State<PostCreatePage> {
                 if (fields.isEmpty)
                   Text(
                     tr('thing_metadata.select_category_prompt'),
-                    style: TextStyle(color: _textMuted, fontSize: 12),
+                    style: TextStyle(
+                      color: _textMuted,
+                      fontSize: 12,
+                    ),
                   )
                 else ...[
                   Text(
@@ -420,17 +572,22 @@ class _PostCreatePageState extends State<PostCreatePage> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const Divider(color: Colors.white12, height: 20),
+                  const Divider(
+                    color: Colors.white12,
+                    height: 20,
+                  ),
                   ...fields.map((field) {
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 12.0),
+                      padding: const EdgeInsets.only(bottom: 12),
                       child: _metaInputField(
                         label: _getAttrLabel(field),
                         hint: _getAttrPlaceholder(field),
                         icon: _getIconForField(field),
                         iconColor: _accentCyan,
                         initialVal: _thingMetadataValues[field] ?? '',
-                        onChanged: (v) => _thingMetadataValues[field] = v.trim(),
+                        onChanged: (v) {
+                          _thingMetadataValues[field] = v.trim();
+                        },
                       ),
                     );
                   }),
@@ -443,9 +600,10 @@ class _PostCreatePageState extends State<PostCreatePage> {
     );
   }
 
-  // =============================================================================
-  // 7. ANIMAL METADATA SECTION BUILDER
-  // =============================================================================
+  // ===========================================================================
+  // 8. ANIMAL METADATA SECTION
+  // ===========================================================================
+
   Widget _buildAnimalMetadataSection() {
     final String sectionTitle = tr('animal_identifiers');
 
@@ -454,14 +612,21 @@ class _PostCreatePageState extends State<PostCreatePage> {
       decoration: BoxDecoration(
         color: _cardDark,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _accentCyan.withValues(alpha: 0.3), width: 1),
+        border: Border.all(
+          color: _accentCyan.withValues(alpha: 0.3),
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.shield_outlined, color: _accentCyan, size: 18),
+              Icon(
+                Icons.shield_outlined,
+                color: _accentCyan,
+                size: 18,
+              ),
               const SizedBox(width: 8),
               Text(
                 sectionTitle.toUpperCase(),
@@ -474,7 +639,10 @@ class _PostCreatePageState extends State<PostCreatePage> {
               ),
             ],
           ),
-          const Divider(color: Colors.white12, height: 24),
+          const Divider(
+            color: Colors.white12,
+            height: 24,
+          ),
           _metaInputField(
             label: 'Microchip ID',
             hint: 'e.g. 98512...',
@@ -503,28 +671,49 @@ class _PostCreatePageState extends State<PostCreatePage> {
     );
   }
 
-  // =============================================================================
-  // 8. METADATA INPUT HELPERS
-  // =============================================================================
+  // ===========================================================================
+  // 9. METADATA INPUT HELPERS
+  // ===========================================================================
+
   List<String> _getFieldsForCategoryLabel(String? label) {
     if (label == null || label.trim().isEmpty) return [];
 
     final lower = label.toLowerCase();
-    if (lower.contains('doc') || lower.contains('документ') || lower.contains('dokumen')) {
+
+    if (lower.contains('doc') ||
+        lower.contains('документ') ||
+        lower.contains('dokumen')) {
       return ['document_type', 'document_number', 'full_name'];
-    } else if (lower.contains('phone') || lower.contains('телефон') || lower.contains('telefon') || lower.contains('gadget')) {
+    } else if (lower.contains('phone') ||
+        lower.contains('телефон') ||
+        lower.contains('telefon') ||
+        lower.contains('gadget')) {
       return ['imei', 'serial_number', 'brand_model', 'color'];
-    } else if (lower.contains('car') || lower.contains('авто') || lower.contains('машин') || lower.contains('samochód')) {
+    } else if (lower.contains('car') ||
+        lower.contains('авто') ||
+        lower.contains('машин') ||
+        lower.contains('samochód')) {
       return ['vin', 'license_plate', 'brand_model', 'color'];
     } else if (lower.contains('moto') || lower.contains('мото')) {
       return ['vin', 'license_plate', 'brand_model', 'color'];
-    } else if (lower.contains('bike') || lower.contains('вело') || lower.contains('rower')) {
+    } else if (lower.contains('bike') ||
+        lower.contains('вело') ||
+        lower.contains('rower')) {
       return ['frame_number', 'brand_model', 'color'];
-    } else if (lower.contains('jewel') || lower.contains('ювелир') || lower.contains('прикрас') || lower.contains('biżuteria')) {
+    } else if (lower.contains('jewel') ||
+        lower.contains('ювелир') ||
+        lower.contains('прикрас') ||
+        lower.contains('biżuteria')) {
       return ['brand_model', 'serial_number', 'hallmark', 'engraving'];
-    } else if (lower.contains('key') || lower.contains('ключ') || lower.contains('klucz')) {
+    } else if (lower.contains('key') ||
+        lower.contains('ключ') ||
+        lower.contains('klucz')) {
       return ['key_type', 'keychain_description'];
-    } else if (lower.contains('bag') || lower.contains('сумк') || lower.contains('кошел') || lower.contains('portfel') || lower.contains('wallet')) {
+    } else if (lower.contains('bag') ||
+        lower.contains('сумк') ||
+        lower.contains('кошел') ||
+        lower.contains('portfel') ||
+        lower.contains('wallet')) {
       return ['brand_model', 'color', 'contents_description'];
     }
 
@@ -534,37 +723,59 @@ class _PostCreatePageState extends State<PostCreatePage> {
   IconData _getIconForField(String key) {
     switch (key) {
       case 'vin':
-      case 'license_plate': return Icons.directions_car_outlined;
-      case 'imei': return Icons.phone_android_outlined;
+      case 'license_plate':
+        return Icons.directions_car_outlined;
+      case 'imei':
+        return Icons.phone_android_outlined;
       case 'serial_number':
-      case 'frame_number': return Icons.pin_outlined;
+      case 'frame_number':
+        return Icons.pin_outlined;
       case 'document_type':
-      case 'document_number': return Icons.badge_outlined;
-      case 'full_name': return Icons.person_outline;
-      case 'brand_model': return Icons.sell_outlined;
-      case 'color': return Icons.palette_outlined;
+      case 'document_number':
+        return Icons.badge_outlined;
+      case 'full_name':
+        return Icons.person_outline;
+      case 'brand_model':
+        return Icons.sell_outlined;
+      case 'color':
+        return Icons.palette_outlined;
       case 'hallmark':
-      case 'engraving': return Icons.diamond_outlined;
+      case 'engraving':
+        return Icons.diamond_outlined;
       case 'key_type':
-      case 'keychain_description': return Icons.key_outlined;
-      case 'contents_description': return Icons.inventory_2_outlined;
-      default: return Icons.tag;
+      case 'keychain_description':
+        return Icons.key_outlined;
+      case 'contents_description':
+        return Icons.inventory_2_outlined;
+      default:
+        return Icons.tag;
     }
   }
 
   String _getAttrLabel(String field) {
     final trKey = 'thing_metadata.attributes.$field';
+
     if (_translations.containsKey(trKey) && _translations[trKey] != null) {
       return _translations[trKey].toString();
     }
-    return field.split('_').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' ');
+
+    return field
+        .split('_')
+        .map(
+          (w) => w.isNotEmpty
+              ? '${w[0].toUpperCase()}${w.substring(1)}'
+              : '',
+        )
+        .join(' ');
   }
 
   String _getAttrPlaceholder(String field) {
     final trKey = 'thing_metadata.placeholders.$field';
+
     if (_translations.containsKey(trKey) && _translations[trKey] != null) {
       return _translations[trKey].toString();
     }
+
     return '';
   }
 
@@ -579,16 +790,33 @@ class _PostCreatePageState extends State<PostCreatePage> {
     return TextFormField(
       initialValue: initialVal,
       onChanged: onChanged,
-      style: const TextStyle(color: Colors.white, fontSize: 13, fontFamily: 'Monospace'),
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 13,
+        fontFamily: 'Monospace',
+      ),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11),
-        labelStyle: TextStyle(color: _textMuted, fontSize: 12),
-        prefixIcon: Icon(icon, color: iconColor, size: 18),
+        hintStyle: TextStyle(
+          color: Colors.white.withValues(alpha: 0.3),
+          fontSize: 11,
+        ),
+        labelStyle: TextStyle(
+          color: _textMuted,
+          fontSize: 12,
+        ),
+        prefixIcon: Icon(
+          icon,
+          color: iconColor,
+          size: 18,
+        ),
         filled: true,
         fillColor: _bgDark,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -597,9 +825,10 @@ class _PostCreatePageState extends State<PostCreatePage> {
     );
   }
 
-  // =============================================================================
-  // 9. SUBMIT BUTTON
-  // =============================================================================
+  // ===========================================================================
+  // 10. SUBMIT BUTTON
+  // ===========================================================================
+
   Widget _submitButton() {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
@@ -612,6 +841,7 @@ class _PostCreatePageState extends State<PostCreatePage> {
       onPressed: () {
         if (_formKey.currentState!.validate()) {
           Map<String, dynamic>? animalMetadata;
+
           if (_isAnimalCategory) {
             animalMetadata = {
               'chip_number': _chipNumber.trim(),
@@ -621,29 +851,36 @@ class _PostCreatePageState extends State<PostCreatePage> {
           }
 
           Map<String, dynamic>? thingMetadata;
+
           if (_isThingCategory) {
-            final cleaned = Map<String, dynamic>.from(_thingMetadataValues)
-              ..removeWhere((k, v) => v == null || v.toString().trim().isEmpty);
+            final cleaned = Map<String, dynamic>.from(
+              _thingMetadataValues,
+            )..removeWhere(
+                (k, v) => v == null || v.toString().trim().isEmpty,
+              );
+
             if (cleaned.isNotEmpty) {
               thingMetadata = cleaned;
             }
           }
 
-          context.read<SearchBloc>().add(CreatePost(
-                category: _category,
-                title: _title.trim(),
-                text: _text.trim(),
-                localId: _localId!,
-                choiceId: _actionId!,
-                catId: _choiceId,
-                latitude: _latitude,
-                longitude: _longitude,
-                address: _address.trim(),
-                animalMetadata: animalMetadata,
-                thingMetadata: thingMetadata,
-                locale: context.read<SearchBloc>().currentLocale,
-                imagePaths: _images.map((e) => e.path).toList(),
-              ));
+          context.read<SearchBloc>().add(
+                CreatePost(
+                  category: _category,
+                  title: _title.trim(),
+                  text: _text.trim(),
+                  localId: _localId!,
+                  choiceId: _actionId!,
+                  catId: _choiceId,
+                  latitude: _latitude,
+                  longitude: _longitude,
+                  address: _address.trim(),
+                  animalMetadata: animalMetadata,
+                  thingMetadata: thingMetadata,
+                  locale: context.read<SearchBloc>().currentLocale,
+                  imagePaths: _images.map((e) => e.path).toList(),
+                ),
+              );
         }
       },
       child: Text(

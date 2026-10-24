@@ -1,3 +1,10 @@
+// =============================================================================
+// FILE: lib/features/search/presentation/bloc/search_state.dart
+// LAYER: Presentation Layer (BLoC State)
+// RESPONSIBILITY: Immutable state classes representing UI search pipeline states,
+//                 including Pagy pagination metadata for initial filter loads.
+// =============================================================================
+
 import 'package:equatable/equatable.dart';
 import '../../data/models/filter_model.dart';
 import '../../data/models/post_detail_model.dart';
@@ -102,6 +109,9 @@ class FiltersLoaded extends SearchState {
   final Map<String, dynamic> uiTranslations;
   final String currentCategory;
   final List<dynamic> results;
+  final int currentPage;
+  final int lastPage;
+  final int totalCount;
 
   const FiltersLoaded({
     super.currentLocale,
@@ -111,6 +121,9 @@ class FiltersLoaded extends SearchState {
     required this.uiTranslations,
     required this.currentCategory,
     required this.results,
+    this.currentPage = 1,
+    this.lastPage = 1,
+    this.totalCount = 0,
   });
 
   @override
@@ -121,7 +134,10 @@ class FiltersLoaded extends SearchState {
         selectedValues,
         uiTranslations,
         currentCategory,
-        results
+        results,
+        currentPage,
+        lastPage,
+        totalCount,
       ];
 
   FiltersLoaded copyWith({
@@ -132,6 +148,9 @@ class FiltersLoaded extends SearchState {
     String? currentCategory,
     String? currentLocale,
     List<dynamic>? results,
+    int? currentPage,
+    int? lastPage,
+    int? totalCount,
   }) =>
       FiltersLoaded(
         currentLocale: currentLocale ?? this.currentLocale,
@@ -141,6 +160,9 @@ class FiltersLoaded extends SearchState {
         uiTranslations: uiTranslations ?? this.uiTranslations,
         currentCategory: currentCategory ?? this.currentCategory,
         results: results ?? this.results,
+        currentPage: currentPage ?? this.currentPage,
+        lastPage: lastPage ?? this.lastPage,
+        totalCount: totalCount ?? this.totalCount,
       );
 }
 
@@ -151,6 +173,9 @@ class SearchSuccess extends SearchState {
   final Map<String, dynamic> uiTranslations;
   final List<FilterModel> filters;
   final Map<String, dynamic> selectedValues;
+  final int currentPage;
+  final int lastPage;
+  final int totalCount;
 
   const SearchSuccess(
     this.results, {
@@ -159,6 +184,9 @@ class SearchSuccess extends SearchState {
     required this.uiTranslations,
     required this.filters,
     required this.selectedValues,
+    this.currentPage = 1,
+    this.lastPage = 1,
+    this.totalCount = 0,
   });
 
   @override
@@ -168,21 +196,33 @@ class SearchSuccess extends SearchState {
         results,
         uiTranslations,
         filters,
-        selectedValues
+        selectedValues,
+        currentPage,
+        lastPage,
+        totalCount,
       ];
 
   SearchSuccess copyWith({
     int? tabIndex,
     String? currentLocale,
+    List<dynamic>? results,
+    Map<String, dynamic>? uiTranslations,
+    List<FilterModel>? filters,
     Map<String, dynamic>? selectedValues,
+    int? currentPage,
+    int? lastPage,
+    int? totalCount,
   }) =>
       SearchSuccess(
-        results,
+        results ?? this.results,
         currentLocale: currentLocale ?? this.currentLocale,
         tabIndex: tabIndex ?? this.tabIndex,
-        uiTranslations: uiTranslations,
-        filters: filters,
+        uiTranslations: uiTranslations ?? this.uiTranslations,
+        filters: filters ?? this.filters,
         selectedValues: selectedValues ?? this.selectedValues,
+        currentPage: currentPage ?? this.currentPage,
+        lastPage: lastPage ?? this.lastPage,
+        totalCount: totalCount ?? this.totalCount,
       );
 }
 

@@ -1,7 +1,10 @@
+// =============================================================================
+// FILE: lib/features/search/domain/repositories/search_repository.dart
+// LAYER: Domain Layer (Repository Interface)
+// RESPONSIBILITY: Abstract contract defining search and CUD operations,
+//                 preserving full server response with Pagy metadata.
+// =============================================================================
 
-// =============================================================================
-// ABSTRACT SEARCH REPOSITORY CONTRACT
-// =============================================================================
 abstract class SearchRepository {
   // ===========================================================================
   // 1. GET FILTERS DATA
@@ -12,13 +15,14 @@ abstract class SearchRepository {
   });
   
   // ===========================================================================
-  // 2. SEARCH RECORDS
+  // 2. SEARCH RECORDS (Returns dynamic payload preserving Pagy metadata)
   // ===========================================================================
-  Future<List<dynamic>> search({
-    required String category, 
-    required Map<String, dynamic> filters, 
+  Future<Map<String, dynamic>> search({
+    required String category,
+    required Map<String, dynamic> filters,
     required String locale,
   });
+
   
   // ===========================================================================
   // 3. GET POST DETAILS
