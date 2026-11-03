@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "638564768429",
+    "project_id": "findway-74aed",
+    "storage_bucket": "findway-74aed.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:638564768429:android:ce95879e8eadde11b80424",
+        "android_client_info": {
+          "package_name": "pro.findway.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "638564768429-rfna8dq7impctv7bojkqht91ahp3f303.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "pro.findway.app",
+            "certificate_hash": "108bd4b48ef608202f3cbe411dbd2fa4c5d84c09"
+          }
+        },
+        {
+          "client_id": "638564768429-ihlalhtln64ok2unfp4f0k6ldloh0ese.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKQ9NLi67zQLbwP2VEtOE5QoARo9KoCUk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "638564768429-ihlalhtln64ok2unfp4f0k6ldloh0ese.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -24,7 +24,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.findway.findway_mobile"
+    namespace = "pro.findway.app"
 
     compileSdk = 36
     ndkVersion = "28.2.13676358"
@@ -39,7 +39,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.findway.findway_mobile"
+        applicationId = "pro.findway.app"
 
         minSdk = flutter.minSdkVersion
 

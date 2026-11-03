@@ -227,49 +227,33 @@ Future<void> init() async {
 }
 
 // ===========================================================
-// HELPER FUNCTIONS
+// HELPER FUNCTIONS (UNIFIED NETWORK CONFIG)
 // ===========================================================
-
 String getBaseUrl() {
-  // 1. ВЫСШИЙ ПРИОРИТЕТ: Явный URL из флага сборки (--dart-define=BASE_URL=https://...)
+  // 1. ВЫСШИЙ ПРИОРИТЕТ: Ручной оверрайд через --dart-define=BASE_URL=...
+  // Пример для реального телефона: flutter run --dart-define=BASE_URL=http://192.168.1.127:3000
   const String customUrl = String.fromEnvironment('BASE_URL');
   if (customUrl.isNotEmpty) {
     return customUrl;
   }
 
-  // 2. PRODUCTION (RELEASE BUILD ДЛЯ GOOGLE PLAY / APP STORE)
-  // Автоматически включается при `flutter build appbundle --release`
+  // 2. PRODUCTION (RELEASE BUILD ДЛЯ GOOGLE PLAY)
+  // Включается автоматически при `flutter build appbundle --release`
   if (kReleaseMode) {
-    return 'https://findway.pro'; // 👈 Укажи здесь твой боевой HTTPS-домен с валидным SSL
+    return 'https://findway.pro';
   }
 
   // 3. LOCAL DEVELOPMENT (DEBUG MODE)
-  // Полностью сохраняет твою удобную схему для эмуляторов, кабеля и Wi-Fi
-
-  // Web-платформа
   if (kIsWeb) {
     return 'http://localhost:3000';
   }
 
-  // Android (Физическое устройство / Эмулятор)
   if (Platform.isAndroid) {
-    // Флаг для туннеля ADB Reverse
-    const bool useAdbReverse = bool.fromEnvironment('ADB_REVERSE', defaultValue: false);
-    if (useAdbReverse) {
-      return 'http://localhost:3000';
-    }
-
-    // Флаг для Android Emulator (AVD)
-    const bool isEmulator = bool.fromEnvironment('EMULATOR', defaultValue: false);
-    if (isEmulator) {
-      return 'http://10.0.2.2:3000';
-    }
-
-    // По умолчанию для физического телефона — прямой IP ThinkPad в локальной сети
-    return 'http://192.168.1.127:3000';
+    // По умолчанию для Android в Debug — 10.0.2.2 (Loopback на localhost ПК)
+    return 'http://10.0.2.2:3000';
   }
 
-  // Linux Desktop / iOS
+  // Linux Desktop / iOS simulator
   return 'http://127.0.0.1:3000';
 }
 // ===========================================================

@@ -1,6 +1,7 @@
 name: findway_mobile
 description: Global humanitarian search platform.
 publish_to: 'none'
+version: 1.0.0+6
 
 environment:
   sdk: '>=3.1.0 <4.0.0'

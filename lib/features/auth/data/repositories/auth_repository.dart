@@ -27,7 +27,7 @@ class AuthRepository {
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     serverClientId:
-        '620503062302-u4so8o291u7vq3knipnand840rthkgeh.apps.googleusercontent.com',
+        '638564768429-ihlalhtln64ok2unfp4f0k6ldloh0ese.apps.googleusercontent.com',
     scopes: ['email', 'profile'],
   );
 

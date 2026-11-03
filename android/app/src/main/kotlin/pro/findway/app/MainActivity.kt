@@ -1,4 +1,4 @@
-package com.findway.findway_mobile
+package pro.findway.app
 
 import io.flutter.embedding.android.FlutterActivity
 
