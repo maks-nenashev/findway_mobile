@@ -52,7 +52,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
     on<ChangePage>(_onChangePage);
   }
 
-  // ===========================================================================
+// ===========================================================================
   // LOAD FILTERS
   // ===========================================================================
 
@@ -81,8 +81,9 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       final incoming =
           (data['translations'] ?? {}) as Map<String, dynamic>;
 
-      _currentLocale =
-          incoming['locale_code']?.toString() ?? targetLocale;
+      // ✅ ФИКС: Источник истины — выбранная пользователем локаль (targetLocale).
+      // Предотвращает перезапись 'be_fr' / 'be_nl' на 'be', если бэкенд отдал короткий код.
+      _currentLocale = targetLocale;
 
       _translationsCache = {
         ..._translationsCache,
@@ -92,7 +93,7 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
       final searchResponse = await _executeSearch(
         category: _activeCategory,
         filters: _selectedValues,
-        locale: _currentLocale,
+        locale: _currentLocale, // Теперь строго 'be_fr' / 'be_nl'
       );
 
       _cachedFilters =
@@ -111,8 +112,6 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
           results: _cachedResults,
           selectedValues: _selectedValues,
           currentLocale: _currentLocale,
-
-          // ВАЖНО: без этих полей UI показывал 1 / 1 и Total: 0.
           currentPage: _currentPage,
           lastPage: _lastPage,
           totalCount: _totalCount,

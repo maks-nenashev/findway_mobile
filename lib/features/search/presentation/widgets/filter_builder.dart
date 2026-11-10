@@ -18,7 +18,7 @@ class FilterBuilder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      key: ValueKey('list_$currentCategory'), // Принудительный ребилд при смене таба
+      key: ValueKey('list_$currentCategory'),
       children: filters.map((filter) {
         final widgetKey = ValueKey('${currentCategory}_${filter.id}');
 
@@ -43,17 +43,42 @@ class FilterBuilder extends StatelessWidget {
     return DropdownButtonFormField<int>(
       key: key,
       initialValue: valueExists ? (currentValue as int?) : null,
-      decoration: InputDecoration(labelText: filter.label, border: const OutlineInputBorder()),
+      hint: Text(filter.label),
+      decoration: InputDecoration(
+        // Показываем верхнюю подпись ТОЛЬКО если значение выбрано
+        floatingLabelBehavior: valueExists 
+            ? FloatingLabelBehavior.always 
+            : FloatingLabelBehavior.never,
+        label: Transform.translate(
+          offset: const Offset(0, -10),
+          child: Text(filter.label),
+        ),
+        border: const OutlineInputBorder(),
+      ),
       items: items,
       onChanged: (val) => onFilterChanged(filter.id, val),
     );
   }
 
   Widget _buildTextField(FilterModel filter, Key key) {
+    final rawVal = selectedValues[filter.id]?.toString();
+    final bool hasValue = rawVal != null && rawVal.trim().isNotEmpty;
+
     return TextFormField(
       key: key,
-      initialValue: selectedValues[filter.id]?.toString(),
-      decoration: InputDecoration(labelText: filter.label, border: const OutlineInputBorder()),
+      initialValue: rawVal,
+      decoration: InputDecoration(
+        // Показываем верхнюю подпись ТОЛЬКО если текст введен
+        floatingLabelBehavior: hasValue 
+            ? FloatingLabelBehavior.always 
+            : FloatingLabelBehavior.never,
+        hintText: filter.label,
+        label: Transform.translate(
+          offset: const Offset(0, -10),
+          child: Text(filter.label),
+        ),
+        border: const OutlineInputBorder(),
+      ),
       onChanged: (val) => onFilterChanged(filter.id, val),
     );
   }
