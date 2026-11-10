@@ -1,5 +1,3 @@
-// lib/features/search/presentation/pages/post_card_page.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -98,7 +96,7 @@ class PostCardPage extends StatelessWidget {
                   builder: (pageContext) {
                     return CustomScrollView(
                       slivers: [
-                        _buildGallery(post),
+                        _buildGallery(context, post),
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.all(16.0),
@@ -358,13 +356,43 @@ class PostCardPage extends StatelessWidget {
     return 'people';
   }
 
-  Widget _buildGallery(dynamic post) {
+  Widget _buildGallery(BuildContext context, dynamic post) {
     final List<String> images = _getSafeList(post, 'images');
 
     return SliverAppBar(
       expandedHeight: 350.0,
       pinned: true,
       backgroundColor: const Color(0xFF0A0E14),
+      leading: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.75),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: const Color(0xFF00F2FF),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00F2FF).withValues(alpha: 0.45),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            icon: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: Color(0xFF00F2FF),
+              size: 18,
+            ),
+            onPressed: () => Navigator.maybePop(context),
+          ),
+        ),
+      ),
       flexibleSpace: FlexibleSpaceBar(
         background: _PostDetailsGallery(images: images),
       ),
